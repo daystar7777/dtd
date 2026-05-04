@@ -1,6 +1,6 @@
 # DTD v0.1 Test Scenarios
 
-> 41 acceptance scenarios for v0.1 + v0.1.1. Not auto-runnable — these are
+> 46 acceptance scenarios for v0.1 + v0.1.1 + v0.2.0a. Not auto-runnable — these are
 > (a) QA checklist for releases, (b) Codex review criteria, (c) user
 > usage examples. Each scenario has Setup / Steps / Expected / Pass.
 
@@ -611,6 +611,73 @@ On `cancel`: no files modified.
 
 ---
 
+## v0.2.0a — Incident Tracking
+
+### 24. Network failure creates blocking incident
+
+**Setup**: worker registered with unreachable endpoint (closed port). DTD mode on, plan APPROVED.
+**Steps**: `/dtd run`. Dispatch fails with NETWORK_UNREACHABLE.
+**Expected**: 
+1. attempt entry status=`blocked`, error=`NETWORK_UNREACHABLE`, `incident: inc-001-0001`
+2. `.dtd/log/incidents/inc-001-0001.md` created with severity=blocked, recoverable=yes, side_effects=none, recovery_options=[retry, test_worker, switch_worker, manual_paste, stop]
+3. `.dtd/log/incidents/index.md` has new row
+4. state.md: `active_incident_id: inc-001-0001`, `active_blocking_incident_id: inc-001-0001`, `last_incident_id: inc-001-0001`, `incident_count: 1`
+5. Decision capsule filled: `awaiting_user_reason: INCIDENT_BLOCKED`
+6. `/dtd run` is refused while pending
+**Pass**: all 6 conditions hold; doctor reports incident state OK.
+
+### 25. Incident resolved via /dtd incident resolve
+
+**Setup**: scenario 24 state. User fixes the unreachable endpoint (e.g. brings up local server).
+**Steps**: `/dtd incident resolve inc-001-0001 retry`.
+**Expected**:
+1. `.dtd/log/incidents/inc-001-0001.md` updated: `status: resolved`, `resolved_at: <ts>`, `resolved_option: retry`
+2. state.md: `active_blocking_incident_id` cleared (NOT decremented — id pointer cleared)
+3. state.md: `active_incident_id` also cleared (was the same id, no other unresolved warns)
+4. Decision capsule cleared
+5. Controller re-dispatches the same task (per `decision_resume_action` for retry option)
+6. New attempt created (att-2), no incident on second dispatch (succeeds)
+**Pass**: all 6 conditions hold; second attempt succeeds and run continues.
+
+### 26. Multi-blocker policy: second blocker waits in queue
+
+**Setup**: scenario 24 state (one active blocker). Force a second blocking failure (e.g., simulate disk-full during apply on a different task).
+**Steps**: `/dtd run` — would dispatch task 2.2 (different task, different incident path), simulate DISK_FULL.
+**Expected**: Multi-blocker invariant — only ONE active_blocking_incident_id at a time:
+1. Second incident created with status=open, severity=blocked, but `active_blocking_incident_id` is NOT updated (first incident still active)
+2. `last_incident_id` updates to second incident's id
+3. `incident_count: 2`
+4. `recent_incident_summary` includes both
+5. Decision capsule still references first incident
+6. After user resolves first via `/dtd incident resolve`, controller promotes second blocker (oldest unresolved blocking incident) — `active_blocking_incident_id` set to second's id, decision capsule refilled with its options
+**Pass**: invariant maintained; promotion happens on first resolution.
+
+### 27. Info-severity incident does NOT set active_incident_id
+
+**Setup**: any state. Force an info-severity event (e.g., a 1st-hit RATE_LIMIT that's about to retry — recoverable, just notable).
+**Steps**: dispatch encounters 429, retries (recoverable, not blocking). Controller logs an info incident.
+**Expected**:
+1. `.dtd/log/incidents/inc-001-0003.md` created with severity=info
+2. state.md: `last_incident_id: inc-001-0003`, `incident_count: 3` (cumulative)
+3. state.md: `active_incident_id` REMAINS null (info doesn't set it — P1-3 fix from v0.2 design R1)
+4. state.md: `active_blocking_incident_id` REMAINS null
+5. Decision capsule UNCHANGED (no awaiting_user_decision)
+6. `/dtd run` continues; retry succeeds
+7. Compact `/dtd status` does NOT show this incident (info hidden); `--full` does show in `recent_incident_summary`
+**Pass**: severity → state mapping correct; non-blocking incidents don't gate run.
+
+### 28. Doctor verifies incident cross-link integrity
+
+**Setup**: scenario 26 state. Manually corrupt `.dtd/attempts/run-001.md` — remove the `incident:` cross-link from a failed attempt.
+**Steps**: `/dtd doctor`.
+**Expected**:
+1. WARN `attempt_incident_link_missing` with attempt id and incident id pointer
+2. Other incident-state checks PASS (state fields valid, no multi-blocker violation, no secret leak)
+3. Doctor does NOT auto-fix; recommends manual restoration or treating as superseded
+**Pass**: incident state checks per dtd.md doctor §Incident state are exercised; corruption surfaced as WARN; clean state passes silently.
+
+---
+
 ## Coverage map
 
 | Test # | P1 / P2 spec rule covered |
@@ -643,6 +710,11 @@ On `cancel`: no files modified.
 | 22o.2 | PARTIAL_APPLY during rename phase (some final files written, no auto-resume) (R3 split) |
 | 22p | Worker-add wizard end-to-end with chat-safe secret flow (R3) |
 | 23 | dashboard width/fallback (P2-10) |
+| 24 | v0.2.0a: blocking incident creation on network failure |
+| 25 | v0.2.0a: incident resolve via decision capsule + retry |
+| 26 | v0.2.0a: multi-blocker invariant — second blocker waits, oldest-promoted on resolve |
+| 27 | v0.2.0a: info-severity does NOT set active_incident_id (P1-3 fix from R1) |
+| 28 | v0.2.0a: doctor cross-link integrity check |
 
 Controller no-self-grade gate (P1-2): exercised wherever step 4 of escalation ladder is reached (Scenario 17 covers this; specific REVIEW_REQUIRED gate is observed in phase-history.md gate column).
 

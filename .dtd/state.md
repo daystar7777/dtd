@@ -66,6 +66,25 @@
 - current_fallback_policy: null   # null | "auto" | "ask-before-switch" | "user-confirmed"
 # Cleared by finalize_run.
 
+## Incidents (v0.2.0a)
+
+# Every operational failure that needs durable tracking creates an incident.
+# Incident detail files live at .dtd/log/incidents/inc-<run>-<seq>.md (gitignored).
+# The index file is .dtd/log/incidents/index.md.
+
+- active_incident_id: null               # warn-or-higher unresolved incident (info incidents do NOT set this)
+- active_blocking_incident_id: null      # only severity=blocked|fatal — fills decision capsule with INCIDENT_BLOCKED
+                                          # at most ONE active blocking incident at a time;
+                                          # second blocking incident waits in queue until first resolves
+- last_incident_id: null                 # most recent of any severity (info / warn / blocked / fatal)
+- incident_count: 0                      # cumulative across this project's lifetime
+- recent_incident_summary: []            # last 3 unresolved info|warn — shown in /dtd status --full
+                                          # Each entry: {id, severity, reason, created_at}
+
+# Cleared by finalize_run on COMPLETED.
+# active_blocking_incident_id is cleared when /dtd incident resolve <id> <option> chosen,
+# OR when finalize_run(STOPPED|FAILED) terminates the run.
+
 # User decision capsule (structured replacement for ad-hoc awaiting):
 - awaiting_user_decision: false   # true blocks dispatch; status displays the capsule below
 - awaiting_user_reason: null      # canonical enum:

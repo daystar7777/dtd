@@ -77,6 +77,15 @@ Health check. Output uses the same Unicode/ASCII style as `/dtd status`. Reports
 - `pending_patch: true` consistency with `<patches>` section in plan-NNN.md
 - No orphan WORK_START in AIMemory without matching state in `.dtd/state.md`
 
+**Incident state** (v0.2.0a):
+- If `active_incident_id` is non-null, corresponding `.dtd/log/incidents/inc-*.md` file MUST exist; ELSE ERROR `incident_file_missing`
+- `active_blocking_incident_id` (if non-null) MUST equal an open blocking-severity incident; ELSE ERROR `blocking_incident_invalid`
+- At most ONE `active_blocking_incident_id` at a time (multi-blocker invariant); ELSE ERROR `multi_blocker_invariant_violated`
+- All failed/blocked attempts in `.dtd/attempts/run-NNN.md` MUST cross-link to a valid incident id; ELSE WARN `attempt_incident_link_missing`
+- All open incidents MUST have valid `recoverable` (`yes|user|no`) and `side_effects` (`none|request_saved|response_saved|partial_apply|unknown`); ELSE ERROR `incident_field_invalid`
+- Incident detail files in `.dtd/log/incidents/` should not contain secret patterns (regex scan); ELSE ERROR `incident_secret_leak`
+- Total open-incident count > 100 → INFO suggesting `/dtd incident list --all` review or v0.3 prune command (deferred)
+
 **Path policy**:
 - Scan plan files for `..` paths: WARN, recommend absolute form
 - BLOCK pattern hits in plans: ERROR with line ref
@@ -439,6 +448,55 @@ Append a steering directive. Sequence:
 8. On `reject`: discard patch, `pending_patch: false`, `patch_status: rejected`. Steering entry preserved in `steering.md` for context. Resume per `plan_status`.
 
 Patch application **only between tasks or after in-flight task completes**. Never mutate a worker call mid-flight.
+
+### `/dtd incident list [--all|--blocking|--recent]` (v0.2.0a)
+
+Show incidents. Default = last 10 unresolved. Output is compact ASCII table per `dashboard_style`:
+
+```
++ DTD incidents (run 001)
+| ID                  | severity | reason            | task | resolved |
+| inc-001-0001        | blocked  | NETWORK_UNREACHABLE | 2.1  | no       |
+| inc-001-0002        | warn     | MALFORMED_RESPONSE | 2.2  | no       |
+| inc-001-0003        | info     | RATE_LIMIT (1st)   | 3.1  | no       |
++ next: /dtd incident show <id>
+```
+
+Flags:
+
+- `--all` — include resolved incidents too
+- `--blocking` — only severity=blocked|fatal
+- `--recent` — last 24h regardless of resolution
+
+Classified as `observational_read` per `instructions.md` §Status read isolation — does NOT mutate notepad/steering/attempts/phase-history.
+
+### `/dtd incident show <id>` (v0.2.0a)
+
+Renders the full incident detail file. Shows reason / phase / worker / task / recoverability / side effects / cross-linked attempt / recovery options / sanitized error summary / timeline.
+
+Also `observational_read` — no state mutation.
+
+### `/dtd incident resolve <id> <option>` (v0.2.0a)
+
+Resolve an open incident with a chosen recovery option.
+
+```
+/dtd incident resolve inc-001-0001 retry
+/dtd incident resolve inc-001-0001 switch_worker
+/dtd incident resolve inc-001-0001 stop
+```
+
+Option must be one from the incident's `recovery_options` (matches the decision capsule's `decision_options` for blocking incidents).
+
+Effect: per Incident Tracking §Resolve logic — clears state fields, promotes next blocker if queued, triggers chosen option's `effect`.
+
+NL routing in `instructions.md`:
+
+| User phrase | Canonical |
+|---|---|
+| "그 에러 다시 보여줘", "지금 막힌 거 뭐야", "incident 보여줘" | `incident list` or `incident show <active>` |
+| "incident 4 처리해", "재시도로 가자", "그 에러 retry" | `incident resolve <id> <option>` |
+| "어디서 막혔어?" | `incident show <active_blocking_incident_id>` |
 
 ### `/dtd status [--compact|--full|--plan|--history|--eval]`
 
@@ -1186,6 +1244,94 @@ This file becomes the basis for `/dtd status` "recent attempts" widget and `phas
 
 ---
 
+## Incident Tracking (v0.2.0a)
+
+Every operational failure that needs **durable tracking** creates an incident. Incidents convert ad-hoc "blocked attempt" failures into queryable, resolvable records that survive across sessions.
+
+### Files
+
+- `.dtd/log/incidents/index.md` — append-only registry (one row per incident)
+- `.dtd/log/incidents/inc-<run>-<seq>.md` — per-incident detail (created on first incident)
+- `.dtd/log/incidents/` directory (gitignored under `.dtd/.gitignore` `log/`)
+
+### Incident schema
+
+```
+inc-<run>-<seq>            # e.g. inc-001-0001
+status: open | resolved | superseded | ignored | fatal
+severity: info | warn | blocked | fatal
+phase: pre_dispatch | dispatch | receive | parse | validate | apply | finalize
+reason: <enum from awaiting_user_reason — see state.md>
+recoverable: yes | user | no
+side_effects: none | request_saved | response_saved | partial_apply | unknown
+links:
+  attempt: attempt-<run>-task-<id>-att-<n>
+  worker: <worker_id>
+  task: <task_id>
+  phase_id: <phase_id>
+created_at: <ts>
+resolved_at: null
+resolved_option: null
+```
+
+### Severity → state mapping (P1-3 fix from v0.2 design R1 review)
+
+- `info` — observational. Touches `last_incident_id`, `incident_count`, `recent_incident_summary`. Does NOT touch `active_incident_id`. Does NOT fill decision capsule.
+- `warn` — non-blocking notice. Same as info plus sets `active_incident_id`. Still does NOT touch `active_blocking_incident_id`. Still no decision capsule.
+- `blocked` — needs user input. Sets `active_incident_id` AND `active_blocking_incident_id`. Fills decision capsule with `awaiting_user_reason: INCIDENT_BLOCKED`. `/dtd run` refused while pending.
+- `fatal` — unrecoverable. Same as blocked, plus run terminates with `finalize_run(FAILED)` after user acknowledges.
+
+### Multi-blocker policy
+
+At most **ONE** `active_blocking_incident_id` at any time. If a second blocking incident occurs while one is active:
+
+- Second incident is logged with status `open` and severity preserved.
+- `last_incident_id` and `incident_count` updated.
+- `active_blocking_incident_id` is NOT changed (first incident keeps the slot).
+- `recent_incident_summary` includes the second.
+- When user resolves the first, the second can be promoted: controller picks the **oldest** unresolved blocking incident as the next `active_blocking_incident_id`. Doctor verifies invariant.
+
+### When to create an incident
+
+Per the v0.1.1 error matrix in §Worker Dispatch / §Resource Locks / §Apply step. The blocking conditions (AUTH_FAILED, NETWORK_UNREACHABLE, RATE_LIMIT_BLOCKED, etc., DISK_FULL, FS_PERMISSION_DENIED, FILE_LOCKED, PATH_GONE, PARTIAL_APPLY, UNKNOWN_APPLY_FAILURE, WORKER_INACTIVE) all create blocking-severity incidents.
+
+Recoverable conditions (1st-hit retries) do NOT create incidents — they resolve via the failure counter / tier ladder. If the same condition recurs and becomes blocking, that's when the incident is filed.
+
+### Cross-link integrity
+
+Every failed/blocked attempt entry in `.dtd/attempts/run-NNN.md` MUST include:
+
+```yaml
+- status: failed | blocked
+- error: <reason enum>
+- incident: inc-<run>-<seq>
+- side_effects: <enum>
+```
+
+Incident detail file MUST link back to attempt id. `/dtd attempt show` and `/dtd incident show` converge on the same facts. Doctor verifies bidirectional links.
+
+### Resolve logic (P2-2 fix from v0.2 design R1 review)
+
+`/dtd incident resolve <id> <option>`:
+
+1. Update incident detail file: `status: resolved`, `resolved_at: <ts>`, `resolved_option: <option>`.
+2. Append a row to `.dtd/log/incidents/index.md` updating the resolved row.
+3. If incident's `id` equals `active_blocking_incident_id`: **clear** the field (not "decrement" — id pointer, not counter), then promote the next unresolved blocking incident (oldest first) if any exists in queue.
+4. If incident's `id` equals `active_incident_id` (warn-level): clear the field, then set to next-most-recent unresolved warn incident if any (else null).
+5. Decision capsule: if `active_blocking_incident_id` is now null, clear `awaiting_user_decision`, `awaiting_user_reason`, `decision_*` fields. If queue had a next blocker promoted, refill capsule with that incident's recovery options.
+6. Trigger the chosen option's `effect` (e.g., `retry`, `switch_worker`, `stop`) per the original capsule's `decision_resume_action`.
+
+### finalize_run integration
+
+`finalize_run(terminal_status)` (already in v0.1.1, called at COMPLETED/STOPPED/FAILED) gets one new step:
+
+7a. (Between step 5 and 6 of v0.1.1 finalize_run.) **Clear incident state**:
+- Mark all `open` incidents for this run as `superseded` with `resolved_at: <ts>`, `resolved_option: terminal_run` (unless terminal_status is FAILED — then mark `fatal`).
+- Clear `active_incident_id`, `active_blocking_incident_id`, `recent_incident_summary`.
+- Keep `last_incident_id` for cross-run reference.
+
+---
+
 ## Token Economy
 
 Controller MUST follow:
@@ -1235,6 +1381,14 @@ Unicode polish is optional and may be enabled in `config.md` if the terminal sup
 | -> 4.1 코드 리뷰          [gpt-codex]        docs/review-001.md
 + pause anytime: /dtd pause  or  "잠깐 멈춰"
 ```
+
+When an active blocking incident exists (v0.2.0a), the dashboard adds **one** compact line after `current/worker/work/writing/locks` and before `recent`:
+
+```
+| incident   inc-001-0001 blocked NETWORK_UNREACHABLE  next:/dtd incident resolve inc-001-0001 retry
+```
+
+`--full` adds non-blocking warn incidents (last 3) under a separate `+ recent incidents` panel. `info` incidents are NOT shown in compact dashboard (only in `--full`'s history view).
 
 Glyph reference (ASCII canonical):
 
