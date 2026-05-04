@@ -144,17 +144,34 @@ Worker registry management. Backed by `.dtd/workers.md`.
   1. **Alias hint**: if user said "qwen 워커 추가해줘", controller pre-fills `worker_id: qwen-local` and `aliases: qwen`. User can override.
   2. **Endpoint** — controller suggests common cases based on alias hint (e.g., qwen → `http://localhost:1234/v1/chat/completions` (LMStudio default)). Asks once.
   3. **Model** — suggests common ids per provider hint (e.g., DeepSeek → `deepseek-v4-pro`).
-  4. **api_key_env** — env var **name** only. Suggests `<ID_UPPER>_API_KEY` (e.g., `QWEN_API_KEY`).
-  5. **API key value** — separate field. Controller explicitly says "this writes to `.dtd/.env` and is never echoed back". After receiving, redact in any subsequent summary as `<REDACTED>`. Never write to `workers.md`. If `.env` doesn't exist, create from `.env.example`.
+  4. **api_key_env** — env var **name** only. Suggests `<ID_UPPER>_API_KEY` (e.g., `QWEN_API_KEY`). This is the only secret-related field collected through chat.
+  5. **API key value** — by default, NOT collected through chat (a chat host conversation is not a secure secret-input channel; the value would persist in the controller's transcript). Instead, the wizard tells the user:
+
+     ```
+     Set the key value yourself:
+
+     POSIX (bash/zsh):  echo 'QWEN_API_KEY=<your-key-here>' >> .dtd/.env
+     Windows (PowerShell): Add-Content -Path .dtd/.env -Value 'QWEN_API_KEY=<your-key-here>'
+
+     Or if you already have QWEN_API_KEY set in your shell environment, leave .dtd/.env empty for that key — DTD will use the shell value.
+
+     When done, run /dtd workers test <id> to verify.
+     ```
+
+     The wizard then proceeds to step 6 without ever seeing the secret. Confirmation of "key is set" is non-secret metadata only (e.g., "I've set it" / "skip"). NEVER echo length, prefix, suffix, fingerprint, or any other secret-derived info — those are still secret material in the chat.
+
+     Only if the host explicitly provides a secure-input channel (a tool UI prompt that bypasses the LLM conversation), wizard MAY accept the key value through that channel and write it directly to `.dtd/.env`. v0.1.1 hosts (chat-only) follow the user-sets-it path above.
   6. **max_context** — suggests provider default (32000 / 64000 / 128000 / 200000 depending on model hint).
   7. **capabilities** — suggests based on phrasing (qwen/deepseek-coder → `code-write, code-refactor`).
   8. **permission_profile** — defaults to `code-write`. Asks user to confirm or pick `explore | review | planning | code-write`.
   9. **Test now?** — offers to run `/dtd workers test <id>` immediately. If test fails (network/auth), creates a `WORKER_INACTIVE` or `AUTH_FAILED` decision capsule for the worker config (not for an active task).
 
   **Secret handling rules**:
-  - API key value never appears in `workers.md`, log files, AIMemory, status output, or any chat summary.
-  - Asks user to confirm secret was entered correctly (redacted echo: `entered key starting sk-...3abc, ending ...xyz9 — correct? y/n`).
-  - On `n`, re-asks (does not log the wrong value).
+  - API key value (raw) NEVER enters chat conversation. v0.1.1 wizard does NOT prompt for it.
+  - User sets `.dtd/.env` themselves (POSIX/PowerShell snippet provided in step 5).
+  - NEVER echo any secret-derived info — no length, no prefix/suffix, no fingerprint, nothing the user provided as secret.
+  - `workers.md` only ever holds `api_key_env: <NAME>`. `.dtd/.env` is the canonical secret file path (NOT plain `.env`).
+  - If the host provides a secure-input channel out-of-band of the chat conversation, wizard MAY use that path to write `.dtd/.env` directly. v0.1.1 chat hosts follow the user-sets-it path.
 
   **Apply step**: before writing, shows redacted summary:
   ```
@@ -281,10 +298,18 @@ When boundary reached:
 1. In-flight task (if any) finishes (same as `/dtd pause`).
 2. Set `plan_status: PAUSED`.
 3. Append `phase-history.md` row with `gate: user-checkpoint` and `note: <run_until value>`.
-4. Clear `run_until` field.
-5. `/dtd status` displays "Paused at requested boundary: <value>; next: /dtd run".
+4. **Copy boundary to durable display fields** before clearing:
+   - `last_pause_reason: run_until_boundary`
+   - `last_pause_boundary: <run_until value>` (e.g., "phase:3")
+   - `last_pause_at: <timestamp>`
+5. Clear `run_until` and `run_until_reason` (active-run fields).
+6. `/dtd status` reads `last_pause_*` to display: "Paused at requested boundary: phase:3 (set by user --until); next: /dtd run".
 
-Resume is just `/dtd run` again (no `--until` = run to natural completion). Apply a new `--until` if you want another bounded segment.
+Resume is just `/dtd run` again (no `--until` = run to natural completion). On resume:
+- Clear `last_pause_*` fields.
+- Apply a new `--until` if you want another bounded segment.
+
+Why split active vs durable: status display must stay reliable across resume sessions and after the active flag clears. `run_until` is the runtime control; `last_pause_*` is the audit/display.
 
 **Do not confuse `--until` with `pause_requested`**: `--until` is a planned boundary set at run-time; `pause_requested` is an interrupt. Both lead to PAUSED but the audit trail is different.
 
@@ -335,7 +360,11 @@ Run loop (per task):
         4. NOT match `path-policy.block_patterns`
       - If any path fails any check: do NOT apply ANYTHING from this response. Mark attempt `blocked` with reason `output_path_out_of_scope`. Append to `.dtd/attempts/run-NNN.md`. Trigger escalation per ladder.
       - All paths pass → proceed to step g.
-   g. Apply file changes (mode `assisted` may confirm; mode `full` auto-applies). **Use temp-file + atomic rename** for safety: write to `<path>.dtd-tmp.<pid>` then `mv` to final path. If multiple files, write all temps first, then rename all (best-effort transaction; on partial failure, see below).
+   g. Apply file changes (mode `assisted` may confirm; mode `full` auto-applies). **Use temp-file + atomic rename** for safety, in two phases:
+
+      **Phase 1 — write all temp files**: for each output file, write `<path>.dtd-tmp.<pid>` (contents from worker response). If ANY temp write fails (e.g., `DISK_FULL` during write of file 2 of 3): abort phase 1 immediately, **delete any temp files already written in this attempt** (no rename has happened yet so no final file is changed), fill `DISK_FULL` (or appropriate write-failure reason) capsule. **No final files modified — clean abort.**
+
+      **Phase 2 — rename all temps to final**: after all temps written successfully, rename them to final paths. If a rename fails partway (rare — e.g., file 2 locked by AV, file 3 path disappeared): some final files were renamed (applied), others still as `.dtd-tmp.*`. This is `PARTIAL_APPLY`. Fill capsule with explicit applied/pending lists. **Automatic resume forbidden** — user picks inspect / revert_partial / accept_partial / stop.
 
       **Local apply failure paths** (each is blocking — fill decision capsule, do NOT silently fail):
 
@@ -886,7 +915,7 @@ Two-layer model:
 |---|---|---|
 | 200 OK | n/a | Parse response, proceed to validation step (run loop step 6.f) |
 | **401 unauthorized** | **Blocking** | Abort dispatch immediately. Fill decision capsule with `awaiting_user_reason: AUTH_FAILED`, options `[fix_env_retry, switch_worker, stop]`, default `fix_env_retry`. **Never log the key value or attempted value.** Mark attempt `blocked`, reason `auth_failed`. |
-| 403 forbidden | Blocking | Same as 401 — fill capsule with reason `AUTH_FAILED` (or new `FORBIDDEN`), options `[edit_worker, switch_worker, stop]`, default `edit_worker`. |
+| 403 forbidden | Blocking | Same as 401 — fill capsule with reason `AUTH_FAILED`, options `[edit_worker, switch_worker, stop]`, default `edit_worker`. (No separate FORBIDDEN reason; both 401 and 403 collapse to `AUTH_FAILED` since both are auth/permission failures resolved by editing worker config.) |
 | 404 not found | Blocking | Endpoint or model id wrong. Fill capsule reason `ENDPOINT_NOT_FOUND`, options `[edit_worker, test_worker, switch_worker, stop]`, default `edit_worker`. |
 | 429 rate limit | Recoverable on 1st hit, Blocking on 2nd | 1st: wait `Retry-After` header (or 30s default), retry ONCE. 2nd consecutive: fill capsule reason `RATE_LIMIT_BLOCKED`, options `[wait_retry, retry_later, switch_worker, stop]`, default `wait_retry`. |
 | 5xx server error | Recoverable on 1st, Blocking on 2nd | 1st: wait 5s, retry ONCE. 2nd: capsule reason `WORKER_5XX_BLOCKED`, options `[retry, switch_worker, stop]`, default `switch_worker`. |
@@ -916,7 +945,10 @@ user_decision_options: [<id list>]   # legacy back-compat
 When `last_heartbeat_at` is older than `stale_threshold_min` (default 5) AND the attempt is still `running`, OR when `worker.timeout_sec` is reached but worker is responding intermittently:
 
 ```yaml
+awaiting_user_decision: true
 awaiting_user_reason: WORKER_INACTIVE
+decision_id: dec-NNN
+decision_prompt: "Worker <worker_id> on task <task_id> inactive for <elapsed>s (timeout=<sec>s, last heartbeat <X>s ago). How to proceed?"
 decision_options:
   - {id: wait_once,           label: "wait <N>s longer",           effect: "extend timeout, keep same worker",                  risk: "may waste more time"}
   - {id: retry_same,          label: "cancel and retry",            effect: "abort current attempt, dispatch same worker fresh", risk: "may fail same way"}
@@ -924,6 +956,8 @@ decision_options:
   - {id: controller_takeover, label: "controller does it",          effect: "controller intervenes (REVIEW_REQUIRED gate)",       risk: "no worker grade"}
   - {id: stop,                label: "stop the run",                effect: "finalize_run(STOPPED)",                              risk: "lose run progress beyond saved files"}
 decision_default: switch_worker
+decision_resume_action: "controller acts on chosen option's effect; if switch_worker, advances current_fallback_index"
+user_decision_options: [wait_once, retry_same, switch_worker, controller_takeover, stop]   # legacy back-compat
 ```
 
 When `switch_worker` is chosen, the late return from the now-superseded attempt is marked `superseded` per attempt timeline rules; output is NOT applied.

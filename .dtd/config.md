@@ -57,6 +57,17 @@
 - heartbeat_interval_sec: 30
 - stale_threshold_min: 5
 
+## fallback-policy
+
+# Per-task fallback chain rules (see dtd.md §Fallback chain).
+# Auto-fallback is allowed only when ALL conditions hold; otherwise capsule.
+
+- auto_fallback: same-profile-only       # never | same-profile-only | ask-before-switch
+- max_same_worker_retries: 1             # in-place retries before tier-escalating
+- max_auto_worker_switches: 1            # auto-fallbacks allowed before user prompt
+- paid_fallback_requires_confirm: true   # capsule when transitioning free → paid tier
+- worker_inactive_wait_default_sec: 60   # default for WORKER_INACTIVE wait_once option
+
 ## dashboard
 
 - dashboard_style: ascii      # ascii (default, canonical for v0.1) | unicode (optional polish, falls back to ascii if terminal cannot render)

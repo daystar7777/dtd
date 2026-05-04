@@ -50,8 +50,21 @@
 ## Pause / stop intent
 
 - pause_requested: false          # /dtd pause sets this; controller checks between tasks
-- run_until: null                 # null | phase:<id> | task:<id> | before:<id> | next-decision (set by /dtd run --until)
+- run_until: null                 # null | phase:<id> | task:<id> | before:<id> | next-decision (set by /dtd run --until; cleared when boundary hit)
 - run_until_reason: null          # user-checkpoint | user-test | user-decision | manual-check | explicit-limit
+
+# Durable pause-boundary display fields (kept after run_until clears so /dtd status can render them):
+- last_pause_reason: null         # null | user_pause | run_until_boundary | decision_capsule | error_blocked
+- last_pause_boundary: null       # e.g. "phase:3" if last_pause_reason=run_until_boundary
+- last_pause_at: null             # timestamp
+# Cleared by /dtd run when resuming.
+
+## Fallback chain (per-task, computed before dispatch)
+
+- current_fallback_chain: []      # ordered list: [<worker_id>, <worker_id>, ..., "controller", "user"]
+- current_fallback_index: null    # int (0-based) — which step of chain is active
+- current_fallback_policy: null   # null | "auto" | "ask-before-switch" | "user-confirmed"
+# Cleared by finalize_run.
 
 # User decision capsule (structured replacement for ad-hoc awaiting):
 - awaiting_user_decision: false   # true blocks dispatch; status displays the capsule below

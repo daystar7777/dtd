@@ -1,6 +1,6 @@
 # DTD v0.1 Test Scenarios
 
-> 40 acceptance scenarios for v0.1 + v0.1.1. Not auto-runnable — these are
+> 41 acceptance scenarios for v0.1 + v0.1.1. Not auto-runnable — these are
 > (a) QA checklist for releases, (b) Codex review criteria, (c) user
 > usage examples. Each scenario has Setup / Steps / Expected / Pass.
 
@@ -543,16 +543,30 @@ Format:
 - `/dtd status` after pause: "Paused at requested boundary: phase:3"
 - `/dtd run` (no flag) resumes phase 4 normally
 
-### 22o. PARTIAL_APPLY recovery contract
+### 22o.1. DISK_FULL during temp-write (clean abort, no final files changed)
 
-**Setup**: worker output has 3 files. After validation passes, simulate disk full when writing 2nd file.
-**Steps**: `/dtd run`. Write 1st file OK, 2nd fails (DISK_FULL).
-**Expected**: NO third file attempted. Capsule reason `PARTIAL_APPLY` (or `DISK_FULL` if before any write succeeded), options `[inspect, revert_partial, accept_partial, stop]`, default `inspect`. Status lists exactly which files made it. Lease NOT released.
+**Setup**: worker output has 3 files. After validation, simulate `ENOSPC` when writing 2nd temp file (`<path>.dtd-tmp.<pid>`).
+**Steps**: `/dtd run`. Phase 1 (temp-write): file-1 temp OK, file-2 temp fails.
+**Expected**: abort phase 1 immediately. **Delete already-written temp files** (no rename has happened). Fill `DISK_FULL` capsule with options `[free_space_retry, skip_file, stop]`, default `free_space_retry`. NO final files changed.
 **Pass**:
-- file 1 (atomic-renamed) is on disk; file 2 still as `.dtd-tmp.*`; file 3 not attempted
-- capsule shows applied/pending/blocked lists
-- on `revert_partial`: file 1 deleted; lease released; attempt blocked
-- on `accept_partial`: tmp files for file 2/3 deleted; task marked partial-grade
+- no `<file>.dtd-tmp.*` files leftover after abort
+- final `src/api/users.ts` (or whatever was target) NOT modified
+- capsule reason `DISK_FULL`, options as specified
+- lease still held (NOT released — ambiguous state needs resolution)
+- on `free_space_retry`: user frees space → re-dispatch attempt fresh
+
+### 22o.2. PARTIAL_APPLY during rename phase (some final files written)
+
+**Setup**: worker output has 3 files. All 3 temps written OK. During phase 2 (rename), simulate file-2 rename failing (e.g., file-2 path locked by another process), file-1 rename already succeeded.
+**Steps**: `/dtd run`. Phase 1 OK, phase 2: rename-1 OK, rename-2 fails.
+**Expected**: file-1 final on disk (atomic-renamed). file-2 still as `.dtd-tmp.*`. file-3 rename NOT attempted (controller stops phase 2 on first failure to keep state determinable). Capsule reason `PARTIAL_APPLY` with options `[inspect, revert_partial, accept_partial, stop]`, default `inspect`. **Automatic resume forbidden**. Lease held.
+**Pass**:
+- exactly 1 file final-renamed (`src/api/users.ts`)
+- exactly 2 files still as `.dtd-tmp.*`
+- capsule shows applied=[1 file] / pending=[2 files] explicitly
+- on `inspect`: shows diff of each file group
+- on `revert_partial`: deletes the 1 applied final + cleans up 2 temp files; lease released; attempt blocked
+- on `accept_partial`: deletes 2 temp files; task marked grade<NORMAL or partial
 
 ### 22p. Worker-add wizard end-to-end
 
