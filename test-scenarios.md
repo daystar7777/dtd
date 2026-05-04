@@ -1,6 +1,6 @@
 # DTD v0.1 Test Scenarios
 
-> 47 acceptance scenarios for v0.1 + v0.1.1 + v0.2.0a. Not auto-runnable — these are
+> 48 acceptance scenarios for v0.1 + v0.1.1 + v0.2.0a. Not auto-runnable — these are
 > (a) QA checklist for releases, (b) Codex review criteria, (c) user
 > usage examples. Each scenario has Setup / Steps / Expected / Pass.
 
@@ -652,25 +652,31 @@ intentionally refused (single-dispatch invariant). The second blocker is created
 **Steps**:
 1. Create `.dtd/log/incidents/inc-001-0002.md` directly (test fixture) with
    `severity=blocked`, `status=open`, `reason=DISK_FULL`, distinct `created_at` newer than `inc-001-0001`.
-2. Append a row to `.dtd/log/incidents/index.md` for `inc-001-0002`.
+2. Append a row to `.dtd/log/incidents/index.md` for `inc-001-0002` (this is the queue
+   — the index file is the single source of truth for blocker queue ordering).
 3. Update state.md: `last_incident_id: inc-001-0002`, `incident_count: 2`. (Do NOT touch
-   `active_blocking_incident_id` — invariant: second blocker waits.)
-4. Append `inc-001-0002` to `recent_incident_summary`.
+   `active_blocking_incident_id` — invariant: second blocker waits. Do NOT touch
+   `recent_incident_summary` — that field is INFO/WARN only per Severity → state mapping.)
 
 **Expected**: Multi-blocker invariant — only ONE active_blocking_incident_id at a time:
 1. `active_blocking_incident_id` REMAINS `inc-001-0001` (first incident keeps the slot)
 2. `last_incident_id: inc-001-0002`
 3. `incident_count: 2`
-4. `recent_incident_summary` includes both
+4. `recent_incident_summary` REMAINS unchanged (does NOT contain blocking incidents —
+   queue lives in `index.md`; this field is reserved for info/warn per R2 P2 split)
 5. Decision capsule still references first incident (`inc-001-0001`)
-6. `/dtd doctor` PASSes the multi-blocker invariant check (≤ 1 active blocker; queue depth = 1)
-7. `/dtd incident list --blocking` shows BOTH `inc-001-0001` (active) and `inc-001-0002` (queued)
-8. After `/dtd incident resolve inc-001-0001 retry`: controller promotes `inc-001-0002`
-   (oldest unresolved blocker among the remaining queue) — `active_blocking_incident_id: inc-001-0002`,
-   decision capsule refilled with `inc-001-0002`'s recovery options
+6. `/dtd doctor` PASSes the multi-blocker invariant check (≤ 1 active blocker; queue depth = 1
+   computed from `index.md` scan, NOT from state.md fields)
+7. `/dtd incident list --blocking` shows BOTH `inc-001-0001` (active) and `inc-001-0002`
+   (queued) by reading `index.md`
+8. After `/dtd incident resolve inc-001-0001 retry`: controller scans `index.md` for the
+   oldest unresolved blocker belonging to this run — that is `inc-001-0002` —
+   `active_blocking_incident_id` set to `inc-001-0002`, decision capsule refilled with
+   `inc-001-0002`'s recovery options
 9. `/dtd run` remains refused (now blocked on the promoted second incident)
 **Pass**: all 9 conditions hold; invariant maintained; promotion happens exactly once on
-first resolution; doctor exercises the queue check.
+first resolution via `index.md` scan; `recent_incident_summary` never contains blockers;
+doctor exercises the queue check against `index.md`.
 
 **Note**: the legal non-test paths (late worker return, controller-side internal failure,
 future parallel dispatch) are designed-in but not user-reachable in v0.2.0a routine flow.
@@ -750,6 +756,43 @@ User decides not to resolve and instead invokes `/dtd stop`.
 **Pass**: terminal exit fully cleans active incident state; superseded vs fatal
 distinction matches terminal_status; doctor confirms clean post-terminal state.
 
+### 30. Destructive incident option requires explicit confirmation (R2 P1 fix)
+
+**Setup**: scenario 24 state (active blocker `inc-001-0001`, decision capsule
+INCIDENT_BLOCKED). Recovery options include `retry`, `switch_worker`, `stop`.
+
+**Steps**: user types NL phrase `"그 에러 멈춰"` (or equivalent: `"incident
+inc-001-0001 stop"`, `"그만"`, `"중지"`).
+
+**Expected** (per `dtd.md` §`/dtd incident resolve` Destructive option
+confirmation, and `.dtd/instructions.md` "Don't auto-execute destructive
+incident recovery options"):
+
+1. Controller classifies intent as `incident resolve inc-001-0001 stop` with
+   confidence ≥ 0.9 (NL is unambiguous).
+2. Controller does NOT execute `finalize_run(STOPPED)`. Instead it prints a
+   one-line confirm in Korean (or user's language), e.g.:
+   ```
+   "incident inc-001-0001을 stop 으로 처리하면 plan-001은 STOPPED로 마감되고
+    재개 안 됩니다. 진행? (y/n)"
+   ```
+3. state.md unchanged at this point: `awaiting_user_decision: true`,
+   `active_blocking_incident_id: inc-001-0001` still set; no `plan_ended_at`.
+4. On `n` / `취소` / `아니` → controller cancels; state unchanged; user can
+   choose another option.
+5. On `y` / `네` / `OK` → controller now executes the destructive option:
+   `finalize_run(STOPPED)` per scenario 29 expectations.
+
+**Non-destructive control** (verify normal options still flow without extra
+confirm): user types `"재시도"` / `"그 에러 retry"` → controller executes
+`incident resolve inc-001-0001 retry` immediately at confidence ≥ 0.9 (no
+confirm needed; `retry` is not in the destructive option set).
+
+**Pass**: destructive option set (`stop`/`purge`/`delete`/`force_overwrite`/
+`revert_partial`/`terminal_finalize`) always confirms regardless of confidence;
+non-destructive options (`retry`/`switch_worker`/`wait_once`/`manual_paste`)
+follow normal confidence rules; no silent run termination via NL.
+
 ---
 
 ## Coverage map
@@ -790,6 +833,7 @@ distinction matches terminal_status; doctor confirms clean post-terminal state.
 | 27 | v0.2.0a: info-severity does NOT set active_incident_id (P1-3 fix from R1) |
 | 28 | v0.2.0a: doctor cross-link integrity check |
 | 29 | v0.2.0a: finalize_run clears incident state on terminal exit (P1-4 R1 fix) |
+| 30 | v0.2.0a: destructive incident option requires explicit confirmation (R2 P1 fix) |
 
 Controller no-self-grade gate (P1-2): exercised wherever step 4 of escalation ladder is reached (Scenario 17 covers this; specific REVIEW_REQUIRED gate is observed in phase-history.md gate column).
 

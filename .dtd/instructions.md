@@ -98,7 +98,7 @@ classification, confidence, and any assumptions in your turn output (briefly).
 - Confidence ≥ 0.95: act, print one-line status. No confirmation question.
 - Confidence 0.80-0.94: act, print "→ <action> (interpreted as <intent>). 되돌리려면 `<undo>`".
 - Confidence < 0.80: confirm in ONE line. Wait.
-- **Destructive intents** (`stop`, `uninstall`, `workers rm`, `mode off` mid-run): ALWAYS confirm with explicit user phrase, regardless of confidence.
+- **Destructive intents** (`stop`, `uninstall`, `workers rm`, `mode off` mid-run, `incident resolve <id> <destructive_option>`): ALWAYS confirm with explicit user phrase, regardless of confidence. Destructive incident options are those whose effect class is `stop` / `purge` / `delete` / `force_overwrite` / `revert_partial` / `terminal_finalize` (per `dtd.md` §`/dtd incident resolve` Destructive option confirmation). Non-destructive options (`retry`, `switch_worker`, `wait_once`, `manual_paste`) follow normal confidence rules.
 
 ### Recording (in your reply)
 
@@ -148,7 +148,7 @@ while still giving them a clear audit of what was inferred.
 | "incident <id> 보여줘", "그 사고 자세히" | "show incident" | `incident show <id>` | any |
 | "incident <id> 해결 retry", "그 에러 재시도", "재시도로 가자" | "resolve with retry" | `incident resolve <id> retry` | active blocking incident OR id supplied |
 | "워커 바꿔서 다시", "다른 워커로" | "resolve with switch_worker" | `incident resolve <id> switch_worker` | active blocking incident |
-| "incident <id> 그만", "그 에러 멈춰" | "resolve with stop" | `incident resolve <id> stop` (destructive — confirm) | active blocking incident |
+| "incident <id> 그만", "그 에러 멈춰" | "resolve with stop" | `incident resolve <id> stop` — **DESTRUCTIVE; ALWAYS confirm** with explicit phrase before executing, regardless of intent confidence. Effect: triggers `finalize_run(STOPPED)` on the active run. | active blocking incident |
 
 ---
 
@@ -412,7 +412,8 @@ Reason: long sessions easily fill controller context with repeated "what's the s
 ## Don't Do These
 
 - **Don't override host's own slash commands** (`/help`, `/clear`, `/exit`, etc.). DTD only handles `/dtd*` and DTD-related NL.
-- **Don't auto-act on destructive NL** without explicit destructive words (e.g., "stop", "취소", "uninstall", "rm", "delete").
+- **Don't auto-act on destructive NL** without explicit destructive words (e.g., "stop", "취소", "uninstall", "rm", "delete", "그만", "멈춰" when paired with an incident referent — see `incident resolve <destructive_option>` rule below).
+- **Don't auto-execute destructive incident recovery options**. NL phrases like "그 에러 멈춰" or "incident X stop" map to `incident resolve <id> stop`, which inherits the destructive-confirmation rule because its effect class is `stop` (terminates the active run via `finalize_run(STOPPED)`). Destructive option set: `stop` / `purge` / `delete` / `force_overwrite` / `revert_partial` / `terminal_finalize`. Always show a one-line confirm for these regardless of intent confidence.
 - **Don't grade your own work**. Even when classifying as `orchestration`, never claim a grade for controller-authored output.
 - **Don't write secrets anywhere**. Re-read the redaction policy in `/dtd.md` if uncertain.
 - **Don't bloat `plan-NNN.md`**. Compact completed tasks. Spill patches when over budget.

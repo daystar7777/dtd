@@ -75,10 +75,12 @@
 - active_incident_id: null               # warn-or-higher unresolved incident (info incidents do NOT set this)
 - active_blocking_incident_id: null      # only severity=blocked|fatal — fills decision capsule with INCIDENT_BLOCKED
                                           # at most ONE active blocking incident at a time;
-                                          # second blocking incident waits in queue until first resolves
+                                          # the queue of waiting blockers is .dtd/log/incidents/index.md (NOT recent_incident_summary).
+                                          # Promotion on resolve scans index.md for the oldest unresolved blocking incident.
 - last_incident_id: null                 # most recent of any severity (info / warn / blocked / fatal)
 - incident_count: 0                      # cumulative across this project's lifetime
-- recent_incident_summary: []            # last 3 unresolved info|warn — shown in /dtd status --full
+- recent_incident_summary: []            # last 3 unresolved INFO|WARN ONLY — shown in /dtd status --full.
+                                          # Blocking incidents are NEVER added here (they live in active_blocking_incident_id + index.md).
                                           # Each entry: {id, severity, reason, created_at}
 
 # Cleared by finalize_run on COMPLETED.

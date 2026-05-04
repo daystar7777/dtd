@@ -497,6 +497,29 @@ Option must be one from the incident's `recovery_options` (matches the decision 
 
 Effect: per Incident Tracking §Resolve logic — clears state fields, promotes next blocker if queued, triggers chosen option's `effect`.
 
+#### Destructive option confirmation (R2 fix — P1 from R1 review)
+
+Any incident recovery `<option>` whose effect class is one of:
+
+- `stop` — finalize_run(STOPPED) on the active run
+- `purge` — delete state and incident files (rare; future v0.2.x)
+- `delete` — drop a worker, plan, or queue entry
+- `force_overwrite` — bypass a path policy or lock
+- `revert_partial` — undo a partial apply
+- `terminal_finalize` — any other path leading to `finalize_run`
+
+inherits the global **destructive confirmation rule** (per `instructions.md`
+§Don't Do These / §Confidence & Confirmation): the controller MUST require
+an explicit user confirmation phrase BEFORE executing, regardless of intent
+confidence. NL routing for these options is mapped via `incident resolve <id>
+<option>` but flagged destructive — see `instructions.md` NL row for
+"그 에러 멈춰" / "incident <id> stop". Slash-form `/dtd incident resolve
+<id> stop` also confirms before acting.
+
+Recovery options NOT in the destructive set (e.g. `retry`, `switch_worker`,
+`wait_once`, `manual_paste`) follow normal confidence rules — no extra
+confirmation required.
+
 NL routing in `instructions.md`:
 
 | User phrase | Canonical |
@@ -1281,12 +1304,17 @@ resolved_at: null
 resolved_option: null
 ```
 
-### Severity → state mapping (P1-3 fix from v0.2 design R1 review)
+### Severity → state mapping (P1-3 fix from v0.2 design R1 review; R2 split clarified)
 
-- `info` — observational. Touches `last_incident_id`, `incident_count`, `recent_incident_summary`. Does NOT touch `active_incident_id`. Does NOT fill decision capsule.
-- `warn` — non-blocking notice. Same as info plus sets `active_incident_id`. Still does NOT touch `active_blocking_incident_id`. Still no decision capsule.
-- `blocked` — needs user input. Sets `active_incident_id` AND `active_blocking_incident_id`. Fills decision capsule with `awaiting_user_reason: INCIDENT_BLOCKED`. `/dtd run` refused while pending.
-- `fatal` — unrecoverable. Same as blocked, plus run terminates with `finalize_run(FAILED)` after user acknowledges.
+- `info` — observational. Touches `last_incident_id`, `incident_count`, **and `recent_incident_summary` (this is its only home in state.md)**. Does NOT touch `active_incident_id`. Does NOT fill decision capsule.
+- `warn` — non-blocking notice. Touches `last_incident_id`, `incident_count`, `recent_incident_summary`, **AND** sets `active_incident_id`. Does NOT touch `active_blocking_incident_id`. Does NOT fill decision capsule.
+- `blocked` — needs user input. Touches `last_incident_id`, `incident_count`, sets `active_incident_id` AND `active_blocking_incident_id`. **Does NOT touch `recent_incident_summary`** — the queue of pending blockers lives in `.dtd/log/incidents/index.md` only. Fills decision capsule with `awaiting_user_reason: INCIDENT_BLOCKED`. `/dtd run` refused while pending.
+- `fatal` — same as blocked (no `recent_incident_summary` mutation), plus run terminates with `finalize_run(FAILED)` after user acknowledges.
+
+The split keeps `/dtd status` semantics clean:
+- compact dashboard: shows `active_blocking_incident_id` line if any.
+- `--full` "+ recent incidents" panel: pulls from `recent_incident_summary` (info/warn).
+- `/dtd incident list --blocking`: pulls from `index.md` (active + queued blockers).
 
 ### Multi-blocker policy
 
@@ -1313,12 +1341,17 @@ When a second blocking incident is created via any of the paths above:
 - Second incident is logged with status `open` and severity preserved.
 - `last_incident_id` and `incident_count` updated.
 - `active_blocking_incident_id` is NOT changed (first incident keeps the slot).
-- `recent_incident_summary` includes the second.
-- When user resolves the first, the second can be promoted: controller picks the **oldest** unresolved blocking incident as the next `active_blocking_incident_id`. Doctor verifies invariant.
+- `recent_incident_summary` is **NOT** touched by blocking incidents. That field
+  is reserved for `info`/`warn` (non-blocking) summaries only — see Severity → state
+  mapping. The blocking-incident queue lives in `.dtd/log/incidents/index.md` only.
+- When user resolves the first, the second can be promoted: controller scans
+  `.dtd/log/incidents/index.md` for the **oldest unresolved blocking incident**
+  belonging to this run; that becomes the next `active_blocking_incident_id`.
+  Doctor verifies invariant by scanning the same index file.
 
 If v0.2.0a never observes any of paths 1-3 in practice, the queue stays a forward-compat
-hook: the invariant remains enforceable by doctor and the resolve/promote code path is
-exercised by the test fixture (scenario 26).
+hook: the invariant remains enforceable by doctor (via `index.md` scan) and the
+resolve/promote code path is exercised by the test fixture (scenario 26).
 
 ### When to create an incident
 
@@ -1369,7 +1402,7 @@ Incident detail file MUST link back to attempt id. `/dtd attempt show` and `/dtd
 
 1. Update incident detail file: `status: resolved`, `resolved_at: <ts>`, `resolved_option: <option>`.
 2. Append a row to `.dtd/log/incidents/index.md` updating the resolved row.
-3. If incident's `id` equals `active_blocking_incident_id`: **clear** the field (not "decrement" — id pointer, not counter), then promote the next unresolved blocking incident (oldest first) if any exists in queue.
+3. If incident's `id` equals `active_blocking_incident_id`: **clear** the field (not "decrement" — id pointer, not counter), then scan `.dtd/log/incidents/index.md` for the oldest unresolved blocking incident belonging to this run; if one exists, set `active_blocking_incident_id` to its id (the queue lives in the index file, NOT in `recent_incident_summary`).
 4. If incident's `id` equals `active_incident_id` (warn-level): clear the field, then set to next-most-recent unresolved warn incident if any (else null).
 5. Decision capsule: if `active_blocking_incident_id` is now null, clear `awaiting_user_decision`, `awaiting_user_reason`, `decision_*` fields. If queue had a next blocker promoted, refill capsule with that incident's recovery options.
 6. Trigger the chosen option's `effect` (e.g., `retry`, `switch_worker`, `stop`) per the original capsule's `decision_resume_action`.
@@ -1456,15 +1489,18 @@ The line stays within `dashboard_width: 80` (per scenario 23 width policy). The
 suffix `next:<option_id>` uses just the resolve option id (e.g. `retry`,
 `switch_worker`, `stop`). The full canonical command
 `/dtd incident resolve <id> <option>` is shown only in `/dtd incident show <id>`
-output, and as a hint line below the dashboard:
+output, and as a multi-line hint block below the dashboard:
 
 ```
-+ next: /dtd incident show inc-001-0001  |  /dtd incident resolve inc-001-0001 <option>
++ next:
+| show    /dtd incident show inc-001-0001
+| resolve /dtd incident resolve inc-001-0001 <option>
 ```
 
-This trailing hint line is wrap-friendly (rendered as a single soft-wrapped string)
-and is suppressed in plan-only host mode. `--full` adds non-blocking warn incidents
-(last 3) under a separate `+ recent incidents` panel. `info` incidents are NOT
+Each line of the hint block stays under 80 chars (the longest, with a 12-char id,
+is 56 chars). The hint block is suppressed in plan-only host mode and in `--compact`
+when terminal is narrower than `dashboard_width`. `--full` adds non-blocking warn
+incidents (last 3) under a separate `+ recent incidents` panel. `info` incidents are NOT
 shown in compact dashboard (only in `--full`'s history view).
 
 Glyph reference (ASCII canonical):
@@ -1697,9 +1733,11 @@ implementation is the next milestone.
 Revised v0.2 sub-release tree (from v0.2 design R1 + v0.2.0d addendum):
 
 ```
-v0.2.0a   Incident Tracking       (R0 in progress as of 2026-05-05)
+v0.2.0a   Incident Tracking       (R2 in progress as of 2026-05-05)
 v0.2.0d   Self-Update              /dtd update — fetch latest from github with diff preview
                                     (NEW per user request; ships after 0a, before 0b/0c)
+v0.2.0e   Locale Packs            (NEW; core prompts English-only, optional /dtd locale enable ko
+                                    pack ships Korean NL + /ㄷㅌㄷ alias examples; ships after 0d)
 v0.2.0b   Permission Ledger       (.dtd/permissions.md ask|allow|deny)
 v0.2.0c   Snapshot / Revert       (.dtd/snapshots/ + /dtd revert)
 v0.2.1    Runtime Resilience      loop guard + worker session resume
