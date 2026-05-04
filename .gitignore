@@ -11,6 +11,8 @@ test-projects/
 
 # External cloned references (have their own git)
 agent-work-mem/
+tmp-opencode-src/
+tmp-*/
 
 # Host-specific local config
 .claude/
