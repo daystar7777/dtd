@@ -90,6 +90,7 @@ classification, confidence, and any assumptions in your turn output (briefly).
 | `uninstall` | `/dtd uninstall [--soft\|--hard\|--purge]` | destructive — confirm always |
 | `workers` | `/dtd workers [list\|add\|test\|rm\|alias\|role]` | edit registry |
 | `history` | `/dtd status --history` or `phase-history.md` read | informational |
+| `incident` | `/dtd incident [list\|show\|resolve]` (v0.2.0a) | list/show are observational reads; resolve is a mutating decision action — see below |
 | `explain` | answer in chat using `dtd.md` / `instructions.md` | meta — explain DTD itself |
 
 ### Classification rules
@@ -142,6 +143,12 @@ while still giving them a clear audit of what was inferred.
 | "DTD 켜", "협업모드" | "DTD on" | `mode on` | any |
 | "건강 체크", "검사" | "doctor", "check" | `doctor` | any |
 | "지워", "삭제", "uninstall" | "uninstall" | `uninstall` | any (off first if running) |
+| "지금 막힌 거 뭐야", "어디서 막혔어?", "어떤 에러야" | "what's blocking?", "what's wrong" | `incident show <active_blocking_incident_id>` (or `incident list` if none active) | any |
+| "incident 목록", "에러 목록", "사고 보여줘" | "list incidents" | `incident list` | any |
+| "incident <id> 보여줘", "그 사고 자세히" | "show incident" | `incident show <id>` | any |
+| "incident <id> 해결 retry", "그 에러 재시도", "재시도로 가자" | "resolve with retry" | `incident resolve <id> retry` | active blocking incident OR id supplied |
+| "워커 바꿔서 다시", "다른 워커로" | "resolve with switch_worker" | `incident resolve <id> switch_worker` | active blocking incident |
+| "incident <id> 그만", "그 에러 멈춰" | "resolve with stop" | `incident resolve <id> stop` (destructive — confirm) | active blocking incident |
 
 ---
 
@@ -183,6 +190,23 @@ Same phrase, different action based on `plan_status` + `pending_patch`.
 |---|---|
 | RUNNING | `pause` |
 | Other | acknowledgment, no action |
+
+### "재시도" / "retry" / "다시" (when an incident is active)
+
+| state | meaning |
+|---|---|
+| `active_blocking_incident_id` set | `incident resolve <active_blocking_incident_id> retry` |
+| `awaiting_user_decision: INCIDENT_BLOCKED` only | same — incident id is implicit |
+| No active incident, RUNNING | acknowledgment, no action (controller already retries via tier ladder) |
+| No active incident, FAILED/STOPPED | confirm: did user mean to start a new run? |
+
+### "그 에러" / "그 사고" / "incident" (referent disambiguation)
+
+| state | meaning |
+|---|---|
+| Exactly one open incident | refers to that incident |
+| Multiple open incidents | confirm: list with ids and ask "which?" |
+| No open incidents | answer "open incident 없음. `/dtd incident list --all` 로 과거 이력 확인" |
 
 ---
 
@@ -357,9 +381,14 @@ Classify these as `observational_read`:
 - `/dtd doctor`
 - `/dtd workers` (list / test)
 - `/dtd attempts show` (future)
-- `/dtd incident show` (future v0.2)
-- NL: "지금 어디까지 됐어?", "상태 보여줘", "그 에러 다시 보여줘", "처음 계획 보여줘", "어디서 막혔어?"
-- (Korean alias forms route to same set — `/ㄷㅌㄷ 상태` etc.)
+- `/dtd incident list` (v0.2.0a) — any flag
+- `/dtd incident show <id>` (v0.2.0a)
+- NL: "지금 어디까지 됐어?", "상태 보여줘", "그 에러 다시 보여줘", "처음 계획 보여줘", "어디서 막혔어?", "지금 막힌 거 뭐야", "incident 보여줘"
+- (Korean alias forms route to same set — `/ㄷㅌㄷ 상태`, `/ㄷㅌㄷ incident 목록` etc.)
+
+Note: `/dtd incident resolve <id> <option>` is NOT observational — it is a
+**mutating decision action** that closes a decision capsule. See NL table row
+`incident resolve`.
 
 For observational reads:
 

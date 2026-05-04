@@ -419,8 +419,15 @@ Order (atomic from controller's POV — execute ALL steps before responding to u
 2. **Archive notepad**: copy `.dtd/notepad.md` → `.dtd/runs/run-NNN-notepad.md`. Create `.dtd/runs/` if missing.
 3. **Reset notepad**: replace `.dtd/notepad.md` content with the template state (5 sections, all `(empty)`).
 4. **Write run summary**: `.dtd/log/run-NNN-summary.md` with phase grades / output paths / duration / final grade.
-5. **Append AIMemory `WORK_END`** (only if AIMemory present): one-line event with `status=<terminal_status> grade=<final_grade> <duration>`. Per §AIMemory Boundary.
-6. **Update state.md**: `plan_status: <terminal_status>`, `plan_ended_at: <ts>`, clear `current_task`/`current_phase`/`pending_patch`/`pending_attempts` fields, set `last_update`.
+5. **Clear incident state** (v0.2.0a):
+   - For every incident in `.dtd/log/incidents/index.md` belonging to this run with `status=open`:
+     - On `terminal_status=COMPLETED` or `STOPPED` → set `status: superseded`, `resolved_at: <ts>`, `resolved_option: terminal_run`.
+     - On `terminal_status=FAILED` → set `status: fatal`, `resolved_at: <ts>`, `resolved_option: terminal_failed`.
+   - Update each affected `.dtd/log/incidents/inc-<run>-<seq>.md` detail file accordingly.
+   - In state.md (held for the step-7 atomic write below): clear `active_incident_id`, `active_blocking_incident_id`, `recent_incident_summary`. Keep `last_incident_id` and `incident_count` for cross-run reference.
+   - If `awaiting_user_decision` was an incident-backed reason (`INCIDENT_BLOCKED`), also clear `awaiting_user_decision`, `awaiting_user_reason`, `decision_id`, `decision_prompt`, `decision_options`, `decision_default`, `decision_resume_action`, `decision_expires_at`, `user_decision_options` as part of step 7.
+6. **Append AIMemory `WORK_END`** (only if AIMemory present): one-line event with `status=<terminal_status> grade=<final_grade> <duration>`. Per §AIMemory Boundary.
+7. **Update state.md**: `plan_status: <terminal_status>`, `plan_ended_at: <ts>`, clear `current_task`/`current_phase`/`pending_patch`/`pending_attempts` fields, plus the incident-state clears from step 5, plus the decision-capsule clears from step 5 if applicable. Set `last_update`. Single atomic tmp-rename write.
 
 If any step fails partway, the controller logs an `ORPHAN_RUN_NOTE` to `AIMemory/work.log` (if present) describing what was completed vs not, and prints a recovery hint to the user. Doctor's "orphaned notepad content" check catches the most common failure (step 3 not executed).
 
@@ -1283,7 +1290,25 @@ resolved_option: null
 
 ### Multi-blocker policy
 
-At most **ONE** `active_blocking_incident_id` at any time. If a second blocking incident occurs while one is active:
+At most **ONE** `active_blocking_incident_id` at any time. v0.2.0a is single-dispatch
+(only one task in flight per run), so a second blocker cannot arise from `/dtd run`
+while one is pending — `/dtd run` is refused while `awaiting_user_decision` is set.
+
+The second-blocker case still exists in v0.2.0a from these legal paths:
+
+1. **Late worker return** — controller dispatched task X, marked it `pending_attempts`, then a
+   transport stall caused user to manually `/dtd stop` or pause; the worker eventually replied
+   with a blocker AFTER a separate first blocker was already filed. (Rare; possible if the
+   first blocker came from controller-side phase like apply/finalize while a worker call was
+   still in flight.)
+2. **Controller-side internal failure during incident review** — e.g. `/dtd incident show`
+   triggers a state read that hits a FILE_LOCKED on `.dtd/state.md`, filing a second blocker.
+3. **Manual fixture injection** (test path) — a developer or test harness writes a second
+   `inc-<run>-<seq>.md` directly to exercise the queue invariant without dispatching.
+4. **Future v0.2.x parallel-dispatch** — once `pending_attempts` allows N>1 in flight,
+   the second case becomes routine. Spec is forward-compatible.
+
+When a second blocking incident is created via any of the paths above:
 
 - Second incident is logged with status `open` and severity preserved.
 - `last_incident_id` and `incident_count` updated.
@@ -1291,11 +1316,39 @@ At most **ONE** `active_blocking_incident_id` at any time. If a second blocking 
 - `recent_incident_summary` includes the second.
 - When user resolves the first, the second can be promoted: controller picks the **oldest** unresolved blocking incident as the next `active_blocking_incident_id`. Doctor verifies invariant.
 
+If v0.2.0a never observes any of paths 1-3 in practice, the queue stays a forward-compat
+hook: the invariant remains enforceable by doctor and the resolve/promote code path is
+exercised by the test fixture (scenario 26).
+
 ### When to create an incident
 
 Per the v0.1.1 error matrix in §Worker Dispatch / §Resource Locks / §Apply step. The blocking conditions (AUTH_FAILED, NETWORK_UNREACHABLE, RATE_LIMIT_BLOCKED, etc., DISK_FULL, FS_PERMISSION_DENIED, FILE_LOCKED, PATH_GONE, PARTIAL_APPLY, UNKNOWN_APPLY_FAILURE, WORKER_INACTIVE) all create blocking-severity incidents.
 
 Recoverable conditions (1st-hit retries) do NOT create incidents — they resolve via the failure counter / tier ladder. If the same condition recurs and becomes blocking, that's when the incident is filed.
+
+#### Info-severity incident triggers (non-blocking durable events)
+
+`info` incidents are reserved for **non-blocking events worth durable tracking**. They never
+populate `active_incident_id` and never block dispatch. v0.2.0a defines exactly two triggers:
+
+1. **Tier escalation crossed** — a worker call failed and the controller escalated to the
+   next tier per the fallback chain. Filed once per (task, escalation hop). Records the
+   from/to worker and the failure-class enum.
+2. **Repeated recoverable retry threshold** — the same recoverable condition (e.g.
+   `RATE_LIMIT_BLOCKED` 1st-hit) succeeds-after-retry but has now occurred ≥ `info_threshold`
+   times within the current run (default `info_threshold: 3`, configurable in
+   `.dtd/config.md` under `incident.info_threshold`). The N-th occurrence files an info
+   incident; subsequent occurrences in the same run do not file additional info incidents
+   (rate-limited to one per (run, reason_class)).
+
+All other recoverable 1st-hit retries do NOT create incidents. `info_threshold` only
+applies to recoverable conditions; blocking conditions fire on first hit per the rule above.
+
+`warn` incidents are for events that need user attention but don't block dispatch (e.g.
+MALFORMED_RESPONSE that the controller auto-recovered from but with measurable risk).
+v0.2.0a does not auto-create `warn` incidents — they are created by explicit user/test
+action (`/dtd incident` future flag, or manual fixture). The `recent_incident_summary`
+slot exists so future v0.2.x triggers can populate it without state-schema change.
 
 ### Cross-link integrity
 
@@ -1323,12 +1376,23 @@ Incident detail file MUST link back to attempt id. `/dtd attempt show` and `/dtd
 
 ### finalize_run integration
 
-`finalize_run(terminal_status)` (already in v0.1.1, called at COMPLETED/STOPPED/FAILED) gets one new step:
+The canonical `finalize_run(terminal_status)` order in §`finalize_run` (above)
+already includes step 5 "Clear incident state" inline. This appendix references
+that step for completeness:
 
-7a. (Between step 5 and 6 of v0.1.1 finalize_run.) **Clear incident state**:
-- Mark all `open` incidents for this run as `superseded` with `resolved_at: <ts>`, `resolved_option: terminal_run` (unless terminal_status is FAILED — then mark `fatal`).
-- Clear `active_incident_id`, `active_blocking_incident_id`, `recent_incident_summary`.
-- Keep `last_incident_id` for cross-run reference.
+- All `open` incidents for this run are marked `superseded` (COMPLETED/STOPPED) or
+  `fatal` (FAILED), with `resolved_at: <ts>`, `resolved_option: terminal_run` or
+  `terminal_failed`.
+- state.md `active_incident_id`, `active_blocking_incident_id`,
+  `recent_incident_summary` are cleared.
+- `last_incident_id` and `incident_count` are kept for cross-run reference.
+- If the active decision capsule was incident-backed (`INCIDENT_BLOCKED`), the full
+  capsule is cleared in the same atomic state write.
+
+This guarantees terminal exits never leave stale active incidents that would block
+future `/dtd run` invocations on a fresh plan. Doctor's incident-state checks
+verify post-terminal state has no active incident pointers if `plan_status` is
+COMPLETED/STOPPED/FAILED.
 
 ---
 
@@ -1385,10 +1449,23 @@ Unicode polish is optional and may be enabled in `config.md` if the terminal sup
 When an active blocking incident exists (v0.2.0a), the dashboard adds **one** compact line after `current/worker/work/writing/locks` and before `recent`:
 
 ```
-| incident   inc-001-0001 blocked NETWORK_UNREACHABLE  next:/dtd incident resolve inc-001-0001 retry
+| incident   inc-001-0001 blocked NETWORK_UNREACHABLE  next:retry
 ```
 
-`--full` adds non-blocking warn incidents (last 3) under a separate `+ recent incidents` panel. `info` incidents are NOT shown in compact dashboard (only in `--full`'s history view).
+The line stays within `dashboard_width: 80` (per scenario 23 width policy). The
+suffix `next:<option_id>` uses just the resolve option id (e.g. `retry`,
+`switch_worker`, `stop`). The full canonical command
+`/dtd incident resolve <id> <option>` is shown only in `/dtd incident show <id>`
+output, and as a hint line below the dashboard:
+
+```
++ next: /dtd incident show inc-001-0001  |  /dtd incident resolve inc-001-0001 <option>
+```
+
+This trailing hint line is wrap-friendly (rendered as a single soft-wrapped string)
+and is suppressed in plan-only host mode. `--full` adds non-blocking warn incidents
+(last 3) under a separate `+ recent incidents` panel. `info` incidents are NOT
+shown in compact dashboard (only in `--full`'s history view).
 
 Glyph reference (ASCII canonical):
 
@@ -1644,7 +1721,11 @@ implements the full systems.
 
 - **Permission Decision Ledger** (V011-1): `.dtd/permissions.md` with ask|allow|deny rules per `edit/bash/external_directory/task/snapshot/revert/todowrite/question` keys. `/dtd permission list/approve/reject/rules` commands. Pending request capsule in state.md (already partially in v0.1.1 decision capsule).
 - **Structured Notepad v2 handoff** (V011-2): 7-heading `<handoff>` template (Goal/Constraints/Progress/Decisions/Next Steps/Critical Context/Relevant Files), <= 1KB worker-visible.
-- **Snapshot / Revert hooks** (V011-3): `.dtd/snapshots/` (gitignored), pre-apply file hash + git diff metadata, `/dtd revert last|attempt|task`.
+- **Snapshot / Revert hooks** (V011-3): `.dtd/snapshots/` (gitignored), three modes per v0.2 design R1:
+  - `metadata-only` — pre-apply file hash + git diff metadata. Audit-only; **never revertable** (no preimage stored). Cheapest, default for files within version control.
+  - `preimage` — durable byte-for-byte snapshot of pre-apply file content. Revertable. Used for files outside git or when `revert_required: true` is set in `.dtd/permissions.md`.
+  - `patch` — delta-only snapshot (forward + reverse patch). Revertable, smaller than `preimage` for large files. Mode chosen per-file based on size and policy.
+  - `/dtd revert last|attempt|task` requires the affected files to be in `preimage` or `patch` mode at apply time. Files in `metadata-only` mode return `revert_unavailable_metadata_only` and the user must restore manually.
 - **Worker session resume** (V011-4): `worker_session_id`, `resume_strategy: fresh|same-worker|new-worker|controller-takeover` in attempt timeline.
 - **Loop guard / doom-loop detection** (V011-5): `loop_guard_status`, signature = worker+task+prompt-hash+failure-hash, threshold action ask|worker_swap|controller.
 - **External directory permission** (V011-6): absolute paths trigger explicit approval.

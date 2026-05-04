@@ -1,6 +1,6 @@
 # DTD v0.1 Test Scenarios
 
-> 46 acceptance scenarios for v0.1 + v0.1.1 + v0.2.0a. Not auto-runnable — these are
+> 47 acceptance scenarios for v0.1 + v0.1.1 + v0.2.0a. Not auto-runnable — these are
 > (a) QA checklist for releases, (b) Codex review criteria, (c) user
 > usage examples. Each scenario has Setup / Steps / Expected / Pass.
 
@@ -639,32 +639,76 @@ On `cancel`: no files modified.
 6. New attempt created (att-2), no incident on second dispatch (succeeds)
 **Pass**: all 6 conditions hold; second attempt succeeds and run continues.
 
-### 26. Multi-blocker policy: second blocker waits in queue
+### 26. Multi-blocker policy: second blocker waits in queue (test-fixture path)
 
-**Setup**: scenario 24 state (one active blocker). Force a second blocking failure (e.g., simulate disk-full during apply on a different task).
-**Steps**: `/dtd run` — would dispatch task 2.2 (different task, different incident path), simulate DISK_FULL.
+**Setup**: scenario 24 state (one active blocker, `active_blocking_incident_id: inc-001-0001`,
+decision capsule filled with INCIDENT_BLOCKED). `/dtd run` is refused (per scenario 24 #6).
+
+In v0.2.0a, the test does NOT use `/dtd run` to create the second blocker — that path is
+intentionally refused (single-dispatch invariant). The second blocker is created via
+**manual fixture injection** to exercise the queue logic, per dtd.md §Incident Tracking
+"Multi-blocker policy" path 3 (legal second-blocker sources).
+
+**Steps**:
+1. Create `.dtd/log/incidents/inc-001-0002.md` directly (test fixture) with
+   `severity=blocked`, `status=open`, `reason=DISK_FULL`, distinct `created_at` newer than `inc-001-0001`.
+2. Append a row to `.dtd/log/incidents/index.md` for `inc-001-0002`.
+3. Update state.md: `last_incident_id: inc-001-0002`, `incident_count: 2`. (Do NOT touch
+   `active_blocking_incident_id` — invariant: second blocker waits.)
+4. Append `inc-001-0002` to `recent_incident_summary`.
+
 **Expected**: Multi-blocker invariant — only ONE active_blocking_incident_id at a time:
-1. Second incident created with status=open, severity=blocked, but `active_blocking_incident_id` is NOT updated (first incident still active)
-2. `last_incident_id` updates to second incident's id
+1. `active_blocking_incident_id` REMAINS `inc-001-0001` (first incident keeps the slot)
+2. `last_incident_id: inc-001-0002`
 3. `incident_count: 2`
 4. `recent_incident_summary` includes both
-5. Decision capsule still references first incident
-6. After user resolves first via `/dtd incident resolve`, controller promotes second blocker (oldest unresolved blocking incident) — `active_blocking_incident_id` set to second's id, decision capsule refilled with its options
-**Pass**: invariant maintained; promotion happens on first resolution.
+5. Decision capsule still references first incident (`inc-001-0001`)
+6. `/dtd doctor` PASSes the multi-blocker invariant check (≤ 1 active blocker; queue depth = 1)
+7. `/dtd incident list --blocking` shows BOTH `inc-001-0001` (active) and `inc-001-0002` (queued)
+8. After `/dtd incident resolve inc-001-0001 retry`: controller promotes `inc-001-0002`
+   (oldest unresolved blocker among the remaining queue) — `active_blocking_incident_id: inc-001-0002`,
+   decision capsule refilled with `inc-001-0002`'s recovery options
+9. `/dtd run` remains refused (now blocked on the promoted second incident)
+**Pass**: all 9 conditions hold; invariant maintained; promotion happens exactly once on
+first resolution; doctor exercises the queue check.
 
-### 27. Info-severity incident does NOT set active_incident_id
+**Note**: the legal non-test paths (late worker return, controller-side internal failure,
+future parallel dispatch) are designed-in but not user-reachable in v0.2.0a routine flow.
+Manual fixture injection is the v0.2.0a-conformant test path.
 
-**Setup**: any state. Force an info-severity event (e.g., a 1st-hit RATE_LIMIT that's about to retry — recoverable, just notable).
-**Steps**: dispatch encounters 429, retries (recoverable, not blocking). Controller logs an info incident.
+### 27. Info-severity incident at info_threshold (recoverable retry repetition)
+
+**Setup**: clean run, `incident_count: 0`, `info_threshold: 3` (default in config.md).
+Worker endpoint returns HTTP 429 with `Retry-After` header on each call. Controller's
+1st-hit-recovery rule applies — each 429 succeeds on retry per the v0.1.1 error matrix.
+The first two 429s do NOT create incidents (1st-hit recoveries are silent per the spec).
+
+The info incident is filed only on the **3rd recoverable 429** of this run (per
+`info_threshold: 3` from dtd.md §Incident Tracking "Info-severity triggers" trigger #2),
+because at that point the repeated recoverable retry pattern is worth durable tracking.
+
+**Steps**:
+1. Dispatch task hits 429 #1 → retry succeeds → no incident, no state mutation beyond
+   normal counters.
+2. Dispatch task hits 429 #2 → retry succeeds → still no incident.
+3. Dispatch task hits 429 #3 → retry succeeds → controller files the info incident
+   (threshold reached, rate-limited to one per (run, reason_class)).
+
 **Expected**:
-1. `.dtd/log/incidents/inc-001-0003.md` created with severity=info
-2. state.md: `last_incident_id: inc-001-0003`, `incident_count: 3` (cumulative)
-3. state.md: `active_incident_id` REMAINS null (info doesn't set it — P1-3 fix from v0.2 design R1)
-4. state.md: `active_blocking_incident_id` REMAINS null
-5. Decision capsule UNCHANGED (no awaiting_user_decision)
-6. `/dtd run` continues; retry succeeds
-7. Compact `/dtd status` does NOT show this incident (info hidden); `--full` does show in `recent_incident_summary`
-**Pass**: severity → state mapping correct; non-blocking incidents don't gate run.
+1. `.dtd/log/incidents/inc-001-0001.md` created with `severity=info`,
+   `reason=RATE_LIMIT_BLOCKED`, `recoverable=yes`, status=open, `notes: info_threshold reached (3 occurrences)`.
+2. state.md: `last_incident_id: inc-001-0001`, `incident_count: 1`.
+3. state.md: `active_incident_id` REMAINS null (info doesn't set it — per Severity → state mapping).
+4. state.md: `active_blocking_incident_id` REMAINS null.
+5. Decision capsule UNCHANGED — no `awaiting_user_decision`, no pause.
+6. `/dtd run` continues; current task completes normally.
+7. A 4th, 5th, ... 429 in the same run does NOT create additional info incidents
+   (rate-limited to one per (run, reason_class)).
+8. Compact `/dtd status` does NOT show this incident (info severity hidden in compact);
+   `/dtd status --full` shows it under `+ recent incidents` panel via `recent_incident_summary`.
+9. `/dtd incident list` (no flag) does include it among unresolved incidents.
+**Pass**: severity → state mapping correct; non-blocking incidents don't gate run; the
+"1st-hit recoveries do NOT create incidents" rule is preserved (no incident on 429 #1 or #2).
 
 ### 28. Doctor verifies incident cross-link integrity
 
@@ -675,6 +719,36 @@ On `cancel`: no files modified.
 2. Other incident-state checks PASS (state fields valid, no multi-blocker violation, no secret leak)
 3. Doctor does NOT auto-fix; recommends manual restoration or treating as superseded
 **Pass**: incident state checks per dtd.md doctor §Incident state are exercised; corruption surfaced as WARN; clean state passes silently.
+
+### 29. finalize_run clears incident state on terminal exit
+
+**Setup**: scenario 24 state (one active blocker, decision capsule INCIDENT_BLOCKED).
+User decides not to resolve and instead invokes `/dtd stop`.
+
+**Steps**: `/dtd stop` (confirms destructive action).
+
+**Expected** (canonical finalize_run order, dtd.md §`finalize_run` step 5 + 7):
+1. `.dtd/log/incidents/inc-001-0001.md` updated: `status: superseded`,
+   `resolved_at: <ts>`, `resolved_option: terminal_run`.
+2. `.dtd/log/incidents/index.md` row updated to match.
+3. state.md: `active_incident_id: null`, `active_blocking_incident_id: null`,
+   `recent_incident_summary: []`. `last_incident_id: inc-001-0001` retained.
+   `incident_count: 1` retained.
+4. state.md decision capsule cleared: `awaiting_user_decision: false`,
+   `awaiting_user_reason: null`, `decision_id: null`, `decision_prompt: null`,
+   `decision_options: []`, `decision_default: null`, `decision_resume_action: null`.
+5. state.md: `plan_status: STOPPED`, `plan_ended_at: <ts>`.
+6. AIMemory `WORK_END` event appended (one line, `status=STOPPED`).
+7. `/dtd doctor` runs clean — no orphan active incident pointers.
+8. A subsequent `/dtd plan ...` then `/dtd run` proceeds without being gated by
+   the now-superseded incident.
+
+**FAILED variant**: same setup, but the run terminates via `finalize_run(FAILED)`
+(e.g., all workers dead, unrecoverable). Then expected #1 changes to
+`status: fatal`, `resolved_option: terminal_failed`. All other expectations identical.
+
+**Pass**: terminal exit fully cleans active incident state; superseded vs fatal
+distinction matches terminal_status; doctor confirms clean post-terminal state.
 
 ---
 
@@ -715,6 +789,7 @@ On `cancel`: no files modified.
 | 26 | v0.2.0a: multi-blocker invariant — second blocker waits, oldest-promoted on resolve |
 | 27 | v0.2.0a: info-severity does NOT set active_incident_id (P1-3 fix from R1) |
 | 28 | v0.2.0a: doctor cross-link integrity check |
+| 29 | v0.2.0a: finalize_run clears incident state on terminal exit (P1-4 R1 fix) |
 
 Controller no-self-grade gate (P1-2): exercised wherever step 4 of escalation ladder is reached (Scenario 17 covers this; specific REVIEW_REQUIRED gate is observed in phase-history.md gate column).
 

@@ -57,6 +57,12 @@
 - heartbeat_interval_sec: 30
 - stale_threshold_min: 5
 
+## incident (v0.2.0a)
+
+# See dtd.md §Incident Tracking. Knobs for info-severity creation cadence.
+
+- info_threshold: 3                  # N-th recoverable retry of same reason_class within run files an info incident; further occurrences are rate-limited (one per (run, reason_class)). 0 disables info incidents entirely.
+
 ## fallback-policy
 
 # Per-task fallback chain rules (see dtd.md §Fallback chain).
