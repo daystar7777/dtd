@@ -286,6 +286,62 @@ command set using only `/dtd help` + topic drilling.
 
 ---
 
+## 43. Sleep-friendly autonomous overnight run — *planned for v0.2.0f*
+
+**Setup**: APPROVED multi-phase plan. User wants to sleep 8 hours and let DTD
+make safe progress. Workers configured with tier escalation. `host.mode: full`.
+
+**Steps**:
+1. User: `"자러갈게 8시간 조용히 자동진행해줘"` (or
+   `/dtd run --silent=8h --decision auto`).
+2. Controller validates: duration ≤ `silent_max_hours` (default 8 OK),
+   host.mode != plan-only OK.
+3. State: `attention_mode: silent`, `attention_until: now+8h`,
+   `attention_goal: "조용히 자동진행"`, `decision_mode: auto`.
+4. Run loop iterates safely overnight per silent ready-work algorithm.
+5. (Morning) User runs `/dtd interactive` (or `/dtd status` to peek).
+
+**Expected**:
+- During the silent window:
+  - Recoverable retries succeed without prompting user.
+  - Same-profile/free fallback transitions auto.
+  - Phase boundaries advance.
+  - Defer triggers (AUTH_FAILED, paid fallback, destructive, etc.) fire
+    via the silent ready-work algorithm: incident created, capsule
+    snapshotted, lease released, controller continues other ready work.
+  - Destructive/paid/external-path/secret events NEVER auto-execute.
+- On `/dtd interactive`:
+  - Morning summary block prints (per dtd.md §Morning summary format):
+    `+ DTD silent window ended — 8h00m elapsed`, `+ progress` (completed
+    / deferred / skipped), `+ deferred decisions` (oldest-first),
+    `+ ready work` (next batch), `+ next` (inspect / continue hints).
+  - state.md: `attention_mode: interactive`, `attention_until: null`.
+  - Decision capsule filled with the oldest deferred ref's recovery
+    options.
+- User resolves each deferred capsule sequentially; remaining capsules
+  surface one-at-a-time.
+- After all deferred resolved, `/dtd run` resumes execution.
+
+**Failure-path subcases**:
+
+- **Silent window exceeds limit**: user requested 9h → rejected
+  (`silent_max_hours: 8` invariant). Tell user to split or lower.
+- **Deferred limit hit at `silent_deferred_decision_limit: 20`**:
+  PAUSED with `last_pause_reason: silent_deferred_limit`. User sees
+  one-line surface in chat next time they look at host UI. Run
+  `/dtd interactive` to see full backlog.
+- **Controller token exhaustion**: PAUSED with
+  `awaiting_user_reason: CONTROLLER_TOKEN_EXHAUSTED`,
+  auto-flip silent → interactive (only auto-flip case), morning summary
+  + capsule both visible on next turn.
+
+**Pass**: a user can sleep 8 hours and wake up to a complete morning
+summary showing progress + actionable backlog. Safe forward progress
+maximized; nothing destructive auto-executed; all blockers durably
+recorded with full recovery option context.
+
+---
+
 ## How to add a new journey
 
 When a sub-release adds a journey:

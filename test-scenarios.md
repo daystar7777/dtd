@@ -703,8 +703,10 @@ controller quota exhaustion becomes a durable paused state.
 
 ### 23d. Perf report separates controller and worker token usage
 
-**Setup**: completed or running plan with `.dtd/log/exec-*-ctx.md`,
-`.dtd/attempts/run-NNN.md`, and `.dtd/phase-history.md` populated.
+**Setup**: completed or running plan with
+`.dtd/log/exec-<run>-task-<id>-att-<n>-ctx.md` files written for each
+dispatch, plus `.dtd/attempts/run-NNN.md` and `.dtd/phase-history.md`
+populated.
 **Steps**: `/ㄷㅌㄷ 페이즈별 토큰 사용량 보여줘`.
 **Expected**:
 - Routes to `/dtd perf`.
@@ -829,9 +831,10 @@ omits cleanly otherwise; widths within 80.
 
 ### 23i. /dtd perf reads ctx data files without polluting context
 
-**Setup**: completed run-001 with 5 task dispatches. Each wrote
-`.dtd/log/exec-001-task-<id>-ctx.md` per the v0.2.0f schema. Notepad has
-content from a separate run-002 (currently RUNNING).
+**Setup**: completed run-001 with 5 task dispatches (no retries; one ctx file
+per task). Each wrote `.dtd/log/exec-001-task-<id>-att-1-ctx.md` per the
+v0.2.0f schema. Notepad has content from a separate run-002 (currently
+RUNNING).
 
 **Steps**:
 1. Capture state.md / notepad.md / attempts/run-002.md before.
@@ -1118,6 +1121,7 @@ and a corresponding row appears in the Coverage Map above.
 | 40 | Update journey after v0.2.0d | v0.2.0d (THIS sub-release introduces `/dtd update`) |
 | 41 | Korean/mixed-language primary path | v0.2.0e (after Locale Pack split) |
 | 42 | Help-only discoverability | v0.2.0d (introduces `/dtd help` topic system) |
+| 43 | Sleep-friendly autonomous overnight run | v0.2.0f (Autonomy & Attention) |
 
 Each journey expects a fixed input doc (README / quickstart / specific help
 page) and verifies the user can complete the flow without external context.

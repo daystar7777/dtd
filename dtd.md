@@ -949,8 +949,8 @@ in default status unless the user asks.
 
 Data sources:
 
-- `.dtd/log/exec-<run>-task-<id>-ctx.md` for controller estimate and provider
-  reported `usage.prompt_tokens` / `usage.completion_tokens`.
+- `.dtd/log/exec-<run>-task-<id>-att-<n>-ctx.md` for controller estimate and
+  provider reported `usage.prompt_tokens` / `usage.completion_tokens`.
 - `.dtd/attempts/run-NNN.md` for task/worker/phase/attempt mapping.
 - `.dtd/phase-history.md` for phase duration, gates, and grades.
 - `.dtd/workers.md` optional token pricing metadata if present.
@@ -986,12 +986,17 @@ Rules:
 - Korean/NL examples: "토큰 사용량 보여줘", "페이즈별 비용/토큰 체크",
   "워커별 퍼포먼스 보여줘".
 
-#### Per-task ctx data file format (`.dtd/log/exec-<run>-task-<id>-ctx.md`)
+#### Per-task ctx data file format (`.dtd/log/exec-<run>-task-<id>-att-<n>-ctx.md`)
 
 Each worker dispatch writes one ctx data file. Existing log file
 `.dtd/log/exec-<run>-task-<id>.<worker>.md` carries the worker's full
 response; the new sibling ctx file carries only token/timing/cost data —
 small (≤ 2 KB), structured, secret-free.
+
+The ctx file name encodes the attempt number (`att-1`, `att-2`, etc.) to
+distinguish retries — multiple ctx files exist per (run, task) when a task
+retries. The existing exec log file is per (run, task, worker) and can be
+appended on retries (existing behavior preserved).
 
 Schema (markdown with one YAML front matter):
 
@@ -1029,6 +1034,8 @@ gate triggered split" or "retry on 429" annotations.)
 Rules:
 
 - One file per worker dispatch (including retries — `attempt: 2` etc.).
+  File name uses `att-<n>` segment to distinguish retries:
+  `exec-001-task-2.1-att-1-ctx.md`, `exec-001-task-2.1-att-2-ctx.md`.
 - Always written, even on `failed`/`blocked` status. Lets `/dtd perf`
   account for retry cost.
 - Secret redaction applies (per §Security & Secret Redaction). Endpoint
