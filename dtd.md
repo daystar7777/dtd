@@ -139,7 +139,39 @@ Toggle. Updates `state.md` `mode` field. On `off`: in-flight tasks finish, no ne
 Worker registry management. Backed by `.dtd/workers.md`.
 
 - `list` (default if no arg): table of registered workers with id, aliases, tier, capabilities, cost_tier, current health
-- `add`: interactive add — id, endpoint, model, api_key_env, max_context, capabilities, tier, failure_threshold, escalate_to
+- `add`: **thin conversational wizard** — asks one field at a time, redacts secrets, writes to `.dtd/workers.md` (gitignored) and optionally `.env`:
+
+  1. **Alias hint**: if user said "qwen 워커 추가해줘", controller pre-fills `worker_id: qwen-local` and `aliases: qwen`. User can override.
+  2. **Endpoint** — controller suggests common cases based on alias hint (e.g., qwen → `http://localhost:1234/v1/chat/completions` (LMStudio default)). Asks once.
+  3. **Model** — suggests common ids per provider hint (e.g., DeepSeek → `deepseek-v4-pro`).
+  4. **api_key_env** — env var **name** only. Suggests `<ID_UPPER>_API_KEY` (e.g., `QWEN_API_KEY`).
+  5. **API key value** — separate field. Controller explicitly says "this writes to `.dtd/.env` and is never echoed back". After receiving, redact in any subsequent summary as `<REDACTED>`. Never write to `workers.md`. If `.env` doesn't exist, create from `.env.example`.
+  6. **max_context** — suggests provider default (32000 / 64000 / 128000 / 200000 depending on model hint).
+  7. **capabilities** — suggests based on phrasing (qwen/deepseek-coder → `code-write, code-refactor`).
+  8. **permission_profile** — defaults to `code-write`. Asks user to confirm or pick `explore | review | planning | code-write`.
+  9. **Test now?** — offers to run `/dtd workers test <id>` immediately. If test fails (network/auth), creates a `WORKER_INACTIVE` or `AUTH_FAILED` decision capsule for the worker config (not for an active task).
+
+  **Secret handling rules**:
+  - API key value never appears in `workers.md`, log files, AIMemory, status output, or any chat summary.
+  - Asks user to confirm secret was entered correctly (redacted echo: `entered key starting sk-...3abc, ending ...xyz9 — correct? y/n`).
+  - On `n`, re-asks (does not log the wrong value).
+
+  **Apply step**: before writing, shows redacted summary:
+  ```
+  About to add worker:
+    id: qwen-local
+    endpoint: http://localhost:1234/v1/chat/completions
+    model: qwen2.5-coder:32b
+    api_key_env: QWEN_API_KEY
+    api_key_value: <REDACTED>
+    max_context: 32768
+    capabilities: code-write, code-refactor
+    permission_profile: code-write
+  Apply? yes | edit <field> | cancel
+  ```
+  Only on `yes` does controller append to `workers.md` and write the env var to `.env`.
+
+  **Wizard isolation**: wizard turns are setup-context, not run-context. Don't mutate notepad/steering/attempts/phase-history. Don't include wizard Q/A in future worker prompts.
 - `test <id>`: send a no-op probe (echo prompt) to that worker, report latency + auth status
 - `rm <id>`: remove (warn if any plan references this worker; offer to remap)
 - `alias add <id> <alias>` / `alias rm <id> <alias>`: manage aliases
@@ -213,13 +245,48 @@ DRAFT → APPROVED. Validations:
 
 After approve, plan is locked in: further changes require steering.
 
-### `/dtd run`
+### `/dtd run [--until <boundary>]`
 
 Execute the plan. Allowed when:
 
 - `plan_status: APPROVED` AND `pending_patch: false` → start RUNNING
 - `plan_status: PAUSED` AND `pending_patch: false` → resume RUNNING
 - Otherwise refused with reason
+
+**Optional `--until <boundary>`** — bounded execution that pauses at a user-specified checkpoint instead of running to natural completion. Boundary syntax:
+
+| Syntax | Meaning |
+|---|---|
+| `--until phase:<id>` | Pause AFTER the named phase completes (inclusive) |
+| `--until task:<id>` | Pause AFTER the named task completes |
+| `--until before:<phase\|task>` | Pause BEFORE the named phase/task starts (next dispatch refused) |
+| `--until next-decision` | Pause as soon as any decision capsule needs filling (auth fail, max iter, etc.) |
+
+NL routing examples (instructions.md):
+
+| User phrase | Canonical |
+|---|---|
+| "3페이즈까지만 해줘" | `/dtd run --until phase:3` |
+| "리뷰 전까지만 돌려" | `/dtd run --until before:review` |
+| "UI 만들고 멈춰" | `/dtd run --until task:<UI task id>` |
+| "다음 결정 나올때까지" | `/dtd run --until next-decision` |
+
+Boundary stored in `state.md` while RUNNING:
+```yaml
+- run_until: phase:3                # null | phase:<id> | task:<id> | before:<id> | next-decision
+- run_until_reason: user-checkpoint # user-test | user-decision | manual-check | explicit-limit
+```
+
+When boundary reached:
+1. In-flight task (if any) finishes (same as `/dtd pause`).
+2. Set `plan_status: PAUSED`.
+3. Append `phase-history.md` row with `gate: user-checkpoint` and `note: <run_until value>`.
+4. Clear `run_until` field.
+5. `/dtd status` displays "Paused at requested boundary: <value>; next: /dtd run".
+
+Resume is just `/dtd run` again (no `--until` = run to natural completion). Apply a new `--until` if you want another bounded segment.
+
+**Do not confuse `--until` with `pause_requested`**: `--until` is a planned boundary set at run-time; `pause_requested` is an interrupt. Both lead to PAUSED but the audit trail is different.
 
 **Pre-run checks** (before entering the run loop):
 
@@ -268,7 +335,28 @@ Run loop (per task):
         4. NOT match `path-policy.block_patterns`
       - If any path fails any check: do NOT apply ANYTHING from this response. Mark attempt `blocked` with reason `output_path_out_of_scope`. Append to `.dtd/attempts/run-NNN.md`. Trigger escalation per ladder.
       - All paths pass → proceed to step g.
-   g. Apply file changes (mode `assisted` may confirm; mode `full` auto-applies).
+   g. Apply file changes (mode `assisted` may confirm; mode `full` auto-applies). **Use temp-file + atomic rename** for safety: write to `<path>.dtd-tmp.<pid>` then `mv` to final path. If multiple files, write all temps first, then rename all (best-effort transaction; on partial failure, see below).
+
+      **Local apply failure paths** (each is blocking — fill decision capsule, do NOT silently fail):
+
+      | Condition | Reason enum | Options |
+      |---|---|---|
+      | Out of disk space | `DISK_FULL` | `[free_space_retry, skip_file, stop]`, default `free_space_retry` |
+      | Filesystem permission denied | `FS_PERMISSION_DENIED` | `[fix_permissions_retry, skip_file, stop]`, default `fix_permissions_retry` |
+      | File locked by another process (Windows AV, IDE) | `FILE_LOCKED` | `[wait_retry, force_overwrite, skip_file, stop]`, default `wait_retry` |
+      | Path disappeared between validate and write | `PATH_GONE` | `[recreate_dir_retry, skip_file, stop]`, default `recreate_dir_retry` |
+      | Some files in response wrote OK but later ones failed | `PARTIAL_APPLY` | `[inspect, revert_partial, accept_partial, stop]`, default `inspect`. Lists exactly which files were applied vs not. **Automatic resume forbidden** — user must choose. |
+      | Other write error | `UNKNOWN_APPLY_FAILURE` | `[retry, inspect, stop]`, default `inspect` |
+
+      On any of the above:
+      - Mark attempt `blocked` (NOT failed — failed implies retry-able by tier ladder, but apply failures need user input).
+      - Fill decision capsule per template above.
+      - Save sanitized error summary to `.dtd/log/exec-<run>-task-<id>.<worker>.md`.
+      - Lease is held (NOT released) until user resolves — safer to keep lock during ambiguous state.
+      - `/dtd status` shows `awaiting decision: <reason>`.
+      - When user picks an option, controller acts per `effect`. `revert_partial` deletes any files that were written in this attempt (using temp-file rename audit trail).
+
+      For `PARTIAL_APPLY` specifically: the controller logs which files made it (atomic rename succeeded) and which didn't (still `.dtd-tmp.*`), and presents the list to the user. The user can `inspect` (view diffs), `revert_partial` (undo the applied ones), `accept_partial` (treat applied subset as the result, mark task partial-grade), or `stop`.
    h. Update `<output-paths actual="true">` with actual files written.
    i. Release lease.
    j. Compute grade (controller-side, never worker self-grade): worker output vs target_grade. Update task status.
@@ -788,19 +876,91 @@ Extract `.choices[0].message.content` → that's the worker's raw output (will c
 
 ### Error handling
 
-| HTTP status / condition | Action |
-|---|---|
-| 200 OK | Parse response, proceed to validation step (run loop step 6.f) |
-| 401 unauthorized | Abort dispatch. Prompt user: "auth failed, check env var `<api_key_env>`". Mark attempt `blocked`, reason `auth_failed`. **Never log the key value.** |
-| 403 forbidden | Abort. Recommend `/dtd doctor` (likely endpoint config wrong). |
-| 404 not found | Abort. Endpoint URL wrong; recommend `/dtd workers test <id>`. |
-| 429 rate limit | Wait `Retry-After` header (or default 30s), retry ONCE, then mark attempt `failed` with reason `rate_limit`, escalate per ladder. |
-| 5xx server error | Wait 5s, retry ONCE, then mark attempt `failed` with reason `worker_5xx`, escalate. |
-| Timeout (`worker.timeout_sec`) | Mark attempt `failed`, reason `timeout`. failure_reason_hash = "timeout". |
-| Network unreachable | Mark attempt `failed`, reason `network`. Recommend `/dtd doctor` + check `/dtd workers test <id>`. |
-| JSON parse error | Mark attempt `failed`, reason `malformed_response`. Save raw to log for inspection. |
+Two-layer model:
+1. **Recoverable / quality failures** → mark attempt failed, escalate per tier ladder. No user-blocking decision needed (the ladder itself is the action).
+2. **Blocking failures** (need user input — env var fix, switch worker, abandon, etc.) → fill the **decision capsule** (per state.md schema) so `/dtd status` shows the actionable blocker, and resume is durable across sessions.
 
-All failures append entry to `.dtd/attempts/run-NNN.md` per §Attempt Timeline.
+#### Per-status table
+
+| HTTP status / condition | Layer | Action |
+|---|---|---|
+| 200 OK | n/a | Parse response, proceed to validation step (run loop step 6.f) |
+| **401 unauthorized** | **Blocking** | Abort dispatch immediately. Fill decision capsule with `awaiting_user_reason: AUTH_FAILED`, options `[fix_env_retry, switch_worker, stop]`, default `fix_env_retry`. **Never log the key value or attempted value.** Mark attempt `blocked`, reason `auth_failed`. |
+| 403 forbidden | Blocking | Same as 401 — fill capsule with reason `AUTH_FAILED` (or new `FORBIDDEN`), options `[edit_worker, switch_worker, stop]`, default `edit_worker`. |
+| 404 not found | Blocking | Endpoint or model id wrong. Fill capsule reason `ENDPOINT_NOT_FOUND`, options `[edit_worker, test_worker, switch_worker, stop]`, default `edit_worker`. |
+| 429 rate limit | Recoverable on 1st hit, Blocking on 2nd | 1st: wait `Retry-After` header (or 30s default), retry ONCE. 2nd consecutive: fill capsule reason `RATE_LIMIT_BLOCKED`, options `[wait_retry, retry_later, switch_worker, stop]`, default `wait_retry`. |
+| 5xx server error | Recoverable on 1st, Blocking on 2nd | 1st: wait 5s, retry ONCE. 2nd: capsule reason `WORKER_5XX_BLOCKED`, options `[retry, switch_worker, stop]`, default `switch_worker`. |
+| Timeout (`worker.timeout_sec`) | Recoverable on 1st, Blocking on repeat | 1st: failure_count++ on (worker, task), retry per tier ladder. After threshold OR 2nd timeout in same dispatch: fill capsule reason `TIMEOUT_BLOCKED`, options `[wait_once, retry_same, switch_worker, controller_takeover, stop]`, default `switch_worker`. |
+| Network unreachable | Blocking | Fill capsule reason `NETWORK_UNREACHABLE`, options `[retry, test_worker, switch_worker, manual_paste, stop]`, default `test_worker`. Recommend `/dtd doctor` + `/dtd workers test <id>`. |
+| JSON parse error | Recoverable on 1st, Blocking on 2nd | 1st: failure_count++, retry. 2nd: capsule reason `MALFORMED_RESPONSE`, options `[retry, switch_worker, stop]`, default `switch_worker`. Save raw to log for inspection. |
+
+Decision capsule shape for blocking errors (template):
+
+```yaml
+awaiting_user_decision: true
+awaiting_user_reason: <enum from above>
+decision_id: dec-NNN
+decision_prompt: "<one-line context: which task, which worker, what failed>"
+decision_options:
+  - {id: <opt-id>, label: <human label>, effect: <what controller does>, risk: <what user should know>}
+  - ...
+decision_default: <safest option id>
+decision_resume_action: "<exact next-step description for user>"
+user_decision_options: [<id list>]   # legacy back-compat
+```
+
+`/dtd status` displays the prompt, options, default, and current task/worker context. `/dtd run` is refused while `awaiting_user_decision: true` until user picks an option.
+
+#### Worker inactive / stuck (heartbeat stale, slow but no timeout)
+
+When `last_heartbeat_at` is older than `stale_threshold_min` (default 5) AND the attempt is still `running`, OR when `worker.timeout_sec` is reached but worker is responding intermittently:
+
+```yaml
+awaiting_user_reason: WORKER_INACTIVE
+decision_options:
+  - {id: wait_once,           label: "wait <N>s longer",           effect: "extend timeout, keep same worker",                  risk: "may waste more time"}
+  - {id: retry_same,          label: "cancel and retry",            effect: "abort current attempt, dispatch same worker fresh", risk: "may fail same way"}
+  - {id: switch_worker,       label: "switch to next-tier",         effect: "supersede attempt, dispatch escalate_to worker",     risk: "different cost/quality"}
+  - {id: controller_takeover, label: "controller does it",          effect: "controller intervenes (REVIEW_REQUIRED gate)",       risk: "no worker grade"}
+  - {id: stop,                label: "stop the run",                effect: "finalize_run(STOPPED)",                              risk: "lose run progress beyond saved files"}
+decision_default: switch_worker
+```
+
+When `switch_worker` is chosen, the late return from the now-superseded attempt is marked `superseded` per attempt timeline rules; output is NOT applied.
+
+All failures (recoverable + blocking) append entry to `.dtd/attempts/run-NNN.md` per §Attempt Timeline. Blocking failures additionally update `state.md` decision capsule.
+
+### Fallback chain — explicit per-task computation
+
+Before dispatching a task, controller computes the `fallback_chain` and stores it in the attempt entry + `state.md` `current_fallback_chain`. Order:
+
+1. Task's explicit `<worker>X</worker>`
+2. Worker `X.escalate_to`
+3. Same-capability worker with same or narrower `permission_profile`
+4. `config.md` `roles.fallback`
+5. Controller takeover (only if `gate: REVIEW_REQUIRED` is acceptable)
+6. User (terminal)
+
+**Automatic fallback is allowed only when ALL hold**:
+- next worker has same or narrower `permission_profile`
+- next worker has same or lower `cost_tier`, OR config has `paid_fallback_requires_confirm: false`
+- no path-lock conflict (compute lock set at fallback consideration time)
+- no pending steering / pending_patch
+- retry count below `config.max_auto_worker_switches` (default 1)
+
+If any fail-fast condition fails → fill decision capsule, ask user.
+
+`config.md` knobs added:
+
+```yaml
+- auto_fallback: same-profile-only      # never | same-profile-only | ask-before-switch
+- max_same_worker_retries: 1
+- max_auto_worker_switches: 1
+- paid_fallback_requires_confirm: true
+- worker_inactive_wait_default_sec: 60   # for WORKER_INACTIVE wait_once option
+```
+
+`/dtd status --full` displays the fallback chain for the current task: `fallback: deepseek-local → qwen-remote → user`.
 
 ### Tuning fields — how worker config merges into the request body
 
@@ -896,13 +1056,23 @@ Each phase declares `max-iterations="<N>"` in plan XML. An "iteration" = one ful
 **Behavior at limit reached** (`iteration_count == max_iterations` AND grade < target):
 
 1. Append `phase-history.md` row with `gate: escalated:user`.
-2. Set `state.md` `awaiting_user_decision: true`, `awaiting_user_reason: MAX_ITERATIONS_REACHED`, `user_decision_options: [accept, rework, abandon, increase-cap]`.
-3. Stop run loop. Display reason + options to user.
-4. User chooses:
-   - `accept` — current grade kept, advance to next phase
-   - `rework` — reset iteration counter, try again (with optional steering hint)
-   - `abandon` — call `finalize_run(STOPPED)`
-   - `increase-cap N` — bump `max-iterations` to N (or `unlimited`), continue
+2. Fill decision capsule (per state.md schema):
+   ```yaml
+   awaiting_user_decision: true
+   awaiting_user_reason: MAX_ITERATIONS_REACHED
+   decision_id: dec-NNN
+   decision_prompt: "Phase <name> hit max-iterations cap with grade <X> < target <Y>. How to proceed?"
+   decision_options:
+     - {id: accept,        label: "accept current",     effect: "keep current grade, advance",                    risk: "deliverable below target"}
+     - {id: rework,        label: "rework",             effect: "reset iteration counter, try again",             risk: "may stall again"}
+     - {id: increase_cap,  label: "raise cap by 5",     effect: "bump max-iterations by 5, continue",             risk: "more time/tokens"}
+     - {id: abandon,       label: "abandon",            effect: "finalize_run(STOPPED)",                          risk: "lose run progress beyond saved files"}
+   decision_default: rework
+   decision_resume_action: "controller acts on chosen option's effect"
+   user_decision_options: [accept, rework, increase_cap, abandon]   # legacy back-compat
+   ```
+3. Stop run loop. `/dtd status` displays prompt + options + default.
+4. User chooses; controller acts on the option's `effect`.
 
 **Unlimited safety**:
 

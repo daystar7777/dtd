@@ -50,16 +50,24 @@
 ## Pause / stop intent
 
 - pause_requested: false          # /dtd pause sets this; controller checks between tasks
+- run_until: null                 # null | phase:<id> | task:<id> | before:<id> | next-decision (set by /dtd run --until)
+- run_until_reason: null          # user-checkpoint | user-test | user-decision | manual-check | explicit-limit
 
 # User decision capsule (structured replacement for ad-hoc awaiting):
 - awaiting_user_decision: false   # true blocks dispatch; status displays the capsule below
-- awaiting_user_reason: null      # canonical enum: CONTEXT_EXHAUSTED | ESCALATION_TERMINAL
-                                  #               | PATCH_PENDING_CONFIRM | MAX_ITERATIONS_REACHED
-                                  #               | LOOP_GUARD (v0.2) | RESOURCE_TAKEOVER (v0.2)
-                                  #               | DESTRUCTIVE_ACTION (v0.2)
-                                  #               | EXTERNAL_DIRECTORY_ACCESS (v0.2)
-                                  #               | INCIDENT_BLOCKED (v0.2)
-                                  #               | PERMISSION_REQUIRED (v0.2)
+- awaiting_user_reason: null      # canonical enum:
+                                  # core (v0.1): CONTEXT_EXHAUSTED | ESCALATION_TERMINAL
+                                  #            | PATCH_PENDING_CONFIRM | MAX_ITERATIONS_REACHED
+                                  # worker call (v0.1.1): AUTH_FAILED | ENDPOINT_NOT_FOUND
+                                  #            | RATE_LIMIT_BLOCKED | WORKER_5XX_BLOCKED
+                                  #            | TIMEOUT_BLOCKED | NETWORK_UNREACHABLE
+                                  #            | MALFORMED_RESPONSE | WORKER_INACTIVE
+                                  # local apply (v0.1.1): DISK_FULL | FS_PERMISSION_DENIED
+                                  #            | FILE_LOCKED | PATH_GONE | PARTIAL_APPLY
+                                  #            | UNKNOWN_APPLY_FAILURE
+                                  # v0.2: LOOP_GUARD | RESOURCE_TAKEOVER | DESTRUCTIVE_ACTION
+                                  #     | EXTERNAL_DIRECTORY_ACCESS | INCIDENT_BLOCKED
+                                  #     | PERMISSION_REQUIRED
 - decision_id: null               # e.g. "dec-001" — monotonic per run
 - decision_prompt: null           # one-line user-facing question
 - decision_options: []            # list of {id, label, effect, risk}

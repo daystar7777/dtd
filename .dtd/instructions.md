@@ -122,6 +122,10 @@ while still giving them a clear audit of what was inferred.
 | "좋아 진행", "ok 시작", "그대로 가" | "approve", "go ahead" | `approve` | DRAFT only |
 | "실행해", "돌려", "시작" | "run", "execute" | `run` | APPROVED or PAUSED |
 | "이어서", "계속해" | "continue", "resume" | `run` (resume effect) | PAUSED |
+| "3페이즈까지만 해줘", "phase 3까지 돌려" | "run until phase 3" | `run --until phase:3` | APPROVED or PAUSED |
+| "리뷰 전까지만 돌려" | "run until before review" | `run --until before:review` | APPROVED or PAUSED |
+| "UI 만들고 멈춰", "task X끝나면 멈춰" | "run until task X" | `run --until task:<id>` | APPROVED or PAUSED |
+| "다음 결정나오면 멈춰" | "run until next decision" | `run --until next-decision` | APPROVED or PAUSED |
 | "잠깐", "멈춰", "기다려" | "pause", "wait" | `pause` | RUNNING only |
 | "그만", "취소", "관둬" | "stop", "cancel", "abort" | `stop` | RUNNING / PAUSED, or any state with `pending_patch: true` |
 | "지금 어디까지", "진행상황", "어떻게 돼가" | "status", "where are we" | `status` | any |
