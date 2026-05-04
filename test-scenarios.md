@@ -326,7 +326,42 @@ Format:
 
 ## Dashboard
 
-### 22. Dashboard ASCII default + width compliance
+### 22a. Worker dispatch — happy path (full mode, OpenAI-compatible endpoint)
+
+**Setup**: workers.md has 1 active worker pointing at a reachable OpenAI-compatible endpoint (e.g., local Ollama with `deepseek-coder:6.7b` or any working endpoint). `host.mode: full`. Plan with 1 simple task (e.g., "write a hello function to src/hello.js").
+**Steps**: `/dtd plan ...` → `/dtd approve` → `/dtd run`.
+**Expected**: controller assembles prompt per §Token Economy #2 order, builds JSON body to `.dtd/tmp/dispatch-001-1.1.json`, POSTs to endpoint with `Authorization: Bearer $env`, receives 200 + parses `choices[0].message.content`, extracts `===FILE: src/hello.js===` block + `::done::`, validates path against permission_profile and lock set, applies file, releases lease, runs finalize_run on COMPLETED.
+**Pass**:
+- `.dtd/tmp/dispatch-001-1.1.json` exists with correct OpenAI-compat body shape
+- `.dtd/log/exec-001-task-1.1.<worker>.md` has the worker's response
+- Source file `src/hello.js` matches what the worker output
+- API key NEVER appears in any of: dispatch JSON body, log files, status output
+- `.dtd/attempts/run-001.md` has 1 entry, status=done, with usage tokens
+- `.dtd/runs/run-001-notepad.md` archived after COMPLETED
+
+### 22b. Worker dispatch — error handling (401, 429, timeout)
+
+**Setup**: 1 worker with intentionally bad config or slow endpoint.
+**Steps**: try plan → run with each error condition (bad key, rate limit, timeout).
+**Expected per error**:
+- 401: dispatch aborts, prompt user to fix `api_key_env`, attempt marked `blocked` reason=`auth_failed`. **Key value never appears anywhere**.
+- 429: respect `Retry-After` header, retry once, then mark `failed` reason=`rate_limit`, escalate per ladder.
+- timeout (> `worker.timeout_sec`): mark `failed` reason=`timeout`, hash blocker, escalate per ladder.
+**Pass**:
+- Each error path produces correct attempt entry + escalation
+- Doctor secret-leak scan: 0 hits across `.dtd/log/`, `.dtd/state.md`, `AIMemory/work.log`
+
+### 22c. Plan-only mode dispatch (manual paste)
+
+**Setup**: `host.mode: plan-only` (e.g., a host with filesystem only, no shell-exec or web-fetch).
+**Steps**: `/dtd plan` → `/dtd approve` → `/dtd run`.
+**Expected**: controller writes assembled prompt to `.dtd/tmp/dispatch-001-1.1.txt` (plain text), prints copy-paste instructions to chat. User pastes prompt elsewhere, gets response, saves to `.dtd/tmp/response-001-1.1.txt`, runs `/dtd run --paste`. Controller resumes from parse step.
+**Pass**:
+- No HTTP call made by controller
+- `.dtd/tmp/dispatch-001-1.1.txt` exists in human-readable form
+- `/dtd run --paste` correctly parses pasted response and continues lifecycle
+
+### 23. Dashboard ASCII default + width compliance
 
 **Setup**: install with `config.dashboard_style: ascii` (default for v0.1) and `dashboard_width: 80`. Plan RUNNING.
 **Steps**: `/dtd status`.
@@ -356,7 +391,8 @@ Format:
 | 19 | path policy (P1-4 normalize + §7) |
 | 20 | AIMemory boundary (P1 §8 + 7-case exceptions) |
 | 21 | secret redaction (P2-9 promoted to P1) |
-| 22 | dashboard width/fallback (P2-10) |
+| 22a, 22b, 22c | worker dispatch HTTP transport (happy path / errors / plan-only paste) |
+| 23 | dashboard width/fallback (P2-10) |
 
 Controller no-self-grade gate (P1-2): exercised wherever step 4 of escalation ladder is reached (Scenario 17 covers this; specific REVIEW_REQUIRED gate is observed in phase-history.md gate column).
 

@@ -585,7 +585,7 @@ Security BLOCK patterns (in `config.md` `path-policy`):
 
 ## Host Capability Modes
 
-Set during install, stored in `config.md` `host.mode`. Changeable via `/dtd doctor` recommendation or manual edit.
+Set during install, stored in `config.md` `host.mode`. Changeable via `/dtd doctor` recommendation or manual edit. The actual HTTP recipe is in §Worker Dispatch — HTTP Transport above; this section says only WHO triggers it per mode.
 
 ### `plan-only`
 
@@ -654,6 +654,181 @@ See `.dtd/worker-system.md` for the prompt prefix. Summary:
 - NO explanations, NO markdown headers outside fences, NO apologies, NO "Here is the code"
 
 Controller parses these markers strictly. Malformed output triggers `failure_count_iter++`.
+
+---
+
+## Worker Dispatch — HTTP Transport
+
+This is the actual recipe for making a worker call. Per-mode (plan-only / assisted / full) the recipe is the same below; the difference is who triggers it.
+
+### Request shape (OpenAI-compatible chat completions)
+
+```
+POST <worker.endpoint>
+Headers:
+  Authorization: Bearer ${env[worker.api_key_env]}
+  Content-Type: application/json
+Body (JSON):
+{
+  "model": "<worker.model>",
+  "messages": [
+    {"role": "system", "content": "<system_prompt>"},
+    {"role": "user",   "content": "<user_prompt>"}
+  ],
+  "temperature": 0.0,
+  "max_tokens":  <reserved_output_budget>,
+  "stream":      false
+}
+```
+
+`<system_prompt>` = concatenation of (in this exact order, per §Token Economy #2):
+1. `worker-system.md`
+2. `PROJECT.md`
+3. `notepad.md` `<handoff>` section only
+4. `skills/<capability>.md` (if applicable)
+
+`<user_prompt>` = the task-specific section: goal, context-files (per inline tier policy), output-paths, resources, plus the worker's `permission_profile` declaration so it knows the scope.
+
+`<reserved_output_budget>` = `min(worker.max_context * (1 - hard_context_limit/100), 4096)` typically. Adjust per task expected output size.
+
+**JSON escaping**: file content in `messages` MUST be properly JSON-escaped (`\n` → `\\n`, `"` → `\\"`). Build the body in a tmp file (`.dtd/tmp/dispatch-<run>-<task>.json`) using your host's JSON serializer, never string-concatenated.
+
+### Per-mode dispatch
+
+**`full` mode** — controller makes the HTTP call autonomously:
+
+POSIX (curl):
+
+```bash
+mkdir -p .dtd/tmp
+# Build the JSON body using your host's JSON tool (jq, python -c, node -e, etc.)
+# … assume already at .dtd/tmp/dispatch-001-2.1.json
+curl -fsSL --max-time ${TIMEOUT_SEC:-120} \
+  -X POST "$ENDPOINT" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  --data-binary @.dtd/tmp/dispatch-001-2.1.json \
+  -o .dtd/tmp/response-001-2.1.json
+```
+
+Windows PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force -Path .dtd/tmp | Out-Null
+$headers = @{
+  "Authorization" = "Bearer $env:OLLAMA_API_KEY"
+  "Content-Type"  = "application/json"
+}
+Invoke-RestMethod -Method POST -Uri $endpoint -Headers $headers `
+  -InFile ".dtd/tmp/dispatch-001-2.1.json" `
+  -TimeoutSec 120 `
+  -OutFile ".dtd/tmp/response-001-2.1.json"
+```
+
+The API key value comes from the env var (`workers.md` `api_key_env: OLLAMA_API_KEY` → `$OLLAMA_API_KEY`). **Never inline the value into the body, log file, or chat output** (per §Security).
+
+**`assisted` mode** — same recipe, but if `config.host.assisted_confirm_each_call: true`, prompt the user first:
+
+```
+About to dispatch task 2.1 to deepseek-local (POST http://localhost:11434/v1/chat/completions, ~1300 tokens). Proceed? (y/n)
+```
+
+**`plan-only` mode** — controller does NOT make the HTTP call. Instead:
+
+1. Write the assembled prompt as plain text to `.dtd/tmp/dispatch-<run>-<task>.txt` (NOT as JSON — human-paste-friendly).
+2. Print to chat:
+   ```
+   Next task: 2.1 API endpoints
+   Worker: deepseek-local
+   Prompt at: .dtd/tmp/dispatch-001-2.1.txt
+   
+   Copy it into a separate session running deepseek-coder:6.7b.
+   Save the worker's response to: .dtd/tmp/response-001-2.1.txt
+   Then run: /dtd run --paste
+   ```
+3. Wait for `/dtd run --paste`. Parse `.dtd/tmp/response-001-2.1.txt` and continue from step 6.e (parse `::done::` + `===FILE:===` blocks).
+
+### Response parsing
+
+Standard OpenAI shape:
+
+```json
+{
+  "choices": [{
+    "message": { "role": "assistant", "content": "<worker output>" },
+    "finish_reason": "stop"
+  }],
+  "usage": { "prompt_tokens": 1234, "completion_tokens": 567 }
+}
+```
+
+Extract `.choices[0].message.content` → that's the worker's raw output (will contain `===FILE: ...===` blocks + `::done::` or `::blocked::` line).
+
+`finish_reason: "length"` → response truncated. Mark attempt as `failed`, reason `output_truncated`, increase `max_tokens` budget, retry per ladder.
+
+`usage.prompt_tokens` + `usage.completion_tokens` → log to `.dtd/log/exec-<run>-task-<id>-ctx.md` for context budget tracking (compares vs controller's pre-dispatch estimate).
+
+### Error handling
+
+| HTTP status / condition | Action |
+|---|---|
+| 200 OK | Parse response, proceed to validation step (run loop step 6.f) |
+| 401 unauthorized | Abort dispatch. Prompt user: "auth failed, check env var `<api_key_env>`". Mark attempt `blocked`, reason `auth_failed`. **Never log the key value.** |
+| 403 forbidden | Abort. Recommend `/dtd doctor` (likely endpoint config wrong). |
+| 404 not found | Abort. Endpoint URL wrong; recommend `/dtd workers test <id>`. |
+| 429 rate limit | Wait `Retry-After` header (or default 30s), retry ONCE, then mark attempt `failed` with reason `rate_limit`, escalate per ladder. |
+| 5xx server error | Wait 5s, retry ONCE, then mark attempt `failed` with reason `worker_5xx`, escalate. |
+| Timeout (`worker.timeout_sec`) | Mark attempt `failed`, reason `timeout`. failure_reason_hash = "timeout". |
+| Network unreachable | Mark attempt `failed`, reason `network`. Recommend `/dtd doctor` + check `/dtd workers test <id>`. |
+| JSON parse error | Mark attempt `failed`, reason `malformed_response`. Save raw to log for inspection. |
+
+All failures append entry to `.dtd/attempts/run-NNN.md` per §Attempt Timeline.
+
+### Streaming (v0.2)
+
+v0.1 sets `stream: false`. Streaming (`stream: true`, SSE response) is deferred to v0.2 for partial file application during long generation. Until then: full response or nothing.
+
+### Provider-specific notes
+
+The above shape works with any **OpenAI-compatible chat completions endpoint**:
+
+- ✓ Ollama, vLLM, LM Studio, llama.cpp server (local)
+- ✓ OpenAI, OpenRouter, DeepSeek API, Hugging Face Inference (remote)
+
+Native APIs that do **not** match this shape need a shim:
+
+- **Anthropic Messages API** — uses `anthropic-version` header, system as separate field, different message types. Use `litellm` proxy, `openai-anthropic-shim`, or vLLM router. Direct adapter planned v0.2.
+- **Gemini API** — uses `generationConfig` block, content parts. Same: shim. Direct adapter planned v0.2.
+
+`/dtd workers test <id>` performs a probe POST with a minimal `"hello"` prompt and reports back: 2xx + parseable response = healthy.
+
+### Local request body builder (helper, per host)
+
+The controller can use whatever JSON tool the host has. Examples:
+
+POSIX with `jq`:
+```bash
+jq -n --arg model "$MODEL" --arg sys "$SYSTEM_PROMPT" --arg usr "$USER_PROMPT" --argjson maxtok "$MAX_TOKENS" \
+  '{model:$model, temperature:0.0, max_tokens:$maxtok, stream:false,
+    messages:[{role:"system", content:$sys},{role:"user", content:$usr}]}' \
+  > .dtd/tmp/dispatch-001-2.1.json
+```
+
+PowerShell:
+```powershell
+@{
+  model = $model
+  temperature = 0.0
+  max_tokens = $maxTokens
+  stream = $false
+  messages = @(
+    @{ role = "system"; content = $systemPrompt }
+    @{ role = "user";   content = $userPrompt }
+  )
+} | ConvertTo-Json -Depth 8 | Set-Content -Path ".dtd/tmp/dispatch-001-2.1.json" -Encoding UTF8
+```
+
+Both produce a valid OpenAI-compatible request body.
 
 ---
 
