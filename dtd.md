@@ -1320,6 +1320,14 @@ These controls sit beside `context-pattern`. They are selected by the
 controller during planning and resolved before each worker dispatch. They are
 short behavioral stances and execution utilities, not long role-play prompts.
 
+Load policy:
+
+- Always-loaded `.dtd/instructions.md` keeps only the router, reset contract,
+  and safety rules for these controls.
+- This detailed catalog lives in `dtd.md` and is loaded only when planning,
+  changing, explaining, or doctor-checking persona/reasoning/tool behavior.
+- Worker prompts receive only the resolved compact capsule, not this catalog.
+
 Design constraints:
 
 - Persona text is a compact stance line, not biography or decorative role-play.
@@ -2201,6 +2209,10 @@ Controller MUST follow:
 - Plan compaction: completed tasks → 1-line form when plan size > 8 KB.
 - `work.log` events use compact grammar: `### HH:MM | <model> | <EVENT> <one-line body>`.
 - Status output: table-only by default. Full details on `--full` flag or explicit `/dtd plan show --task <id>`.
+- Lazy-load catalogs: detailed persona/reasoning/tool-use docs, locale packs,
+  and extended help topics are not part of always-loaded instructions. Route to
+  them only when planning/changing/explaining those features. Worker prompts
+  get resolved compact ids/summaries only.
 
 Full token rules in `.dtd/instructions.md`.
 
@@ -2250,7 +2262,12 @@ Rendering rules:
 |---|---|
 | `decision_mode != permission` OR `attention_mode != interactive` OR `deferred_decision_count > 0` | render `modes` line |
 | `state.md.resolved_context_pattern` is non-null | render `ctx` line |
+| any resolved persona/reasoning/tool-runtime field is non-null | render `ctrl` line in `--full` |
 | Both default + nothing deferred + no resolved pattern (e.g. between dispatches) | omit both lines |
+
+Dashboard load policy: `/dtd status` reads only `state.md` and compact indexes.
+It MUST NOT load the full persona/reasoning/tool catalog. `/dtd status --full`
+may show resolved ids, but explanations belong in `/dtd help` or `dtd.md`.
 
 `modes` line content:
 - `ask <decision_mode>` — always shown when this line renders.
@@ -2269,6 +2286,15 @@ Rendering rules:
 
 `/dtd status --full` adds one more line below `ctx` listing the next-task
 resolved pattern (when known): `| ctx-next   <pattern> for next task <id>`.
+If persona/reasoning/tool-runtime controls are active, `--full` also renders a
+compact line:
+
+```text
+| ctrl      persona debugger | reason tool_critic | tools relay
+```
+
+Use `tools relay` for `controller_relay`, `native` for `worker_native`, and
+omit default/null segments to stay within 80 columns.
 
 When `attention_mode: silent` and the silent window has ended, the controller
 pauses at the next safe boundary and preserves silent mode. The next
@@ -2553,7 +2579,8 @@ v0.2.0f   Autonomy & Attention    (NEW; sleep-friendly autonomy; ships after v0.
                                     decision capsule reason CONTROLLER_TOKEN_EXHAUSTED,
                                     morning-summary on silent-window end,
                                     silent_deferred_decision_limit hard cap.
-                                    Adds 6 acceptance scenarios (22q + 23a/b/c/d + 39b).
+                                    Adds 11 acceptance scenarios (22q/r + 23a-i)
+                                    plus user journey 43.
 v0.2.0e   Locale Packs            (NEW; core prompts English-only, optional /dtd locale enable ko
                                     pack ships Korean NL + /ㄷㅌㄷ alias examples; ships after 0d.
                                     User journey scenario 41 added with this release.)

@@ -193,20 +193,12 @@ User NL overrides are patches unless the active plan is still DRAFT.
 
 ### Persona / reasoning / tool-runtime NL
 
-These route to optional plan attributes. In DRAFT, edit the plan directly; in
-APPROVED/RUNNING/PAUSED, create a steering patch and confirm if impact is
-medium/high.
-
-| User phrase pattern | Canonical effect | Required state |
-|---|---|---|
-| "use reviewer persona for this phase", "검토자 관점으로 봐줘" | set `persona="reviewer"` on matching phase/task | DRAFT or steer patch |
-| "debugger mode for this retry", "디버거처럼 원인부터 잡아" | set `persona="debugger"` + `reasoning-utility="tool_critic"` | failure/retry path |
-| "explore alternatives deeply", "여러 안을 비교해" | set `reasoning-utility="tree_search"` (usually with `context-pattern="explore"`) | planning/research |
-| "break it down step by step", "작게 나눠서 풀어" | set `reasoning-utility="least_to_most"` | planning/complex task |
-| "worker needs a shell/read tool", "툴 요청은 컨트롤러가 확인해" | set `tool-runtime="controller_relay"` | any worker task |
-
-Never promise that the worker will reveal its private reasoning. User-facing
-output is a compact rationale summary plus evidence/log refs.
+Route persona/deep-thinking/tool-use requests to optional plan attributes:
+`persona`, `reasoning-utility`, `tool-runtime`. In DRAFT, edit the plan; after
+approval, create a steering patch. Use configured ids only. Examples:
+reviewer/debugger persona, `least_to_most`, `tree_search`, `tool_critic`, and
+`controller_relay`. Never promise private reasoning; show compact rationale
+summaries plus evidence/log refs only.
 
 ---
 
@@ -388,21 +380,12 @@ Patterns:
 
 Persona / reasoning / tool-use controls:
 
-- Persona is a short stance, not role-play. Keep the `<persona>` capsule under
-  120 words and never let it override permission, secret, path, or destructive
-  confirmation policy.
-- Reasoning utilities (`direct`, `least_to_most`, `react`, `tool_critic`,
-  `self_refine`, `tree_search`, `reflexion`) guide depth and verification.
-  Do NOT request, reveal, store, or pass raw chain-of-thought. Persist only
-  compact rationale summaries, evidence refs, risks, and next actions.
-- If `resolved_tool_runtime: controller_relay`, workers do not actually run
-  tools. They emit `::tool_request::` as terminal status. Controller validates
-  the request, runs it between dispatches, saves sanitized full output to
-  `.dtd/log/tool-<run>-task-<id>-<seq>.md`, and gives the next fresh worker
-  dispatch only a compact result summary plus log ref.
-- If `resolved_tool_runtime: worker_native`, it must be an explicitly trusted
-  sandbox. Worker-native tools still do not bypass final output path validation
-  or controller apply.
+- Keep persona capsules short; persona never overrides safety or permissions.
+- Do NOT request, reveal, store, or pass raw chain-of-thought. Persist compact
+  rationale summaries, evidence refs, risks, and next actions only.
+- Default tool mode is `controller_relay`: worker emits `::tool_request::`,
+  controller validates/runs/logs it between dispatches, then retries with a
+  compact result ref. Worker-native tools require explicit trusted sandbox.
 
 ### 4. Context file inline tiers
 

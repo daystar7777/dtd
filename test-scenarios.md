@@ -1,6 +1,6 @@
 # DTD v0.1 Test Scenarios
 
-> 59 acceptance scenarios for v0.1 + v0.1.1 + v0.2.0a + v0.2.0f (planned). Not auto-runnable — these are
+> 60 acceptance scenarios for v0.1 + v0.1.1 + v0.2.0a + v0.2.0f (planned). Not auto-runnable — these are
 > (a) QA checklist for releases, (b) Codex review criteria, (c) user
 > usage examples. Each scenario has Setup / Steps / Expected / Pass.
 
@@ -623,6 +623,37 @@ code-write phase, and one task that will need a retry.
 artifacts preserve useful learning. `/dtd status --full` shows resolved pattern
 and compact sampling line.
 
+### 22r. Persona, reasoning utility, and tool-runtime controls resolve safely
+
+**Setup**: active DRAFT plan with architecture, implementation, debug, review,
+and verification phases. Worker registry has one normal worker without native
+tools and one opt-in worker with trusted sandboxed native tools.
+**Steps**:
+1. Ask for architecture to use a planner persona and stepwise decomposition.
+2. Ask one research task to use tool relay.
+3. Ask a retrying debug task to use debugger persona and tool-based critique.
+4. Approve and run until each task dispatch point.
+
+**Expected**:
+- Plan XML uses only configured optional attributes:
+  `persona`, `reasoning-utility`, and `tool-runtime`.
+- `state.md` resolves compact fields:
+  `resolved_controller_persona`, `resolved_worker_persona`,
+  `resolved_reasoning_utility`, and `resolved_tool_runtime`.
+- Worker prompt includes a short persona/reasoning/tool capsule inside the
+  task-specific section, not a long role-play block.
+- No worker prompt asks for raw chain-of-thought; logs contain only compact
+  rationale summaries, evidence refs, risks, and next actions.
+- A non-native worker needing a tool returns `::tool_request::`; controller
+  validates and runs the relay between dispatches, logs sanitized full output
+  to `.dtd/log/tool-<run>-task-<id>-<seq>.md`, then retries with a compact log
+  ref. File writes still go through normal output-path validation/apply.
+- A worker-native tool task is allowed only when the registry/config marks the
+  runtime as sandboxed; final output path validation still runs.
+
+**Pass**: phase/task personality and reasoning depth improve usability without
+turning into long context, hidden reasoning leakage, or uncontrolled tool use.
+
 ### 23. Dashboard ASCII default + width compliance
 
 **Setup**: install with `config.dashboard_style: ascii` (default for v0.1) and `dashboard_width: 80`. Plan RUNNING.
@@ -726,8 +757,9 @@ execution cost.
 
 **Setup**: silent run completed safe work but accumulated 3 deferred decisions
 (AUTH_FAILED at t+1h, RATE_LIMIT_BLOCKED at t+2h, DISK_FULL at t+3h). User
-returns and runs `/dtd interactive` (or the silent window naturally ends and
-the controller flips automatically per `silent_window_ended_no_ready_work`).
+returns and runs `/dtd interactive`. If the silent window expired while the
+user was away, the run is already PAUSED with a compact status summary, but
+the full morning-summary path still starts only via `/dtd interactive`.
 
 **Steps**:
 1. `/dtd interactive`.
@@ -742,7 +774,8 @@ the controller flips automatically per `silent_window_ended_no_ready_work`).
 - Deferred decisions ordered oldest-first (AUTH_FAILED → RATE_LIMIT → DISK_FULL).
 - Each deferred line ≤ 80 chars; includes age (e.g. `3h05m old`).
 - `attention_goal` text shown above progress when non-null.
-- state.md: `attention_mode: interactive`, `attention_until: null`,
+- state.md after `/dtd interactive`: `attention_mode: interactive`,
+  `attention_until: null`,
   `last_pause_reason: silent_window_ended` (or `silent_window_ended_no_ready_work`).
 - After resolving first capsule, second one is filled into the decision
   capsule slot (oldest of remaining 2).
@@ -789,15 +822,15 @@ state injection of `awaiting_user_reason: CONTROLLER_TOKEN_EXHAUSTED`).
 
 **Expected**:
 - state.md: `plan_status: PAUSED`, `last_pause_reason: error_blocked`,
-  `attention_mode: interactive` (auto-flipped),
-  `attention_until: null`, `attention_mode_set_by: run_flag`,
+  attention fields preserved exactly as they were before exhaustion,
   `awaiting_user_decision: true`,
   `awaiting_user_reason: CONTROLLER_TOKEN_EXHAUSTED`.
 - Decision capsule has options
   `[wait_reset, switch_host_model, compact_and_resume, stop]`
   with `decision_default: wait_reset`.
-- Morning summary block prints alongside the capsule (silent window cut
-  short by controller exhaustion).
+- Compact silent progress summary prints alongside the capsule (silent window
+  interrupted by controller exhaustion). Full morning summary requires
+  `/dtd interactive`.
 - AIMemory NOTE: `controller_token_exhausted, paused_at=<ts>`.
 - Doctor `/dtd doctor` PASSes the v0.2.0f autonomy invariant
   (`capsule_options_invalid` check).
@@ -805,8 +838,8 @@ state injection of `awaiting_user_reason: CONTROLLER_TOKEN_EXHAUSTED`).
   user later runs `/dtd run` to resume.
 
 **Pass**: controller exhaustion is a graceful pause with a recoverable
-capsule, not a crash; auto-flip from silent to interactive on this
-specific reason is documented and predictable.
+capsule, not a crash; silent mode is not auto-flipped while the user may be
+away.
 
 ### 23h. Status dashboard renders modes/ctx lines per v0.2.0f rules
 
@@ -1071,6 +1104,7 @@ follow normal confidence rules; no silent run termination via NL.
 | 22o.2 | PARTIAL_APPLY during rename phase (some final files written, no auto-resume) (R3 split) |
 | 22p | Worker-add wizard end-to-end with chat-safe secret flow (R3) |
 | 22q | v0.2.0f: Context pattern selection + GSD-style fresh reset with durable learning |
+| 22r | v0.2.0f: persona/reasoning/tool-runtime controls resolve without CoT/tool leakage |
 | 23 | dashboard width/fallback (P2-10) |
 | 23a | v0.2.0f: silent overnight mode defers blockers and continues safe work |
 | 23b | v0.2.0f: decision mode and attention mode can change mid-run |
