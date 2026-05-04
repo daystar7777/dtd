@@ -1733,14 +1733,25 @@ implementation is the next milestone.
 Revised v0.2 sub-release tree (from v0.2 design R1 + v0.2.0d addendum):
 
 ```
-v0.2.0a   Incident Tracking       (R2 in progress as of 2026-05-05)
+v0.2.0a   Incident Tracking       TAGGED 2026-05-05 (commit 41f8c7d)
 v0.2.0d   Self-Update              /dtd update — fetch latest from github with diff preview
-                                    (NEW per user request; ships after 0a, before 0b/0c)
+                                    (NEW per user request; ships after 0a, before 0b/0c).
+                                    Includes: state-schema migration step,
+                                    env-var-only token (never URL forms),
+                                    MANIFEST.json verification,
+                                    /dtd help topic system (per user-journey audit),
+                                    user journey scenarios 31, 32, 36-40, 42 added with this release.
 v0.2.0e   Locale Packs            (NEW; core prompts English-only, optional /dtd locale enable ko
-                                    pack ships Korean NL + /ㄷㅌㄷ alias examples; ships after 0d)
+                                    pack ships Korean NL + /ㄷㅌㄷ alias examples; ships after 0d.
+                                    User journey scenario 41 added with this release.)
 v0.2.0b   Permission Ledger       (.dtd/permissions.md ask|allow|deny)
 v0.2.0c   Snapshot / Revert       (.dtd/snapshots/ + /dtd revert)
-v0.2.1    Runtime Resilience      loop guard + worker session resume
+v0.2.1    Runtime Resilience      loop guard + worker session resume + Worker Health Check
+                                    (per worker-healthcheck design note).
+                                    /dtd workers test [--all|--quick|--full|--connectivity|--assigned|--json]
+                                    14 stage diagnostic log + WORKER_* failure taxonomy,
+                                    decision capsule WORKER_HEALTH_FAILED.
+                                    User journey scenarios 33-35 added with this release.
 v0.2.2    Compaction UX           notepad v2 7-heading
 ```
 
@@ -1749,6 +1760,8 @@ These are spec'd in detail in (in AIMemory archive):
 - `handoff_dtd-v011-ops-recovery-status.gpt-5-codex.md` (V011-Ops-1~10)
 - `handoff_dtd-v02-design-r1.claude-opus-4-7.md` (sequence revision)
 - `handoff_dtd-v020d-design.claude-opus-4-7.md` (Self-Update addendum)
+- `handoff_dtd-worker-healthcheck-design-note.gpt-5-codex.md` (v0.2.1 worker check design)
+- `handoff_dtd-user-journey-doc-test-audit.gpt-5-codex.md` (journey scenarios 31-42, sub-release placement)
 
 Each sub-release goes through full R-round flow (design → review → patches → GO → tag).
 

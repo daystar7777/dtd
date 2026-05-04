@@ -839,6 +839,38 @@ Controller no-self-grade gate (P1-2): exercised wherever step 4 of escalation la
 
 ---
 
+## User Journey Scenarios (planned)
+
+The acceptance scenarios above (1-30) verify feature contracts. The journey
+scenarios below verify that **a user following only README / quickstart /
+help can actually complete the product flow** — without reading `dtd.md`
+internals or AIMemory handoffs.
+
+These are populated incrementally per sub-release per
+`AIMemory/handoff_dtd-user-journey-doc-test-audit.gpt-5-codex.md`:
+
+| # | Journey | Lands in |
+|---|---------|----------|
+| 31 | Fresh project from docs only | v0.2.0d (after Self-Update lands; tests update journey too) |
+| 32 | Existing project adoption | v0.2.0d |
+| 33 | Worker check success path | v0.2.1 (worker health check) |
+| 34 | Worker check pinpoints setup failure | v0.2.1 |
+| 35 | Worker check separates endpoint/auth/protocol failures | v0.2.1 |
+| 36 | Run to a boundary for human review | v0.2.0d (uses existing `/dtd run --until`) |
+| 37 | Steering mid-run from natural language | v0.2.0d (uses existing steering) |
+| 38 | Incident recovery from help only | v0.2.0d (v0.2.0a feature; verifiable now via help/journey docs) |
+| 39 | Observational reads do not pollute context | v0.2.0d |
+| 40 | Update journey after v0.2.0d | v0.2.0d (THIS sub-release introduces `/dtd update`) |
+| 41 | Korean/mixed-language primary path | v0.2.0e (after Locale Pack split) |
+| 42 | Help-only discoverability | v0.2.0d (introduces `/dtd help` topic system) |
+
+Detail design for each journey lives in
+`AIMemory/handoff_dtd-user-journey-doc-test-audit.gpt-5-codex.md`. Each
+journey expects a fixed input doc (README / quickstart / specific help
+page) and verifies the user can complete the flow without external context.
+
+---
+
 ## Running
 
 These scenarios are not auto-runnable in v0.1 (markdown-only, no test harness). Manual or semi-manual run by:

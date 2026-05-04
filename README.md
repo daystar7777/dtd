@@ -41,16 +41,36 @@ your `CLAUDE.md` / `.cursorrules` / `AGENTS.md`.
 
 ## How do I use it?
 
-Slash:
+Slash — three small command groups: **Start**, **Observe**, **Recover**.
+
+Start:
 
 ```text
-/dtd workers add               register your first worker LLM
-/dtd mode on                   enable DTD mode
-/dtd plan "add user CRUD"      generate a phased plan (DRAFT)
-/dtd approve                   lock the plan
-/dtd run                       execute
-/dtd pause                     halt at next task boundary
-/dtd status                    polished dashboard
+/dtd workers add                 register your first worker LLM
+/dtd workers test --all          check workers (env / endpoint / auth)
+/dtd mode on                     enable DTD mode
+/dtd plan "add user CRUD"        generate a phased plan (DRAFT)
+/dtd approve                     lock the plan
+/dtd run                         execute
+```
+
+Observe:
+
+```text
+/dtd status                      polished dashboard
+/dtd plan show                   inspect the active plan
+/dtd doctor                      health check
+/dtd workers list                show registered workers
+```
+
+Recover (v0.2.0a Incident Tracking):
+
+```text
+/dtd pause                       halt at next task boundary
+/dtd incident list               see what is blocking
+/dtd incident show <id>          detailed failure + recovery options
+/dtd incident resolve <id> retry choose a recovery option
+/dtd stop                        force-end the active plan (destructive)
 ```
 
 Or just talk:

@@ -352,7 +352,7 @@ Or talk naturally:
 
 Repo:           https://github.com/daystar7777/dtd
 README:         <repo>/README.md  (한국어: <repo>/README.ko.md)
-Test scenarios: <repo>/test-scenarios.md (22 categories)
+Test scenarios: <repo>/test-scenarios.md (acceptance + user journeys)
 ```
 
 ### Task 12 — Confirm
