@@ -9,6 +9,20 @@
 - mode: off                       # off | dtd
 - last_mode_change: 2026-05-04 23:00
 
+## Attention mode (v0.2.0f)
+
+# Autonomy & Attention surface — see dtd.md §Autonomy & Attention Modes.
+# Migrated forward by v0.2.0d Self-Update Amendment 4 for pre-v0.2.0f installs.
+
+- decision_mode: permission        # plan | permission | auto
+- decision_mode_set_by: default    # default | user | run_flag
+- attention_mode: interactive      # interactive | silent
+- attention_mode_set_by: default   # default | user | run_flag
+- attention_until: null            # timestamp; null means until run stops/completes
+- attention_goal: null             # user-facing note, e.g. "work quietly for 4h"
+- deferred_decision_count: 0       # silent mode blockers deferred this run
+- deferred_decision_refs: []       # incident/attempt ids, compact
+
 ## Active plan
 
 - active_plan: null               # NNN (zero-padded) or null
@@ -66,6 +80,17 @@
 - current_fallback_policy: null   # null | "auto" | "ask-before-switch" | "user-confirmed"
 # Cleared by finalize_run.
 
+## Active context pattern (resolved before each worker dispatch) (v0.2.0f)
+
+# GSD-style context patterns — see dtd.md §Context Patterns.
+# Cleared by finalize_run on terminal exit.
+
+- resolved_context_pattern: null     # fresh | explore | debug
+- resolved_handoff_mode: null        # standard | rich | failure
+- resolved_sampling: null            # compact display, e.g. "temp=0.0 top_p=1 samples=1"
+- last_context_reset_at: null
+- last_context_reset_reason: null    # dispatch | retry | phase_boundary | worker_switch | run_resume
+
 ## Incidents (v0.2.0a)
 
 # Every operational failure that needs durable tracking creates an incident.
@@ -101,7 +126,7 @@
                                   #            | UNKNOWN_APPLY_FAILURE
                                   # v0.2: LOOP_GUARD | RESOURCE_TAKEOVER | DESTRUCTIVE_ACTION
                                   #     | EXTERNAL_DIRECTORY_ACCESS | INCIDENT_BLOCKED
-                                  #     | PERMISSION_REQUIRED
+                                  #     | PERMISSION_REQUIRED | CONTROLLER_TOKEN_EXHAUSTED
 - decision_id: null               # e.g. "dec-001" — monotonic per run
 - decision_prompt: null           # one-line user-facing question
 - decision_options: []            # list of {id, label, effect, risk}

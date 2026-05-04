@@ -184,17 +184,38 @@ exposed in README "Recover" group + status hint.
 **Setup**: running or paused plan with notepad populated.
 
 **Steps**:
-1. Run `/dtd status`, `/dtd plan show`, `/dtd doctor`, `/dtd workers test <id>`,
-   `/dtd incident show <id>`.
+1. Run `/dtd status`, `/dtd plan show`, `/dtd doctor`, `/dtd incident show <id>`,
+   `/dtd help`, and `/dtd help stuck`.
 2. Compare `.dtd/notepad.md`, phase history, task counters before/after.
 
 **Expected**:
 - None of the observational reads mutate run memory.
-- Worker-check diagnostic files written under `.dtd/log/worker-checks/` only.
-- User-facing chat does NOT include raw worker output.
+- Help and status reads do not update `state.md`.
+- User-facing chat does NOT include raw worker or incident raw output.
 
-**Pass**: status/help/diagnostic isolation rules per `instructions.md`
-§Status/read-only call isolation hold for every observational command.
+**Pass**: status/help/read-only isolation rules per `instructions.md`
+§Status/read-only call isolation hold for every v0.2.0d observational command.
+
+---
+
+## 39b. Worker health diagnostics do not pollute context — *planned for v0.2.1*
+
+**Setup**: running or paused plan with notepad populated and at least one
+registered worker.
+
+**Steps**:
+1. Run `/dtd workers test <id> --quick`.
+2. Compare `.dtd/notepad.md`, phase history, task counters before/after.
+3. Inspect `.dtd/log/worker-checks/<ts>.md`.
+
+**Expected**:
+- Worker-check diagnostic files are written under `.dtd/log/worker-checks/`
+  only.
+- `.dtd/notepad.md`, phase history, and task counters are unchanged.
+- User-facing chat shows compact result + log path, not raw worker output.
+
+**Pass**: worker health diagnostics are useful and durable without polluting
+run memory. This sub-journey lands with v0.2.1 Worker Health Check.
 
 ---
 

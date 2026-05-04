@@ -51,6 +51,16 @@ github の daystar7777/dtd から prompt.md を取得してこのプロジェク
 /dtd plan "API追加"               phase 別プラン作成 (DRAFT)
 /dtd approve                     プラン確定
 /dtd run                         実行
+/dtd run --silent=4h             静かに進行; ブロッカーは保留して安全な task を続行 (v0.2.0f)
+```
+
+実行モード (Run styles, v0.2.0f):
+
+```text
+/dtd run --decision permission   既定: 権限/重要な選択を確認
+/dtd run --decision auto         安全な前進を最大化 (destructive / 有料 / 外部パスは引き続き confirm)
+/dtd interactive                 決定が必要な時に即座に確認
+/dtd silent on --for 4h          interrupt しない; 保留されたブロッカーは後で表示
 ```
 
 観察 (Observe):

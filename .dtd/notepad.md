@@ -6,6 +6,8 @@
 >
 > Replaces "send entire phase log to next worker" (token-expensive) with a
 > curated summary that survives session boundaries.
+> Worker execution context resets on every dispatch/retry/phase boundary; only
+> controller-distilled learnings and the current `<handoff>` survive.
 >
 > One file per project (active run). On `plan_status: COMPLETED` (or
 > `STOPPED`/`FAILED`), the controller **deterministically**:

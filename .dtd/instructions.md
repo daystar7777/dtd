@@ -86,9 +86,13 @@ classification, confidence, and any assumptions in your turn output (briefly).
 | `steer` | `/dtd steer <text>` | classify low/medium/high impact next |
 | `review` | post-author REVIEW_REQUEST handoff or eval read | maps to internal flow |
 | `doctor` | `/dtd doctor` | always safe |
+| `perf` | `/dtd perf [flags]` | observational token/performance report; no run memory mutation |
 | `install` | run `prompt.md` bootstrap | first-time only |
 | `uninstall` | `/dtd uninstall [--soft\|--hard\|--purge]` | destructive — confirm always |
 | `workers` | `/dtd workers [list\|add\|test\|rm\|alias\|role]` | edit registry |
+| `context_pattern` | set/override `context-pattern` on DRAFT plan or steer active run | `fresh` / `explore` / `debug`; confirm if target ambiguous |
+| `attention` | `/dtd silent on|off`, `/dtd interactive`, `/dtd run --silent=<duration>` | ask now vs defer blockers |
+| `decision_mode` | `/dtd mode decision <plan|permission|auto>` or `/dtd run --decision <mode>` | how often DTD asks before non-destructive choices |
 | `history` | `/dtd status --history` or `phase-history.md` read | informational |
 | `incident` | `/dtd incident [list\|show\|resolve]` (v0.2.0a) | list/show are observational reads; resolve is a mutating decision action — see below |
 | `explain` | answer in chat using `dtd.md` / `instructions.md` | meta — explain DTD itself |
@@ -150,6 +154,43 @@ while still giving them a clear audit of what was inferred.
 | "워커 바꿔서 다시", "다른 워커로" | "resolve with switch_worker" | `incident resolve <id> switch_worker` | active blocking incident |
 | "incident <id> 그만", "그 에러 멈춰" | "resolve with stop" | `incident resolve <id> stop` — **DESTRUCTIVE; ALWAYS confirm** with explicit phrase before executing, regardless of intent confidence. Effect: triggers `finalize_run(STOPPED)` on the active run. | active blocking incident |
 
+### Attention / decision mode NL
+
+| User phrase pattern | Canonical | Required state |
+|---|---|---|
+| "자러갈게 4시간 조용히 개발해줘", "몇 시간 동안 조용히 진행해줘" | `/dtd run --silent=<duration>` or `/dtd silent on --for <duration>` | APPROVED / PAUSED / RUNNING |
+| "4시간 자동진행, 조용히", "질문하지 말고 가능한 것만 해" | `/dtd run --decision auto --silent=<duration>` | APPROVED / PAUSED |
+| "큰 결정은 물어보고 진행해" | `/dtd mode decision permission` | any |
+| "계획 단위로만 물어봐" | `/dtd mode decision plan` | any |
+| "자동진행 모드로" | `/dtd mode decision auto` | any |
+| "이제 물어보면서 해", "인터랙티브 모드" | `/dtd interactive` | any |
+
+Silent mode defers blockers and continues independent ready work. It never
+auto-runs destructive, paid, secret, external-directory, partial-apply, or
+ambiguous permission actions.
+
+### Perf NL
+
+| User phrase pattern | Canonical | Required state |
+|---|---|---|
+| "토큰 사용량 보여줘", "페이즈별 토큰 체크" | `/dtd perf --tokens` | any |
+| "워커별 퍼포먼스 보여줘", "워커 토큰 얼마나 썼어" | `/dtd perf --worker all --tokens` | any |
+| "비용 보여줘", "페이즈별 비용/토큰" | `/dtd perf --cost --tokens` | any |
+
+Perf reads are observational. Controller totals and worker totals remain
+separate; never add them into one blended total.
+
+### Context-pattern NL
+
+| User phrase pattern | Canonical | Required state |
+|---|---|---|
+| "이번 설계 페이즈는 탐색적으로 해", "explore 패턴으로" | set `context-pattern="explore"` on matching phase/task | DRAFT = edit plan; else steer patch |
+| "구현은 안정적으로 fresh로 가자", "결정적으로 해" | set `context-pattern="fresh"` on matching phase/task | DRAFT = edit plan; else steer patch |
+| "이 에러는 디버그 패턴으로 다시 돌려", "debug로 재시도" | retry/route current task with `context-pattern="debug"` | RUNNING / PAUSED with failure context |
+
+Controller may choose `fresh` / `explore` / `debug` during plan generation.
+User NL overrides are patches unless the active plan is still DRAFT.
+
 ---
 
 ## State-aware Disambiguation
@@ -207,6 +248,32 @@ Same phrase, different action based on `plan_status` + `pending_patch`.
 | Exactly one open incident | refers to that incident |
 | Multiple open incidents | confirm: list with ids and ask "which?" |
 | No open incidents | answer "open incident 없음. `/dtd incident list --all` 로 과거 이력 확인" |
+
+### "조용히" / "silent" / "자러갈게" (v0.2.0f attention-mode disambiguation)
+
+| state | meaning |
+|---|---|
+| `attention_mode: interactive`, no active run | `/dtd silent on --for <duration>` (require duration if missing — confirm) |
+| `attention_mode: interactive`, RUNNING | `/dtd run --silent=<duration>` (kicks silent + continues running) |
+| `attention_mode: silent` already | acknowledgment + show `attention_until` countdown; offer `/dtd silent extend <duration>` or `/dtd interactive` |
+| Plan-only host.mode | refuse: `silent on requires host.mode assisted or full` |
+| `host.mode: assisted` with `assisted_confirm_each_call: true` | warn: each worker apply will defer in silent — confirm intent |
+
+### "이제 물어보면서" / "interactive" / "이제 인터랙티브" (v0.2.0f exit-silent disambiguation)
+
+| state | meaning |
+|---|---|
+| `attention_mode: silent`, deferred_decision_count > 0 | `/dtd interactive` — surfaces oldest deferred via morning summary |
+| `attention_mode: silent`, deferred_decision_count = 0 | `/dtd interactive` — clean exit; print short confirmation, no morning summary |
+| `attention_mode: interactive` already | acknowledgment, no action |
+
+### "자동" / "auto" / "물어보지 마" (v0.2.0f decision-mode disambiguation)
+
+| state | meaning |
+|---|---|
+| `decision_mode != auto`, RUNNING | `/dtd mode decision auto` — confirm because user is changing how often DTD asks |
+| `decision_mode = auto` already | acknowledgment, surface what auto still confirms (destructive/paid/external-path) |
+| User said "자동으로 자러갈게" or similar combo | route to `/dtd run --decision auto --silent=<duration>` (one combined command) |
 
 ---
 
@@ -273,7 +340,30 @@ For Anthropic-compatible endpoints, mark steps 1, 2, and 4 (in that order) with 
 
 Workers receive ONLY the `<handoff>` section of `notepad.md`, not the full notepad. The other sections (`learnings`, `decisions`, `issues`, `verification`) stay in the file for the controller's own use and are pruned/compacted as it grows.
 
-### 3. Context file inline tiers
+### 3. Worker context reset + pattern resolution
+
+Before each worker dispatch:
+
+1. Resolve context pattern from task override, phase override, capability
+   default, then `config.md`.
+2. Resolve sampling from the selected pattern, then worker tuning fields.
+3. Update `state.md` Active context pattern fields.
+4. Start a fresh worker context. DTD v0.2.0 does not expose sticky provider
+   sessions; that can be added later behind an explicit opt-in.
+5. Rehydrate only durable artifacts: `state.md`, active plan/task, current
+   `<handoff>`, compact retry hint, and file/path refs. Do not paste raw prior
+   worker transcripts into the next prompt.
+
+Patterns:
+
+- `fresh`: default. Fresh context, standard `<handoff>`, deterministic single
+  sample. Use for code-write, refactor, review, and verification.
+- `explore`: fresh context per candidate, richer handoff, two samples, reviewer
+  convergence before apply. Use for planning, research, UX, architecture.
+- `debug`: fresh retry context, failure handoff, compact attempt/log refs, low
+  creativity. Use for stuck tasks, incidents, and reproducible bugs.
+
+### 4. Context file inline tiers
 
 | File size | Action |
 |---|---|
@@ -281,14 +371,14 @@ Workers receive ONLY the `<handoff>` section of `notepad.md`, not the full notep
 | 2-8 KB | `head -100 + tail -50 + "[...truncated, see ref:context-N.md]"`; save full to `.dtd/tmp/` |
 | > 8 KB | NO inline. If worker has shell-exec/filesystem-read, instruct it to read the file. Else split task. |
 
-### 4. Plan compaction
+### 5. Plan compaction
 
 When `plan-NNN.md` size > 8 KB:
 
 - Completed tasks (`status="done"`) → 1-line form: `<task id="X" worker="W" status="done" grade="GOOD" dur="Ns" log="..."/>`
 - Original full XML → archive to `plan-NNN-history.md` only if compaction loses important detail (e.g. complex `<resources>` or annotations)
 
-### 5. work.log compact grammar
+### 6. work.log compact grammar
 
 ```
 ✗ BAD (multi-line per event for routine logging):
@@ -305,7 +395,7 @@ Summary: .dtd/log/run-001-summary.md
 DTD run-001 done. status=COMPLETED grade=GREAT 2h52m. 6/6 phases pass. Summary: .dtd/log/run-001-summary.md
 ```
 
-### 6. Status output diet
+### 7. Status output diet
 
 `/dtd status` default = compact only. Full details on explicit `--full` or `/dtd plan show --task <id>`. Never auto-dump all worker responses.
 
@@ -383,12 +473,21 @@ Classify these as `observational_read`:
 - `/dtd attempts show` (future)
 - `/dtd incident list` (v0.2.0a) — any flag
 - `/dtd incident show <id>` (v0.2.0a)
-- NL: "지금 어디까지 됐어?", "상태 보여줘", "그 에러 다시 보여줘", "처음 계획 보여줘", "어디서 막혔어?", "지금 막힌 거 뭐야", "incident 보여줘"
+- `/dtd perf` (v0.2.0f) — any flag
+- `/dtd silent` (v0.2.0f) — bare form (no args) shows current attention mode
+- `/dtd mode decision` (v0.2.0f) — bare form (no args) shows current decision mode
+- NL: "지금 어디까지 됐어?", "상태 보여줘", "그 에러 다시 보여줘", "처음 계획 보여줘", "어디서 막혔어?", "지금 막힌 거 뭐야", "incident 보여줘", "토큰 사용량 보여줘", "지금 어떤 모드야?"
 - (Korean alias forms route to same set — `/ㄷㅌㄷ 상태`, `/ㄷㅌㄷ incident 목록` etc.)
 
 Note: `/dtd incident resolve <id> <option>` is NOT observational — it is a
 **mutating decision action** that closes a decision capsule. See NL table row
 `incident resolve`.
+
+Note: `/dtd silent on|off`, `/dtd interactive`, `/dtd mode decision <value>`,
+`/dtd run --silent=<duration>`, `/dtd run --decision <mode>` ARE mutating —
+they change `state.md` `attention_mode` / `decision_mode` and append
+`steering.md` / AIMemory NOTE. The bare-no-args read forms above are the only
+observational variants.
 
 For observational reads:
 
@@ -423,6 +522,11 @@ Reason: long sessions easily fill controller context with repeated "what's the s
 - **Don't echo worker raw output** in chat. Save to `.dtd/log/`, reference by path.
 - **Don't mutate a worker call mid-flight** for any reason — patches apply only between tasks.
 - **Don't repeat work after delegating**. If you dispatched a research/review task to a worker, do not also do the same search/review yourself in parallel. You may continue with non-overlapping work. If the next critical-path task is blocked on the worker's output, wait — or pick a different independent task. (Anti-duplication rule, prevents token + cognitive duplication.)
+- **Don't auto-execute destructive actions in silent mode** (v0.2.0f). `silent_allow_destructive: false` is the default; user choice is REQUIRED for any destructive recovery option even if intent confidence is high. Defer the decision per §Silent-mode "ready work" algorithm; surface in morning summary.
+- **Don't auto-pay in silent mode** (v0.2.0f). `silent_allow_paid_fallback: false` is the default. Paid tier transitions defer.
+- **Don't blend controller and worker token totals** (v0.2.0f). `/dtd perf` must keep them in separate sections. The user wants to see orchestration cost vs execution cost separately.
+- **Don't carry worker chat transcripts across dispatches** (v0.2.0f). Every worker dispatch starts from a fresh context per the GSD-style reset semantics. Improvements survive as durable artifacts (notepad distilled facts, file changes, attempt/log refs), NOT as raw chat history.
+- **Don't auto-flip silent → interactive without user action** (v0.2.0f). When `silent_deferred_decision_limit` is hit OR `attention_until` arrives, the controller PAUSES the run. The user must explicitly run `/dtd interactive` to surface the morning summary. (Rationale: the user may have stepped away; auto-flipping would surface decisions to an empty terminal.)
 
 ---
 

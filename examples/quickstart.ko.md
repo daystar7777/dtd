@@ -79,7 +79,27 @@ export OLLAMA_API_KEY=ollama   # Ollama는 실제 키 불필요
 
 ---
 
-## 3. DTD 모드 켜기
+## 3. 워커 점검
+
+```text
+/dtd workers test deepseek-local
+```
+
+기본 연결 점검입니다. env var, endpoint, auth, model이 짧은 호출에서
+정상 동작하는지 확인합니다. 실패하면 env / endpoint / auth를 먼저 고친 뒤
+계속하세요. 나중에 `/dtd run`은 이 워커에게 task를 보냅니다.
+
+```text
+✓ deepseek-local      OK     1.2s    parseable response
+```
+
+> 단계별 상세 로그와 추가 플래그 (`--all`, `--full`, `--connectivity`)는
+> v0.2.1 Runtime Resilience에서 제공됩니다. 지금의 기본 probe는
+> env / endpoint / auth / model 확인용입니다.
+
+---
+
+## 4. DTD 모드 켜기
 
 ```text
 /dtd mode on
@@ -90,7 +110,7 @@ export OLLAMA_API_KEY=ollama   # Ollama는 실제 키 불필요
 
 ---
 
-## 4. Plan → approve → run
+## 5. Plan → approve → run
 
 ```text
 /dtd plan "src/hello.js에 hello-world 엔드포인트 추가"
@@ -144,7 +164,7 @@ export OLLAMA_API_KEY=ollama   # Ollama는 실제 키 불필요
 
 ---
 
-## 5. 끝
+## 6. 끝
 
 `src/hello.js` 파일이 생겼습니다. 열어보면 워커의 출력입니다.
 

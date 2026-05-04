@@ -52,10 +52,27 @@ Start:
 /dtd plan "add user CRUD"        generate a phased plan (DRAFT)
 /dtd approve                     lock the plan
 /dtd run                         execute
+/dtd run --silent=4h             work quietly; defer blockers and continue safe tasks (v0.2.0f)
 ```
 
 > Detailed worker health diagnostics (`--all`, `--full`, `--connectivity`,
 > stage logs, failure taxonomy) ship in v0.2.1 Runtime Resilience.
+
+Run styles (v0.2.0f Autonomy & Attention):
+
+```text
+/dtd run --decision permission   default: ask on permissions/major choices
+/dtd run --decision auto         maximize safe forward progress
+/dtd interactive                 ask immediately when a decision is needed
+/dtd silent on --for 4h          do not interrupt; show deferred blockers later
+/dtd mode decision <plan|permission|auto>   set decision-frequency persistent default
+/dtd perf [--phase|--worker|--tokens|--cost]  observational token report (controller vs worker separated)
+```
+
+> v0.2.0f decision/attention/context-pattern features land after v0.2.0d
+> Self-Update so existing installs can update into the new state schema
+> cleanly. Pre-v0.2.0f installs see only the always-supported `/dtd run`
+> + `/dtd pause` + `/dtd stop` controls.
 
 Observe:
 
@@ -240,6 +257,26 @@ plus 5 exception cases).
 
 ---
 
+## Adopting on existing in-progress work
+
+DTD works on projects that are already underway. Install is additive: it creates
+`.dtd/`, `dtd.md`, and a host pointer, but it does not rewrite your source files.
+
+After install:
+
+1. Fill `.dtd/PROJECT.md` with the current project shape, conventions, and
+   anything a worker should know before touching code.
+2. Run `/dtd doctor` and fix any missing-context warnings.
+3. Pick an adoption pattern:
+   - Continue from now: plan only the remaining work.
+   - Audit the full project: mark already-done tasks as `worker="manual"` or
+     `worker="controller"` so DTD skips them.
+   - Translate an existing roadmap into DTD's plan format.
+
+Details and XML examples live in [dtd.md §Adopting DTD on existing in-progress work](dtd.md#adopting-dtd-on-existing-in-progress-work).
+
+---
+
 ## What gets created
 
 ```
@@ -277,7 +314,7 @@ your-project/
 - Long multi-phase work that spans sessions (pause/resume)
 - Teams who want auditable AI changes (every dispatch logged, every grade tracked)
 - Anyone tired of pasting context between agents
-- **Adopting DTD mid-project** — install on an in-progress phased project, mark already-done tasks in the plan, and let DTD pick up the remaining work. Three patterns documented in [dtd.md §Adopting DTD on existing in-progress work](dtd.md#adopting-dtd-on-existing-in-progress-work).
+- **Adopting DTD mid-project** — install on an in-progress phased project, mark already-done tasks in the plan, and let DTD pick up the remaining work.
 
 ---
 

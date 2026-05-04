@@ -77,6 +77,24 @@ Health check. Output uses the same Unicode/ASCII style as `/dtd status`. Reports
 - `pending_patch: true` consistency with `<patches>` section in plan-NNN.md
 - No orphan WORK_START in AIMemory without matching state in `.dtd/state.md`
 
+**Autonomy & Attention state** (v0.2.0f):
+- `decision_mode` is one of `plan|permission|auto`; ELSE ERROR `decision_mode_invalid`. Pre-v0.2.0f installs missing the field → INFO `decision_mode_default_assumed`, treat as `permission`.
+- `attention_mode` is one of `interactive|silent`; ELSE ERROR `attention_mode_invalid`. Pre-v0.2.0f installs missing the field → INFO `attention_mode_default_assumed`, treat as `interactive`.
+- If `attention_mode: silent`: `attention_until` MUST be a future timestamp; ELSE WARN `silent_window_expired_but_state_not_flipped` and recommend `/dtd interactive`.
+- If `attention_mode: silent`: `attention_until - now` ≤ `config.attention.silent_max_hours`; ELSE ERROR `silent_window_exceeds_max`.
+- `deferred_decision_refs` entries: every id MUST resolve to an existing `.dtd/log/incidents/inc-*.md` file with `status: open` AND a `deferred_capsule:` key; ELSE ERROR `deferred_ref_invalid`.
+- `deferred_decision_count` MUST equal `len(deferred_decision_refs)`; ELSE ERROR `deferred_count_mismatch`.
+- `deferred_decision_count` ≤ `config.attention.silent_deferred_decision_limit`; ELSE WARN `deferred_limit_breached_invariant` (rule 5 of silent algorithm should have already flipped `plan_status: PAUSED` — this WARN catches the gap).
+- If `awaiting_user_reason: CONTROLLER_TOKEN_EXHAUSTED`, decision capsule MUST contain options `[wait_reset, switch_host_model, compact_and_resume, stop]`; ELSE ERROR `capsule_options_invalid`.
+
+**Context-pattern state** (v0.2.0f):
+- `resolved_context_pattern` (when non-null) is one of `fresh|explore|debug`; ELSE ERROR `context_pattern_invalid`.
+- `resolved_handoff_mode` (when non-null) is one of `standard|rich|failure`; ELSE ERROR `handoff_mode_invalid`.
+- If `plan_status: RUNNING` AND `current_task` non-null: `resolved_context_pattern` MUST be non-null; ELSE WARN `running_task_missing_context_resolution`.
+- Plan XML `context-pattern` attribute (when present) MUST be one of `fresh|explore|debug`; ELSE ERROR `plan_context_pattern_invalid`.
+- `config.md context_patterns` MUST have entries for `fresh`, `explore`, `debug`; ELSE ERROR `context_patterns_config_missing`.
+- ctx file count vs attempt count: count `.dtd/log/exec-<run>-task-*-ctx.md` files vs attempt count in `.dtd/attempts/run-<run>.md` for the active run; report ratio as INFO. Mismatch is not blocking (silent installs without v0.2.0f workers don't write ctx files).
+
 **Incident state** (v0.2.0a):
 - If `active_incident_id` is non-null, corresponding `.dtd/log/incidents/inc-*.md` file MUST exist; ELSE ERROR `incident_file_missing`
 - `active_blocking_incident_id` (if non-null) MUST equal an open blocking-severity incident; ELSE ERROR `blocking_incident_invalid`
@@ -271,7 +289,7 @@ DRAFT → APPROVED. Validations:
 
 After approve, plan is locked in: further changes require steering.
 
-### `/dtd run [--until <boundary>]`
+### `/dtd run [--until <boundary>] [--decision plan|permission|auto] [--silent[=<duration>] | --interactive]`
 
 Execute the plan. Allowed when:
 
@@ -322,6 +340,232 @@ Why split active vs durable: status display must stay reliable across resume ses
 
 **Do not confuse `--until` with `pause_requested`**: `--until` is a planned boundary set at run-time; `pause_requested` is an interrupt. Both lead to PAUSED but the audit trail is different.
 
+### Autonomy & Attention Modes (v0.2.0f)
+
+This is a core DTD UX surface. It lets a user either collaborate live or leave
+DTD running overnight without turning every blocker into an immediate stop.
+
+**Feature gating**: this whole subsection ships in **v0.2.0f Autonomy &
+Attention**. v0.1.1 / v0.2.0a state.md without these fields is migrated
+forward by v0.2.0d Self-Update (`Amendment 4`). Doctor in pre-v0.2.0f
+installs treats missing fields as INFO and falls back to defaults
+(`decision_mode: permission`, `attention_mode: interactive`).
+
+There are three independent axes:
+
+| Axis | Values | Meaning |
+|---|---|---|
+| `host.mode` | `plan-only` / `assisted` / `full` | Apply authority: whether DTD may write/apply. |
+| `decision_mode` | `plan` / `permission` / `auto` | How often DTD asks before taking non-destructive choices. |
+| `attention_mode` | `interactive` / `silent` | Ask now, or defer safe-to-defer blockers and keep working. |
+
+Decision modes:
+
+- `plan`: ask at plan/phase boundaries and major plan changes. Good for careful
+  human-led development.
+- `permission`: default. Ask for permission, paid fallback, external paths,
+  destructive actions, and ambiguous choices; auto-handle ordinary retries.
+- `auto`: maximize forward progress. Still never auto-runs destructive actions,
+  paid fallback, secret entry, external directory access, or partial apply.
+
+Commands:
+
+```text
+/dtd run --silent=4h
+/dtd run --decision auto --silent=4h
+/dtd mode decision permission
+/dtd silent on --for 4h
+/dtd silent off
+/dtd interactive
+```
+
+Korean/NL examples:
+
+| User phrase | Canonical |
+|---|---|
+| "자러갈게 4시간 조용히 개발해줘" | `/dtd run --silent=4h` |
+| "4시간 자동진행, 조용히" | `/dtd run --decision auto --silent=4h` |
+| "큰 결정은 물어보고 진행해" | `/dtd mode decision permission` |
+| "계획 단위로만 물어봐" | `/dtd mode decision plan` |
+| "/ㄷㅌㄷ 몇시간 동안 조용히 진행해줘" | `/dtd silent on --for <duration>` |
+| "이제 질문하면서 진행해" | `/dtd interactive` |
+| "인터랙티브 모드로 바꿔" | `/dtd interactive` |
+
+`interactive` behavior:
+- Blocking decisions fill the decision capsule and pause/ask immediately.
+- Status shows the active question and options.
+
+`silent` behavior:
+- Do not ask the user for non-urgent choices during the silent window.
+- Safe automatic actions are allowed: retry within policy, same-profile/free
+  fallback if configured, task split under context gate, continue independent
+  ready tasks.
+- Unsafe or user-required choices are deferred: auth/secret setup, paid
+  fallback, destructive options, external directory access, partial apply,
+  ambiguous permission, and high-impact steering.
+- Deferred blockers create incidents/attempt refs and are added to
+  `state.md` `deferred_decision_refs`; the blocked task and its dependents are
+  skipped for now, then the controller continues other ready work.
+- Token/quota exhaustion is a hard resource boundary:
+  - Worker token/quota exhaustion: try configured same-profile/free fallback
+    while silent policy allows it; if all safe fallbacks fail, defer the task
+    and continue independent ready work.
+  - Controller token/quota exhaustion: checkpoint immediately, set
+    `plan_status: PAUSED`, fill `awaiting_user_reason: CONTROLLER_TOKEN_EXHAUSTED`,
+    and wait. Silent mode cannot continue without the controller. See decision
+    capsule body below.
+
+#### Decision capsule: CONTROLLER_TOKEN_EXHAUSTED (v0.2.0f)
+
+Filled when the controller (host LLM) hits its own token/quota wall and cannot
+continue dispatching work — even safe ready work. This is distinct from
+worker token exhaustion (which becomes a deferred per-task blocker in silent
+mode).
+
+```yaml
+awaiting_user_decision: true
+awaiting_user_reason: CONTROLLER_TOKEN_EXHAUSTED
+decision_id: dec-NNN
+decision_prompt: "Controller token/quota exhausted (estimate: <usage>/<budget>). How to proceed?"
+decision_options:
+  - {id: wait_reset,        label: "wait for quota reset",            effect: "PAUSED until user resumes; no time-based auto-resume in v0.2.0f",                          risk: "no progress until manual resume"}
+  - {id: switch_host_model, label: "switch host LLM model",            effect: "user-driven action: change controller model in host UI, then /dtd run; DTD itself does not switch", risk: "host capability re-detection may run on resume"}
+  - {id: compact_and_resume, label: "compact run state and continue",  effect: "controller compacts notepad/logs to free tokens, runs `/dtd run` with smaller prefix",       risk: "loses some interpretive context; durable artifacts preserved"}
+  - {id: stop,              label: "stop the run",                     effect: "finalize_run(STOPPED)",                                                                       risk: "lose run progress beyond saved files"}
+decision_default: wait_reset
+decision_resume_action: "user picks option; controller acts on chosen effect when next /dtd run or /dtd interactive turn arrives"
+user_decision_options: [wait_reset, switch_host_model, compact_and_resume, stop]   # legacy back-compat
+```
+
+When this capsule fires while `attention_mode: silent`, the silent window is
+considered ended (controller cannot continue safely). State updates in one
+atomic write:
+- `plan_status: PAUSED`
+- `last_pause_reason: error_blocked`
+- `attention_mode: interactive` (silent cannot continue without controller)
+- `attention_until: null`
+- `attention_mode_set_by: run_flag` (auto-flipped by run loop)
+- The capsule above
+
+The user sees both the morning summary AND the controller-exhaustion capsule
+on next turn.
+- If no ready non-blocked tasks remain, set `plan_status: PAUSED` with
+  `last_pause_reason: decision_capsule` and show a compact morning summary.
+- Silent mode never auto-executes destructive actions, never expands path
+  permissions, and never crosses `silent_max_hours`.
+
+Mode can change mid-run. Switching to `interactive` surfaces the oldest
+deferred blocker first. Switching to `silent` keeps the current phase/worker
+state and applies the silent policy at the next decision point. Changing
+`decision_mode` affects future decisions only; it does not retroactively
+approve queued blockers.
+
+#### Silent-mode "ready work" algorithm
+
+At each decision point in the run loop, while `attention_mode: silent`:
+
+1. **Compute ready set**. A task is "ready" iff ALL hold:
+   - It is in the active plan with `done=false`.
+   - All its `depends-on` tasks are `done`.
+   - It is NOT in the dependency closure of any `deferred_decision_refs`
+     entry (the deferred-blocker task itself AND any task that transitively
+     depends on it are excluded from ready set).
+   - Its lock set in §Resource Locks does not conflict with currently held
+     leases.
+   - Its assigned worker is healthy (per worker registry; v0.2.1 `/dtd
+     workers test` health is treated as advisory until then).
+2. **If ready set is empty**:
+   - If `deferred_decision_refs` is non-empty: set `plan_status: PAUSED`,
+     `last_pause_reason: silent_window_ended_no_ready_work`, then trigger
+     morning summary (see `/dtd interactive`).
+   - If `deferred_decision_refs` is empty AND all tasks done: set
+     `plan_status: COMPLETED`; call `finalize_run(COMPLETED)`.
+   - If `deferred_decision_refs` is empty BUT some tasks remain non-ready
+     for reasons unrelated to deferred blockers (e.g., stuck lock): pause
+     with `last_pause_reason: silent_no_ready_work` and surface compact
+     summary.
+3. **If ready set is non-empty**: pick the next batch per the existing
+   topo + parallel-group rules (§Run loop step 4). Dispatch under silent
+   policy:
+   - **Safe** auto actions: retry within `failure_threshold`, same-profile
+     fallback (if `silent_allow_same_profile_fallback: true`), task split
+     under context gate, lease takeover only if explicitly safe (no active
+     heartbeat, lease older than `stale_threshold_min`).
+   - **Unsafe** actions defer (see "Defer triggers" below).
+4. **Defer triggers** — when the run loop hits one of these mid-task, the
+   controller does NOT call `/dtd pause` or surface a capsule to chat;
+   instead it:
+   1. Creates an incident per the v0.2.0a model (severity = whatever the
+      blocker's normal severity would be; the blocker still records as
+      blocked-class).
+   2. Snapshots the would-be decision capsule (reason, options, default,
+      resume_action) into the incident detail file under a new
+      `deferred_capsule:` key.
+   3. Appends `inc-<run>-<seq>` to `state.md` `deferred_decision_refs`.
+   4. Increments `deferred_decision_count`.
+   5. Marks the task as `blocked` in `attempts/run-NNN.md` with `silent_deferred: true`.
+   6. Releases the lease (so other ready work can proceed).
+   7. Continues with the next ready batch.
+
+Defer triggers (silent mode):
+
+| Trigger | Reason class |
+|---|---|
+| AUTH_FAILED, ENDPOINT_NOT_FOUND, NETWORK_UNREACHABLE | requires user attention |
+| RATE_LIMIT_BLOCKED, WORKER_5XX_BLOCKED, TIMEOUT_BLOCKED | after configured retry exhausted |
+| MALFORMED_RESPONSE | after retry exhausted |
+| WORKER_INACTIVE | after `worker_inactive_wait_default_sec` |
+| DISK_FULL, FS_PERMISSION_DENIED, FILE_LOCKED, PATH_GONE | always (never retry without user) |
+| PARTIAL_APPLY, UNKNOWN_APPLY_FAILURE | always (`Automatic resume forbidden` rule still holds) |
+| PERMISSION_REQUIRED, EXTERNAL_DIRECTORY_ACCESS | always |
+| PAID_FALLBACK_REQUIRED | always (`silent_allow_paid_fallback: false` default) |
+| Destructive recovery option needed | always (`silent_allow_destructive: false`) |
+| RESOURCE_TAKEOVER (would steal active lease) | always |
+| LOOP_GUARD_HIT (v0.2.1) | always |
+| Steering classified medium/high impact mid-run | always |
+| INCIDENT_BLOCKED chained on an already-deferred task | merge into existing incident |
+
+Auto-handle in silent (no defer):
+
+| Trigger | Behavior |
+|---|---|
+| Recoverable 1st/2nd-hit (within failure_threshold) | retry per existing policy |
+| Same-profile/free fallback in fallback chain | switch worker; record in attempt log |
+| Task split on soft context cap | split + continue |
+| Phase boundary | advance |
+| Stale lease takeover (older than `stale_threshold_min`, no heartbeat) | takeover with audit note |
+
+#### Silent deferred-decision limit
+
+`config.attention.silent_deferred_decision_limit` (default 20) hard-caps how
+many blockers can pile up before silent mode pauses itself.
+
+When `state.md.deferred_decision_count` reaches the limit:
+
+1. Set `plan_status: PAUSED`.
+2. Set `last_pause_reason: silent_deferred_limit`.
+3. Print compact one-line surface in chat (it will be visible to the user
+   when they next look at the host LLM):
+   ```
+   ⚠ silent paused: deferred_decision_limit=20 reached. Run /dtd interactive to review.
+   ```
+4. AIMemory `NOTE`: `silent_paused_deferred_limit, count=<N>`.
+5. Do NOT auto-flip to interactive — the user explicitly invokes
+   `/dtd interactive` to review. (Rationale: the user may have stepped away;
+   auto-flipping would surface decisions to an empty terminal.)
+
+The next `/dtd interactive` triggers the morning-summary path with the
+deferred backlog.
+
+#### Silent mode and host.mode interaction
+
+- `host.mode: plan-only`: `/dtd silent on` is rejected. Plan-only host cannot
+  apply files; silent mode requires apply authority. Tell user:
+  `silent on requires host.mode assisted or full. current: plan-only`.
+- `host.mode: assisted`: works. Per-call confirms (when
+  `assisted_confirm_each_call: true`) become defer triggers in silent.
+- `host.mode: full`: works. Default expected combination for overnight runs.
+
 **Pre-run checks** (before entering the run loop):
 
 - If `host_mode` is `assisted` or `full` AND `.dtd/PROJECT.md` is TODO-only (no real project context filled in): WARN user "PROJECT.md is empty — workers will receive generic context. Continue anyway? (y/n)". Same check as `/dtd doctor` #11, but at run time.
@@ -351,6 +595,26 @@ Run loop (per task):
       5. task-specific section        (varies, not cached)
       ```
       Notepad `<handoff>` is dynamic by design; do not mark it for cache.
+      **Worker context reset contract (GSD-style)**:
+      - Resolve `context-pattern` (`fresh` | `explore` | `debug`) before prompt
+        assembly and write the resolved values to `state.md`.
+      - Every worker dispatch starts from a fresh worker context by default:
+        first attempt, retry, phase boundary, and worker switch do not reuse
+        provider chat/session history. In DTD, one worker dispatch is the GSD
+        execution-unit equivalent.
+      - What resets: worker prompt transcript, raw previous response, tool
+        output, failed-attempt chatter, and provider session state.
+      - What survives: accepted file changes, controller-distilled notepad
+        facts, attempt/log refs, phase history, incidents, and state
+        checkpoints.
+      - Resume/retry rehydrates from durable artifacts (`state.md`, plan,
+        notepad `<handoff>`, attempts/log refs), not from a previous chat
+        transcript.
+      - Retry prompts include only a compact retry hint: failure reason,
+        attempt/log id, changed constraints, and relevant distilled learnings.
+        Do not paste raw failed output into the next worker prompt.
+      - Before each dispatch, rewrite `<handoff>` from durable state. Workers
+        see only the curated summary, not the previous worker conversation.
    b. **Context budget gate** (mandatory pre-dispatch — required, not optional):
       - Estimate input tokens (full prompt) + reserved output budget against the worker's `max_context`.
       - If estimate ≥ worker's `soft_context_limit` (default 70%) AND this is NOT a final/closing response: **checkpoint, close current phase, split task into smaller sub-tasks, do NOT dispatch the oversized task as-is**. Append `phase-history.md` row noting `note: phase split on soft cap`.
@@ -426,6 +690,13 @@ Order (atomic from controller's POV — execute ALL steps before responding to u
    - Update each affected `.dtd/log/incidents/inc-<run>-<seq>.md` detail file accordingly.
    - In state.md (held for the step-7 atomic write below): clear `active_incident_id`, `active_blocking_incident_id`, `recent_incident_summary`. Keep `last_incident_id` and `incident_count` for cross-run reference.
    - If `awaiting_user_decision` was an incident-backed reason (`INCIDENT_BLOCKED`), also clear `awaiting_user_decision`, `awaiting_user_reason`, `decision_id`, `decision_prompt`, `decision_options`, `decision_default`, `decision_resume_action`, `decision_expires_at`, `user_decision_options` as part of step 7.
+5b. **Clear attention/context-pattern state** (v0.2.0f):
+   - Clear `resolved_context_pattern`, `resolved_handoff_mode`, `resolved_sampling`, `last_context_reset_at`, `last_context_reset_reason`. These describe an in-flight dispatch and do not survive terminal exit.
+   - Clear `deferred_decision_refs` and `deferred_decision_count`:
+     - On `terminal_status=COMPLETED`: any remaining deferred refs MUST already be resolved (otherwise the run would have paused on silent_window_ended_no_ready_work). If non-empty here, mark the underlying incidents as `superseded` (same as step 5) and clear.
+     - On `terminal_status=STOPPED|FAILED`: mark the underlying incidents per the step-5 rule (`superseded`/`fatal`), then clear.
+   - Reset `attention_mode: interactive`, `attention_mode_set_by: default`, `attention_until: null`, `attention_goal: null`. Silent windows do not survive terminal exits — the next `/dtd plan` starts fresh in interactive mode.
+   - **Keep** `decision_mode` and `decision_mode_set_by` across terminal exits. The user's choice of decision frequency is a project-level preference, not a run-level one. Doctor will report the persistent value as INFO on next install/check.
 6. **Append AIMemory `WORK_END`** (only if AIMemory present): one-line event with `status=<terminal_status> grade=<final_grade> <duration>`. Per §AIMemory Boundary.
 7. **Update state.md**: `plan_status: <terminal_status>`, `plan_ended_at: <ts>`, clear `current_task`/`current_phase`/`pending_patch`/`pending_attempts` fields, plus the incident-state clears from step 5, plus the decision-capsule clears from step 5 if applicable. Set `last_update`. Single atomic tmp-rename write.
 
@@ -455,6 +726,145 @@ Append a steering directive. Sequence:
 8. On `reject`: discard patch, `pending_patch: false`, `patch_status: rejected`. Steering entry preserved in `steering.md` for context. Resume per `plan_status`.
 
 Patch application **only between tasks or after in-flight task completes**. Never mutate a worker call mid-flight.
+
+### `/dtd silent on [--for <duration>] [--goal "<text>"]` (v0.2.0f)
+
+Enter silent attention mode. Defers safe-to-defer blockers and continues
+independent ready work without interrupting the user. See §Autonomy &
+Attention Modes for full behavior.
+
+```
+/dtd silent on                    # use config silent_default_hours (default 4)
+/dtd silent on --for 2h           # explicit duration
+/dtd silent on --for 6h --goal "프론트 마무리하고 자러갈게"
+```
+
+Effects:
+1. Validate duration ≤ `config.attention.silent_max_hours` (default 8). Reject
+   if larger; tell user to split into multiple silent windows.
+2. Set `state.md`:
+   - `attention_mode: silent`
+   - `attention_mode_set_by: user`
+   - `attention_until: <now + duration>`
+   - `attention_goal: "<text or null>"`
+   - `deferred_decision_count: 0`
+   - `deferred_decision_refs: []` (cleared at silent-window start)
+3. Append a one-line entry to `steering.md` recording the entry: `silent_on by user, until <ts>, goal=<text>`.
+4. If a run is RUNNING, the silent policy applies at the next decision point
+   (does NOT interrupt the in-flight task).
+5. Append AIMemory `NOTE` event: `silent on, until=<ts>, goal=<text>` (per
+   §AIMemory Boundary — durable steering decision counts as a NOTE-worthy event).
+6. Print compact confirmation:
+   ```
+   → silent on (until 2026-05-05 08:00, "<goal>"). 잠자리 잘 다녀와.
+     deferred_blocker_limit=20  silent_max_hours=8
+     blockers will accumulate; surfaced when you switch back to interactive.
+   ```
+
+`/dtd silent on` is **not destructive**, but it changes how blockers surface.
+Confirm in NL only when goal is empty AND `decision_mode` is currently `plan`
+(plan-mode users prefer explicit confirmation).
+
+### `/dtd silent off` (v0.2.0f)
+
+Equivalent to `/dtd interactive`. Shorthand kept for symmetry with `silent on`.
+
+### `/dtd interactive` (v0.2.0f)
+
+Exit silent attention mode. Surfaces deferred blockers in age order (oldest first).
+
+Effects:
+1. Set `state.md`:
+   - `attention_mode: interactive`
+   - `attention_mode_set_by: user`
+   - `attention_until: null`
+   - `attention_goal: null`
+2. If `deferred_decision_refs` is non-empty:
+   - Pick the **oldest** (first in list) deferred ref.
+   - Re-fill the decision capsule from that incident/attempt's recovery options
+     (per `awaiting_user_reason` and `decision_options` snapshot stored with
+     the deferred ref).
+   - Show the morning summary (see §Morning summary format below).
+   - Subsequent deferred refs are surfaced one-at-a-time as the user resolves
+     each capsule.
+3. If `deferred_decision_refs` is empty:
+   - No capsule to fill.
+   - Print compact confirmation:
+     ```
+     → interactive. no deferred blockers. resume with /dtd run.
+     ```
+4. Append a one-line entry to `steering.md`: `interactive by user, deferred_count=<N>`.
+5. Append AIMemory `NOTE` event: `interactive, deferred=<N>`.
+
+`/dtd interactive` does NOT auto-resolve any deferred decision; the user still
+chooses recovery options for each surfaced capsule.
+
+### `/dtd mode decision <plan|permission|auto>` (v0.2.0f)
+
+Set the decision-frequency mode. Orthogonal to host.mode (apply authority) and
+attention_mode (ask now vs defer).
+
+```
+/dtd mode decision plan
+/dtd mode decision permission
+/dtd mode decision auto
+```
+
+Effects:
+1. Validate value against the enum.
+2. Set `state.md`:
+   - `decision_mode: <new>`
+   - `decision_mode_set_by: user`
+3. Print compact confirmation:
+   ```
+   → decision_mode = auto.  destructive/paid/external-path 는 여전히 confirm.
+   ```
+
+Behavior change applies to **future** decisions only. It does NOT auto-resolve
+existing capsules or queued deferred blockers. Switching from `auto` to `plan`
+does not retroactively roll back already-made auto decisions.
+
+If the user is currently in silent + auto and switches to plan + interactive,
+the controller surfaces deferred blockers per `/dtd interactive` semantics
+above; the new decision_mode applies to any subsequent decision points.
+
+### Morning summary format (v0.2.0f)
+
+When `/dtd interactive` exits silent (or when the silent window naturally ends
+and the controller flips to interactive automatically), the user sees:
+
+```
++ DTD silent window ended — 4h12m elapsed
++ progress
+| completed   3 tasks                                            ✓
+| deferred    2 blockers                                         !
+| skipped     1 task (dependency on deferred)                    -
++ deferred decisions
+| dec-007  AUTH_FAILED       deepseek-local  task 2.1   3h05m old
+| dec-009  PAID_FALLBACK     gpt-codex       task 3.1   1h22m old
++ ready work
+| -> 4.1 docs review        [qwen-remote]    docs/review-001.md
++ next
+| /dtd incident show inc-001-0007    inspect first deferred
+| /dtd run                            continue ready work after deciding
+```
+
+Rules:
+- Each line ≤ 80 chars (dashboard_width policy).
+- Deferred decisions ordered oldest-first.
+- Goal text from `attention_goal` is shown above progress if non-null.
+- `silent_window_ended` reason set in `state.md`:
+  - `last_pause_reason: silent_window_ended`
+  - `last_pause_at: <ts>`
+- `attention_mode: interactive` (atomic with the morning summary print).
+- AIMemory `NOTE`: `silent_window_ended, completed=<N> deferred=<M> skipped=<K>`.
+
+If silent window ends with NO deferred blockers and ALL ready work is done,
+the dashboard collapses to one line:
+
+```
++ DTD silent run complete — 4h12m, 3 tasks done, no deferred. Run /dtd status.
+```
 
 ### `/dtd incident list [--all|--blocking|--recent]` (v0.2.0a)
 
@@ -531,6 +941,119 @@ NL routing in `instructions.md`:
 ### `/dtd status [--compact|--full|--plan|--history|--eval]`
 
 Always allowed regardless of state. Renders dashboard (see Status Dashboard section).
+
+### `/dtd perf [--phase <id>|--worker <id>|--since <run>|--tokens|--cost]` (v0.2.0f)
+
+On-demand performance/token report. This is **observational** and is not shown
+in default status unless the user asks.
+
+Data sources:
+
+- `.dtd/log/exec-<run>-task-<id>-ctx.md` for controller estimate and provider
+  reported `usage.prompt_tokens` / `usage.completion_tokens`.
+- `.dtd/attempts/run-NNN.md` for task/worker/phase/attempt mapping.
+- `.dtd/phase-history.md` for phase duration, gates, and grades.
+- `.dtd/workers.md` optional token pricing metadata if present.
+
+Output is split into two layers:
+
+```text
++ DTD perf run-001
++ controller
+| total      prompt 38k  completion 6k   ctx peak 42%
+| phase 1    prompt 12k  completion 2k   ctx peak 31%
+| phase 2    prompt 18k  completion 3k   ctx peak 42%
+| phase 3    prompt 8k   completion 1k   ctx peak 28%
++ workers
+| total      calls 12  prompt 182k completion 41k ctx peak 68% cost $0.42
+| phase 1    calls 3   prompt 32k  completion 9k  ctx peak 44%
+| phase 2    calls 7   prompt 94k  completion 21k ctx peak 68%
+| phase 3    calls 2   prompt 56k  completion 11k ctx peak 51%
++ worker detail
+| deepseek-local   calls 9  prompt 118k completion 27k retry 2
+| qwen-local       calls 3  prompt 44k  completion 10k retry 0
+```
+
+Rules:
+
+- `/dtd perf` is an observational read: do not mutate `state.md`, notepad,
+  attempts, phase history, steering, or AIMemory.
+- Controller and worker totals MUST remain separate. Do not add them into one
+  blended "total tokens" number.
+- If provider usage is missing, show `unknown` and keep controller estimates
+  separate from provider-reported values.
+- Cost is best-effort and shown only when worker pricing metadata exists.
+- Korean/NL examples: "토큰 사용량 보여줘", "페이즈별 비용/토큰 체크",
+  "워커별 퍼포먼스 보여줘".
+
+#### Per-task ctx data file format (`.dtd/log/exec-<run>-task-<id>-ctx.md`)
+
+Each worker dispatch writes one ctx data file. Existing log file
+`.dtd/log/exec-<run>-task-<id>.<worker>.md` carries the worker's full
+response; the new sibling ctx file carries only token/timing/cost data —
+small (≤ 2 KB), structured, secret-free.
+
+Schema (markdown with one YAML front matter):
+
+```markdown
+---
+run: 001
+task: "2.1"
+worker: deepseek-local
+attempt: 1
+phase: 2
+phase_name: backend
+context_pattern: fresh
+sampling: "temp=0.0 top_p=1 samples=1"
+dispatched_at: 2026-05-05T14:32:11Z
+returned_at:   2026-05-05T14:33:42Z
+elapsed_ms: 91234
+controller_prompt_estimate_tokens: 8120
+controller_completion_estimate_tokens: 1410
+controller_ctx_peak_pct: 42
+worker_prompt_tokens_provider: 7902     # null if provider did not report
+worker_completion_tokens_provider: 1287
+worker_ctx_pct_self_report: 38          # from worker's ::ctx:: line, if present; advisory
+status: done                            # done | failed | blocked
+retry_of: null                          # attempt id of the prior failed attempt, if retry
+cost_usd: 0.0034                        # null if no pricing metadata
+http_status: 200                        # null on non-HTTP transport
+---
+
+## Notes
+
+(Optional human-readable notes — never raw worker output. Used for "ctx
+gate triggered split" or "retry on 429" annotations.)
+```
+
+Rules:
+
+- One file per worker dispatch (including retries — `attempt: 2` etc.).
+- Always written, even on `failed`/`blocked` status. Lets `/dtd perf`
+  account for retry cost.
+- Secret redaction applies (per §Security & Secret Redaction). Endpoint
+  hosts, model ids OK; tokens, auth headers NEVER.
+- Controller estimate fields are filled by the controller's own pre-dispatch
+  budget gate (run loop step 6.b). Provider fields are filled from the HTTP
+  response `usage` block when present; null otherwise.
+- File is gitignored (under `.dtd/.gitignore` `log/`).
+- v0.2.0a installs without v0.2.0f have NO ctx files. `/dtd perf` then
+  reports `unknown` for token columns and shows controller-only estimates
+  if `phase-history.md` has them; otherwise prints `no ctx data — run
+  /dtd perf after at least one v0.2.0f dispatch completes.`.
+- Doctor INFO check: ctx file count vs attempt count mismatch → INFO with
+  ratio (helps detect skipped writes).
+
+#### Output flag matrix
+
+| Flag | Effect |
+|---|---|
+| (no flag) | full report (controller + workers + worker detail) for active run |
+| `--phase <id>` | filter all sections to one phase |
+| `--worker <id>` | only "worker detail" + filtered phase rows for that worker |
+| `--since <run>` | aggregate across runs from `<run>` to active (uses archived ctx files in `.dtd/runs/`) |
+| `--tokens` | suppress timing/cost columns; emphasize prompt/completion |
+| `--cost` | requires worker pricing metadata; otherwise shows `unknown` per row |
 
 ---
 
@@ -695,6 +1218,53 @@ Patches policy:
 - Applied patches → migrated to `phase-history.md` or `log/run-NNN-summary.md` with pointer
 
 Brief: bounded (≤ 2 KB) — large rationale belongs in `PROJECT.md`.
+
+---
+
+## Context Patterns (v0.2.0f)
+
+DTD supports three GSD-inspired context patterns. The controller chooses one
+for each phase/task during planning, and the user can override it in natural
+language before approval.
+
+**Feature gating**: ships in v0.2.0f. Plans authored before v0.2.0f have no
+`context-pattern` attribute; the controller resolves them via capability
+defaults from `.dtd/config.md` `context-pattern.capability_context_defaults`.
+The plan XML schema `context-pattern` attribute is optional and back-compat.
+
+| Pattern | Default use | Behavior |
+|---|---|---|
+| `fresh` | code-write, refactor, review, verification | Fresh worker context, standard `<handoff>`, deterministic single sample. This is the default. |
+| `explore` | planning, research, UX, architecture | Fresh context per candidate, richer handoff, two samples, reviewer/convergence gate before apply. |
+| `debug` | retry, stuck task, incident, reproducible bug | Fresh retry context, failure-focused handoff, compact attempt/log refs, low creativity. |
+
+Plan XML may include:
+
+```xml
+<phase id="1" name="architecture" context-pattern="explore">
+  <task id="1.1" context-pattern="fresh">
+    ...
+  </task>
+</phase>
+```
+
+Planning rules:
+
+- If omitted, controller resolves by capability from `.dtd/config.md`.
+- `fresh` is conservative and should be chosen for anything that writes final
+  code unless the phase is explicitly ideation/planning.
+- `explore` produces alternatives; only the converged result can reach apply.
+- `debug` is selected automatically on retry paths, incidents, and loop-guard
+  recovery even if the original task was `fresh` or `explore`.
+- `/dtd plan show --full` and `/dtd status --full` display the resolved pattern.
+
+Natural-language steering examples:
+
+| User phrase | Effect |
+|---|---|
+| "이번 설계 페이즈는 탐색적으로 해" | set phase `context-pattern="explore"` |
+| "구현은 안정적으로 fresh로 가자" | set implementation phase/task `fresh` |
+| "이 에러는 디버그 패턴으로 다시 돌려" | retry current task with `debug` |
 
 ---
 
@@ -1237,6 +1807,27 @@ Doctor checks:
 
 Notepad is **complementary** to `phase-history.md` (compact phase pass log) and `attempts/run-NNN.md` (immutable attempt history). Notepad is **interpretive** ("what did we learn"); the others are **factual** ("what happened").
 
+### GSD-style reset semantics
+
+Worker execution context is reset on every dispatch, retry, worker switch, and
+phase boundary. The reset is not amnesia: the controller preserves improved
+method knowledge by distilling it into `learnings`, `decisions`, `issues`,
+`verification`, and a compact `<handoff>`.
+
+Rules:
+
+- Treat a DTD worker dispatch as the GSD execution-unit equivalent. Keep the
+  unit small enough that a fresh prompt can complete it without context rot.
+- Never feed a worker its previous raw transcript as context for a retry.
+- Never carry provider session state across phase boundaries unless a future
+  explicit `worker_session_id` resume policy is specified.
+- Retry starts fresh with task spec + compact retry hint + current `<handoff>`.
+  Completed/superseded attempts are discovered from `.dtd/attempts/` and logs.
+- Phase advance rewrites `<handoff>` from durable state, then dispatches the
+  next phase with a fresh worker context.
+- PAUSED preserves controller run memory and notepad; it does not preserve or
+  depend on worker chat context.
+
 ---
 
 ## Attempt Timeline
@@ -1465,6 +2056,8 @@ Unicode polish is optional and may be enabled in `config.md` if the terminal sup
 | goal      e-commerce 백엔드 API + 프론트엔드 + 코드 리뷰
 | current   2.1 API endpoints
 | worker    deepseek-local (tier 1)   profile=code-write
+| modes     ask permission | attention silent 3h12m left
+| ctx       fresh | handoff standard | t=0.0 s=1
 | work      src/api/**
 | writing   src/api/users.ts, src/api/products.ts  (live)
 | locks     write files:project:src/api/**
@@ -1479,7 +2072,51 @@ Unicode polish is optional and may be enabled in `config.md` if the terminal sup
 + pause anytime: /dtd pause  or  "잠깐 멈춰"
 ```
 
-When an active blocking incident exists (v0.2.0a), the dashboard adds **one** compact line after `current/worker/work/writing/locks` and before `recent`:
+### v0.2.0f mode/ctx lines (compact rendering rules)
+
+The compact dashboard renders two new lines (after `worker` and before `work`)
+when the relevant state is non-default:
+
+```
+| modes     ask permission | attention silent 3h12m left
+| ctx       fresh | handoff standard | t=0.0 s=1
+```
+
+Rendering rules:
+
+| Condition | Render? |
+|---|---|
+| `decision_mode != permission` OR `attention_mode != interactive` OR `deferred_decision_count > 0` | render `modes` line |
+| `state.md.resolved_context_pattern` is non-null | render `ctx` line |
+| Both default + nothing deferred + no resolved pattern (e.g. between dispatches) | omit both lines |
+
+`modes` line content:
+- `ask <decision_mode>` — always shown when this line renders.
+- `attention <interactive|silent>` — shown when not default. If silent, append
+  countdown `<H>h<M>m left` derived from `attention_until - now`.
+- `deferred <N>` — shown when `deferred_decision_count > 0`.
+- Total line width ≤ 80; if overflow, drop the deferred segment and surface
+  it on its own line below the modes line.
+
+`ctx` line content:
+- `<resolved_context_pattern>` — `fresh` / `explore` / `debug`.
+- `handoff <resolved_handoff_mode>` — `standard` / `rich` / `failure`.
+- Sampling shorthand from `resolved_sampling`. e.g. `t=0.0 s=1` for
+  `temperature=0.0 samples=1`. Compact one-token-per-knob format.
+- Total line width ≤ 80.
+
+`/dtd status --full` adds one more line below `ctx` listing the next-task
+resolved pattern (when known): `| ctx-next   <pattern> for next task <id>`.
+
+When `attention_mode: silent` and the silent window has ended (controller
+auto-flipped to interactive via the morning-summary path), the next
+`/dtd status` shows the morning summary block (see
+`/dtd interactive` §Morning summary format) INSTEAD of the regular
+dashboard until the user dismisses it by running `/dtd run` or
+`/dtd incident show <id>`.
+
+When an active blocking incident exists (v0.2.0a), the dashboard adds **one**
+compact line in the status body before `recent`:
 
 ```
 | incident   inc-001-0001 blocked NETWORK_UNREACHABLE  next:retry
@@ -1736,11 +2373,26 @@ Revised v0.2 sub-release tree (from v0.2 design R1 + v0.2.0d addendum):
 v0.2.0a   Incident Tracking       TAGGED 2026-05-05 (commit 41f8c7d)
 v0.2.0d   Self-Update              /dtd update — fetch latest from github with diff preview
                                     (NEW per user request; ships after 0a, before 0b/0c).
-                                    Includes: state-schema migration step,
+                                    Includes: state-schema migration step (also migrates
+                                    to v0.2.0f schema additions, see Amendment 4),
                                     env-var-only token (never URL forms),
                                     MANIFEST.json verification,
                                     /dtd help topic system (per user-journey audit),
                                     user journey scenarios 31, 32, 36-40, 42 added with this release.
+v0.2.0f   Autonomy & Attention    (NEW; sleep-friendly autonomy; ships after v0.2.0d so
+                                    users can update tooling into the new state/config schema):
+                                    decision_mode (plan|permission|auto),
+                                    attention_mode (interactive|silent),
+                                    /dtd run --silent=<duration> | --decision <mode>,
+                                    /dtd silent on|off, /dtd interactive,
+                                    /dtd mode decision <plan|permission|auto>,
+                                    context-pattern (fresh|explore|debug) per phase/task,
+                                    /dtd perf [--phase|--worker|--tokens|--cost] (separate
+                                    controller vs worker token reporting),
+                                    decision capsule reason CONTROLLER_TOKEN_EXHAUSTED,
+                                    morning-summary on silent-window end,
+                                    silent_deferred_decision_limit hard cap.
+                                    Adds 6 acceptance scenarios (22q + 23a/b/c/d + 39b).
 v0.2.0e   Locale Packs            (NEW; core prompts English-only, optional /dtd locale enable ko
                                     pack ships Korean NL + /ㄷㅌㄷ alias examples; ships after 0d.
                                     User journey scenario 41 added with this release.)

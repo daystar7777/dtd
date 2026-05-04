@@ -1,6 +1,6 @@
 # DTD v0.1 Test Scenarios
 
-> 48 acceptance scenarios for v0.1 + v0.1.1 + v0.2.0a. Not auto-runnable — these are
+> 59 acceptance scenarios for v0.1 + v0.1.1 + v0.2.0a + v0.2.0f (planned). Not auto-runnable — these are
 > (a) QA checklist for releases, (b) Codex review criteria, (c) user
 > usage examples. Each scenario has Setup / Steps / Expected / Pass.
 
@@ -597,6 +597,32 @@ On `cancel`: no files modified.
 - Cancel before apply: no `workers.md` or `.dtd/.env` modification
 - Length / prefix / suffix / fingerprint of any secret NEVER echoed in chat
 
+### 22q. Context pattern selection + GSD-style reset
+
+**Setup**: active DRAFT plan with at least one planning/research phase, one
+code-write phase, and one task that will need a retry.
+**Steps**:
+1. Run `/dtd plan show --full`.
+2. Say "이번 설계 페이즈는 탐색적으로 해" before approval.
+3. Approve and run until the code-write phase.
+4. Force one worker failure, then retry the same task.
+
+**Expected**:
+- Controller-selected plan fields use only `context-pattern="fresh"`,
+  `"explore"`, or `"debug"`.
+- Planning/research phase is `explore`; code-write/review/verification tasks
+  are `fresh` unless explicitly overridden.
+- Retry path resolves to `debug`, updates `state.md`
+  `resolved_context_pattern: debug`, and starts a fresh worker context.
+- Retry prompt includes compact failure reason + attempt/log ref + current
+  `<handoff>`, not the previous raw worker transcript.
+- Improvements accepted before retry remain as file changes, notepad distilled
+  learnings, attempts/log refs, and phase history.
+
+**Pass**: context resets at dispatch/retry/phase boundary while durable
+artifacts preserve useful learning. `/dtd status --full` shows resolved pattern
+and compact sampling line.
+
 ### 23. Dashboard ASCII default + width compliance
 
 **Setup**: install with `config.dashboard_style: ascii` (default for v0.1) and `dashboard_width: 80`. Plan RUNNING.
@@ -608,6 +634,221 @@ On `cancel`: no files modified.
 - no line exceeds 80 chars
 - truncations marked with `+more` or similar
 - `/dtd plan show` also renders ASCII when `dashboard_style: ascii`
+
+### 23a. Silent overnight mode defers blockers and continues safe work
+
+**Setup**: APPROVED plan with three independent tasks A/B/C. Task A will hit an
+AUTH_FAILED worker error; B and C are safe code-write tasks with no dependency
+on A.
+**Steps**: `/ㄷㅌㄷ 자러갈게 4시간 조용히 개발해줘`.
+**Expected**:
+- State sets `attention_mode: silent`, `attention_until` about 4h ahead, and
+  `attention_goal` summarizing the user request.
+- A creates a durable incident/decision capsule but is deferred, not repeatedly
+  asked in chat.
+- Controller skips A and A dependents, then continues B/C if locks and
+  dependencies allow.
+- Destructive, paid, secret, external-path, partial-apply, and ambiguous
+  permission decisions are never auto-approved.
+- When no ready non-blocked work remains or silent window ends, status/morning
+  summary shows completed tasks, deferred blockers, elapsed time, and next
+  choices.
+
+**Pass**: silent mode maximizes safe progress without user prompts and without
+losing blockers.
+
+### 23b. Decision mode and attention mode can change mid-run
+
+**Setup**: RUNNING or PAUSED plan in silent mode with at least one deferred
+decision.
+**Steps**:
+1. `/dtd interactive`
+2. `/dtd mode decision plan`
+3. `/dtd status --full`
+4. `/dtd silent on --for 2h`
+
+**Expected**:
+- Switching to interactive surfaces the oldest deferred blocker first.
+- Switching decision mode affects future choices only; it does not auto-resolve
+  queued blockers.
+- Status shows `decision_mode`, `attention_mode`, `attention_until`, and
+  deferred decision count.
+- Returning to silent preserves current phase/worker state and applies silent
+  policy at the next decision point.
+
+**Pass**: modes are orthogonal: host apply authority, decision frequency, and
+attention timing do not overwrite each other.
+
+### 23c. Silent mode handles token/quota exhaustion safely
+
+**Setup**: silent run with fallback chain configured. Task A worker returns
+token/quota exhaustion; later simulate controller token exhaustion.
+**Steps**:
+1. `/dtd run --decision auto --silent=4h`
+2. Worker A hits provider quota.
+3. Safe same-profile/free fallback exists, then also fails.
+4. Controller detects its own token/quota exhaustion.
+
+**Expected**:
+- Worker quota failure tries safe same-profile/free fallback only if silent
+  policy allows it.
+- If safe fallback fails, A is deferred and independent ready tasks continue.
+- Controller quota exhaustion checkpoints immediately, sets `plan_status:
+  PAUSED`, fills `awaiting_user_reason: CONTROLLER_TOKEN_EXHAUSTED`, and waits.
+- No paid fallback, destructive action, secret prompt, or external path action
+  is auto-approved.
+
+**Pass**: silent mode keeps making safe progress for worker quota issues, but
+controller quota exhaustion becomes a durable paused state.
+
+### 23d. Perf report separates controller and worker token usage
+
+**Setup**: completed or running plan with `.dtd/log/exec-*-ctx.md`,
+`.dtd/attempts/run-NNN.md`, and `.dtd/phase-history.md` populated.
+**Steps**: `/ㄷㅌㄷ 페이즈별 토큰 사용량 보여줘`.
+**Expected**:
+- Routes to `/dtd perf`.
+- Output has separate `controller`, `workers`, and `worker detail` sections.
+- Controller section shows total and per-phase prompt/completion/context peak.
+- Worker section shows total calls/tokens and per-phase calls/tokens/context
+  peak.
+- Worker detail shows calls/tokens/retry count by worker id.
+- No blended "total tokens" adds controller + worker into one number.
+- Read is observational: state, notepad, attempts, phase history, steering, and
+  AIMemory are unchanged.
+
+**Pass**: user can see controller orchestration cost separately from worker
+execution cost.
+
+### 23e. Morning summary surfaces deferred blockers in age order
+
+**Setup**: silent run completed safe work but accumulated 3 deferred decisions
+(AUTH_FAILED at t+1h, RATE_LIMIT_BLOCKED at t+2h, DISK_FULL at t+3h). User
+returns and runs `/dtd interactive` (or the silent window naturally ends and
+the controller flips automatically per `silent_window_ended_no_ready_work`).
+
+**Steps**:
+1. `/dtd interactive`.
+2. Inspect the morning summary block.
+3. Resolve the surfaced capsule (oldest first — AUTH_FAILED).
+4. After resolve, observe the next capsule (RATE_LIMIT_BLOCKED) being surfaced.
+
+**Expected**:
+- Morning summary block matches dtd.md §Morning summary format:
+  `+ DTD silent window ended — <elapsed>` header, `+ progress`, `+ deferred
+  decisions`, `+ ready work`, `+ next` sections.
+- Deferred decisions ordered oldest-first (AUTH_FAILED → RATE_LIMIT → DISK_FULL).
+- Each deferred line ≤ 80 chars; includes age (e.g. `3h05m old`).
+- `attention_goal` text shown above progress when non-null.
+- state.md: `attention_mode: interactive`, `attention_until: null`,
+  `last_pause_reason: silent_window_ended` (or `silent_window_ended_no_ready_work`).
+- After resolving first capsule, second one is filled into the decision
+  capsule slot (oldest of remaining 2).
+- AIMemory NOTE event: `silent_window_ended, completed=<N> deferred=3 skipped=<K>`.
+
+**Pass**: user navigates 3 deferred blockers via the morning summary path
+without losing any of them; oldest-first ordering preserved across resolutions.
+
+### 23f. Silent deferred-decision limit pauses the run
+
+**Setup**: silent run with `silent_deferred_decision_limit: 5` (lowered from
+default 20 for testing). Force 5 deferrals via 5 different blocking conditions
+on independent tasks.
+
+**Steps**:
+1. `/dtd run --silent=4h --decision auto`.
+2. Inject 5 blockers; each defers per silent algorithm.
+3. Observe state on the 5th deferral.
+
+**Expected**:
+- After 5th deferral: state.md `deferred_decision_count: 5`,
+  `plan_status: PAUSED`, `last_pause_reason: silent_deferred_limit`.
+- Compact one-line surface in chat: `⚠ silent paused:
+  deferred_decision_limit=5 reached. Run /dtd interactive to review.`
+- Controller does NOT auto-flip to interactive (per Don't Do These
+  v0.2.0f rule).
+- AIMemory NOTE: `silent_paused_deferred_limit, count=5`.
+- 6th would-be blocker does NOT add to refs (run is already PAUSED).
+- `/dtd interactive` then surfaces all 5 deferred via morning summary.
+
+**Pass**: hard cap is enforced; silent does not silently accumulate
+unbounded blockers.
+
+### 23g. CONTROLLER_TOKEN_EXHAUSTED capsule fires safely
+
+**Setup**: silent run in progress. Controller (host LLM) hits its own token/
+quota wall mid-dispatch (simulated by host UI quota signal or by manual
+state injection of `awaiting_user_reason: CONTROLLER_TOKEN_EXHAUSTED`).
+
+**Steps**:
+1. Force controller exhaustion mid-task.
+2. Observe state transition.
+3. User next-turn: see capsule + morning summary.
+
+**Expected**:
+- state.md: `plan_status: PAUSED`, `last_pause_reason: error_blocked`,
+  `attention_mode: interactive` (auto-flipped),
+  `attention_until: null`, `attention_mode_set_by: run_flag`,
+  `awaiting_user_decision: true`,
+  `awaiting_user_reason: CONTROLLER_TOKEN_EXHAUSTED`.
+- Decision capsule has options
+  `[wait_reset, switch_host_model, compact_and_resume, stop]`
+  with `decision_default: wait_reset`.
+- Morning summary block prints alongside the capsule (silent window cut
+  short by controller exhaustion).
+- AIMemory NOTE: `controller_token_exhausted, paused_at=<ts>`.
+- Doctor `/dtd doctor` PASSes the v0.2.0f autonomy invariant
+  (`capsule_options_invalid` check).
+- User picks `wait_reset` → state stays PAUSED, capsule is cleared,
+  user later runs `/dtd run` to resume.
+
+**Pass**: controller exhaustion is a graceful pause with a recoverable
+capsule, not a crash; auto-flip from silent to interactive on this
+specific reason is documented and predictable.
+
+### 23h. Status dashboard renders modes/ctx lines per v0.2.0f rules
+
+**Setup**: RUNNING plan in `decision_mode: auto`, `attention_mode: silent`
+(2h remaining), `resolved_context_pattern: explore`,
+`resolved_handoff_mode: rich`, `resolved_sampling: "temp=0.6 top_p=0.95 samples=2"`,
+`deferred_decision_count: 1`.
+
+**Steps**: `/dtd status`.
+
+**Expected** (per dtd.md §Status Dashboard v0.2.0f rendering rules):
+- `modes` line renders: `| modes     ask auto | attention silent 2h00m left | deferred 1`.
+- `ctx` line renders: `| ctx       explore | handoff rich | t=0.6 top_p=0.95 s=2`.
+- Both lines ≤ 80 chars.
+- Subsequent state with `decision_mode: permission`, `attention_mode: interactive`,
+  `deferred_decision_count: 0`, `resolved_context_pattern: null`: BOTH lines
+  omitted from compact dashboard (they would be no-ops).
+- `/dtd status --full` adds `| ctx-next   <pattern> for next task <id>`.
+
+**Pass**: dashboard renders new lines only when state is non-default;
+omits cleanly otherwise; widths within 80.
+
+### 23i. /dtd perf reads ctx data files without polluting context
+
+**Setup**: completed run-001 with 5 task dispatches. Each wrote
+`.dtd/log/exec-001-task-<id>-ctx.md` per the v0.2.0f schema. Notepad has
+content from a separate run-002 (currently RUNNING).
+
+**Steps**:
+1. Capture state.md / notepad.md / attempts/run-002.md before.
+2. `/dtd perf --since 1`.
+3. Compare after.
+
+**Expected**:
+- Perf output uses YAML front matter from each ctx file (run/task/worker/
+  attempt/phase/context_pattern/sampling/elapsed_ms/controller_*tokens/
+  worker_*tokens/cost_usd/http_status).
+- Controller and worker totals shown in separate sections.
+- Provider tokens null → shown as `unknown`; controller estimates always
+  filled.
+- state.md / notepad.md / attempts/run-002.md byte-identical before and after.
+- `/dtd perf` does NOT update `state.md.last_update`.
+
+**Pass**: ctx data file format works as spec'd; perf is observational.
 
 ---
 
@@ -826,7 +1067,17 @@ follow normal confidence rules; no silent run termination via NL.
 | 22o.1 | DISK_FULL during temp-write (clean abort, no final files changed) (R3 split) |
 | 22o.2 | PARTIAL_APPLY during rename phase (some final files written, no auto-resume) (R3 split) |
 | 22p | Worker-add wizard end-to-end with chat-safe secret flow (R3) |
+| 22q | v0.2.0f: Context pattern selection + GSD-style fresh reset with durable learning |
 | 23 | dashboard width/fallback (P2-10) |
+| 23a | v0.2.0f: silent overnight mode defers blockers and continues safe work |
+| 23b | v0.2.0f: decision mode and attention mode can change mid-run |
+| 23c | v0.2.0f: silent mode handles worker/controller token exhaustion safely |
+| 23d | v0.2.0f: perf report separates controller and worker token usage |
+| 23e | v0.2.0f: morning summary surfaces deferred blockers in age order |
+| 23f | v0.2.0f: silent_deferred_decision_limit pauses run when hit |
+| 23g | v0.2.0f: CONTROLLER_TOKEN_EXHAUSTED capsule fires safely |
+| 23h | v0.2.0f: status dashboard modes/ctx render rules |
+| 23i | v0.2.0f: /dtd perf reads ctx data files observationally |
 | 24 | v0.2.0a: blocking incident creation on network failure |
 | 25 | v0.2.0a: incident resolve via decision capsule + retry |
 | 26 | v0.2.0a: multi-blocker invariant — second blocker waits, oldest-promoted on resolve |
@@ -862,7 +1113,8 @@ and a corresponding row appears in the Coverage Map above.
 | 36 | Run to a boundary for human review | v0.2.0d (uses existing `/dtd run --until`) |
 | 37 | Steering mid-run from natural language | v0.2.0d (uses existing steering) |
 | 38 | Incident recovery from help only | v0.2.0d (v0.2.0a feature; verifiable now via help/journey docs) |
-| 39 | Observational reads do not pollute context | v0.2.0d |
+| 39 | Observational reads do not pollute context (status/plan/doctor/incident/help) | v0.2.0d |
+| 39b | Worker health diagnostics do not pollute context | v0.2.1 |
 | 40 | Update journey after v0.2.0d | v0.2.0d (THIS sub-release introduces `/dtd update`) |
 | 41 | Korean/mixed-language primary path | v0.2.0e (after Locale Pack split) |
 | 42 | Help-only discoverability | v0.2.0d (introduces `/dtd help` topic system) |

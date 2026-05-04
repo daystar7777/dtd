@@ -93,7 +93,7 @@ later `/dtd run` will dispatch tasks to this worker, and you'd rather
 discover setup issues here than during a run.
 
 ```text
-✓ deepseek-local      OK     1.2s    sentinel passed
+✓ deepseek-local      OK     1.2s    parseable response
 ```
 
 > Detailed stage logs and additional flags (`--all`, `--full`,

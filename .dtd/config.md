@@ -14,6 +14,31 @@
 - mode_set_by: install        # install | doctor | user
 - assisted_confirm_each_call: false
 
+## decision-policy (v0.2.0f)
+
+# How often DTD asks the user. Separate from host.mode (apply authority) and
+# attention mode (ask now vs defer). See dtd.md §Autonomy & Attention Modes.
+
+- default_decision_mode: permission       # plan | permission | auto
+- decision_mode_destructive_confirm: true # true even in auto/silent
+- decision_mode_paid_confirm: true        # paid fallback needs explicit allow
+- decision_mode_external_path_confirm: true
+
+## attention (v0.2.0f)
+
+# Separate from host.mode. host.mode controls apply authority; attention_mode
+# controls whether DTD interrupts the user or defers blockers and keeps working.
+# See dtd.md §Autonomy & Attention Modes for full algorithm.
+
+- default_attention_mode: interactive       # interactive | silent
+- silent_default_hours: 4
+- silent_max_hours: 8
+- silent_blocker_policy: defer_and_continue # defer_and_continue | pause_on_first_blocker
+- silent_allow_same_profile_fallback: true
+- silent_allow_paid_fallback: false
+- silent_allow_destructive: false
+- silent_deferred_decision_limit: 20
+
 ## roles
 
 # Map functional role → worker_id. NL "리뷰어한테 보내" resolves via this.
@@ -56,6 +81,30 @@
 - escalate_on_phase_failures: 0      # 0 = disabled; >0 = escalate phase as a unit after N failures
 - heartbeat_interval_sec: 30
 - stale_threshold_min: 5
+
+## context-pattern (v0.2.0f)
+
+# GSD-inspired context control. Keep only the three common user-facing patterns
+# for now; finer temperature/read-depth/session knobs can be added later under
+# these pattern names without changing plan syntax.
+# See dtd.md §Context Patterns for plan XML attribute usage and resolution.
+
+- default_context_pattern: fresh           # fresh | explore | debug
+- context_patterns:
+    fresh:   {handoff: standard, retry: compact_failure_hint, temperature: 0.0, top_p: 1.0, samples: 1, reviewer_gate: false}
+    explore: {handoff: rich,     retry: summary_only,         temperature: 0.6, top_p: 0.95, samples: 2, reviewer_gate: true}
+    debug:   {handoff: failure,  retry: compact_failure_hint, temperature: 0.1, top_p: 1.0, samples: 1, reviewer_gate: false}
+- capability_context_defaults:
+    planning: explore
+    research: explore
+    code-write: fresh
+    code-refactor: fresh
+    debug: debug
+    review: fresh
+    verification: fresh
+- max_handoff_kb: 1
+- context_warn_pct: 50
+- context_checkpoint_pct: 70
 
 ## incident (v0.2.0a)
 

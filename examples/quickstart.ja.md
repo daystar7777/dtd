@@ -79,7 +79,27 @@ export OLLAMA_API_KEY=ollama   # Ollama は実際のキー不要
 
 ---
 
-## 3. DTD モードを ON
+## 3. ワーカーをチェック
+
+```text
+/dtd workers test deepseek-local
+```
+
+基本接続チェックです。env var、endpoint、auth、model が短い呼び出しで
+正常に動くか確認します。失敗したら env / endpoint / auth を先に直してから
+続けてください。後の `/dtd run` はこのワーカーへタスクを送ります。
+
+```text
+✓ deepseek-local      OK     1.2s    parseable response
+```
+
+> ステージ別詳細ログと追加フラグ (`--all`, `--full`, `--connectivity`) は
+> v0.2.1 Runtime Resilience で提供されます。現在の基本 probe は
+> env / endpoint / auth / model 確認用です。
+
+---
+
+## 4. DTD モードを ON
 
 ```text
 /dtd mode on
@@ -90,7 +110,7 @@ export OLLAMA_API_KEY=ollama   # Ollama は実際のキー不要
 
 ---
 
-## 4. Plan → approve → run
+## 5. Plan → approve → run
 
 ```text
 /dtd plan "src/hello.js に hello-world エンドポイントを追加"
@@ -144,7 +164,7 @@ export OLLAMA_API_KEY=ollama   # Ollama は実際のキー不要
 
 ---
 
-## 5. 完了
+## 6. 完了
 
 `src/hello.js` ファイルが作成されました。開いてみるとワーカーの出力です。
 
