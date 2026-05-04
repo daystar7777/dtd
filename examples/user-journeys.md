@@ -332,8 +332,8 @@ make safe progress. Workers configured with tier escalation. `host.mode: full`.
   `/dtd interactive` to see full backlog.
 - **Controller token exhaustion**: PAUSED with
   `awaiting_user_reason: CONTROLLER_TOKEN_EXHAUSTED`,
-  auto-flip silent → interactive (only auto-flip case), morning summary
-  + capsule both visible on next turn.
+  attention state preserved, compact silent progress summary + capsule
+  visible on next turn. User runs `/dtd interactive` for the full backlog.
 
 **Pass**: a user can sleep 8 hours and wake up to a complete morning
 summary showing progress + actionable backlog. Safe forward progress

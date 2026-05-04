@@ -523,6 +523,8 @@ For observational reads:
 - DO NOT update `state.md.last_update`
 - DO NOT include the question/answer in future worker prompts
 - DO NOT affect grading, retry counters, steering counters, loop guard, or escalation
+- DO NOT append `.dtd/log/controller-usage-run-NNN.md`; perf accounting tracks
+  mutating DTD run orchestration, not status/help/doctor reads.
 
 Optional field (state.md): `last_status_viewed_at: <ts>` — INFO only, not a run state mutation.
 

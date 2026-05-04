@@ -649,7 +649,9 @@ tools and one opt-in worker with trusted sandboxed native tools.
   to `.dtd/log/tool-<run>-task-<id>-<seq>.md`, then retries with a compact log
   ref. File writes still go through normal output-path validation/apply.
 - A worker-native tool task is allowed only when the registry/config marks the
-  runtime as sandboxed; final output path validation still runs.
+  runtime as sandboxed (`tool_runtime: worker_native|hybrid` and
+  `native_tool_sandbox: true`); otherwise it resolves back to
+  `controller_relay` or blocks. Final output path validation still runs.
 
 **Pass**: phase/task personality and reasoning depth improve usability without
 turning into long context, hidden reasoning leakage, or uncontrolled tool use.
@@ -735,14 +737,16 @@ controller quota exhaustion becomes a durable paused state.
 ### 23d. Perf report separates controller and worker token usage
 
 **Setup**: completed or running plan with
-`.dtd/log/exec-<run>-task-<id>-att-<n>-ctx.md` files written for each
-dispatch, plus `.dtd/attempts/run-NNN.md` and `.dtd/phase-history.md`
-populated.
+`.dtd/log/controller-usage-run-NNN.md` written for mutating controller turns,
+`.dtd/log/exec-<run>-task-<id>-att-<n>-ctx.md` files written for each dispatch,
+plus `.dtd/attempts/run-NNN.md` and `.dtd/phase-history.md` populated.
 **Steps**: `/ㄷㅌㄷ 페이즈별 토큰 사용량 보여줘`.
 **Expected**:
 - Routes to `/dtd perf`.
 - Output has separate `controller`, `workers`, and `worker detail` sections.
 - Controller section shows total and per-phase prompt/completion/context peak.
+- Controller totals prefer `controller-usage-run-NNN.md` and do not
+  double-count worker ctx controller estimate fields.
 - Worker section shows total calls/tokens and per-phase calls/tokens/context
   peak.
 - Worker detail shows calls/tokens/retry count by worker id.
@@ -864,10 +868,10 @@ omits cleanly otherwise; widths within 80.
 
 ### 23i. /dtd perf reads ctx data files without polluting context
 
-**Setup**: completed run-001 with 5 task dispatches (no retries; one ctx file
-per task). Each wrote `.dtd/log/exec-001-task-<id>-att-1-ctx.md` per the
-v0.2.0f schema. Notepad has content from a separate run-002 (currently
-RUNNING).
+**Setup**: completed run-001 with a controller usage ledger and 5 task
+dispatches (no retries; one ctx file per task). Each dispatch wrote
+`.dtd/log/exec-001-task-<id>-att-1-ctx.md` per the v0.2.0f schema. Notepad has
+content from a separate run-002 (currently RUNNING).
 
 **Steps**:
 1. Capture state.md / notepad.md / attempts/run-002.md before.
@@ -875,12 +879,14 @@ RUNNING).
 3. Compare after.
 
 **Expected**:
-- Perf output uses YAML front matter from each ctx file (run/task/worker/
+- Perf output uses controller ledger rows for controller totals and YAML front
+  matter from each ctx file for worker totals (run/task/worker/
   attempt/phase/context_pattern/sampling/elapsed_ms/controller_*tokens/
   worker_*tokens/cost_usd/http_status).
 - Controller and worker totals shown in separate sections.
 - Provider tokens null → shown as `unknown`; controller estimates always
   filled.
+- Observational reads are absent from `controller-usage-run-NNN.md`.
 - state.md / notepad.md / attempts/run-002.md byte-identical before and after.
 - `/dtd perf` does NOT update `state.md.last_update`.
 

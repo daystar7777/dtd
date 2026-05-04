@@ -988,8 +988,15 @@ in default status unless the user asks.
 
 Data sources:
 
-- `.dtd/log/exec-<run>-task-<id>-att-<n>-ctx.md` for controller estimate and
-  provider reported `usage.prompt_tokens` / `usage.completion_tokens`.
+- `.dtd/log/controller-usage-run-NNN.md` for mutating controller turns
+  (planning, run-loop decisions, dispatch preparation, steering resolution,
+  decision-capsule resolution, finalize). This is authoritative for controller
+  totals when present.
+- `.dtd/log/exec-<run>-task-<id>-att-<n>-ctx.md` for per-dispatch diagnostics
+  and provider reported worker `usage.prompt_tokens` /
+  `usage.completion_tokens`. Its controller estimate fields are used for
+  controller totals only as a fallback when the controller usage ledger is
+  absent.
 - `.dtd/attempts/run-NNN.md` for task/worker/phase/attempt mapping.
 - `.dtd/phase-history.md` for phase duration, gates, and grades.
 - `.dtd/workers.md` optional token pricing metadata if present.
@@ -1019,11 +1026,51 @@ Rules:
   attempts, phase history, steering, or AIMemory.
 - Controller and worker totals MUST remain separate. Do not add them into one
   blended "total tokens" number.
+- Do not double-count controller dispatch-prep estimates from both
+  `controller-usage-run-NNN.md` and worker ctx files. Prefer the controller
+  ledger; use ctx controller fields only for backward compatibility.
+- Observational reads (`/dtd status`, `/dtd plan show`, `/dtd perf`, read-only
+  incident/help/doctor calls) are not written to the controller usage ledger.
+  `/dtd perf` reports DTD run orchestration/execution cost, not the cost of the
+  user's status-check habit.
 - If provider usage is missing, show `unknown` and keep controller estimates
   separate from provider-reported values.
 - Cost is best-effort and shown only when worker pricing metadata exists.
 - Korean/NL examples: "토큰 사용량 보여줘", "페이즈별 비용/토큰 체크",
   "워커별 퍼포먼스 보여줘".
+
+#### Controller usage ledger (`.dtd/log/controller-usage-run-NNN.md`)
+
+This compact run-local ledger keeps controller token accounting separate from
+worker dispatch logs without polluting status/notepad/attempt history.
+
+Append one row after each **mutating** controller turn that is part of a DTD
+run. Do not write a row for observational reads.
+
+```markdown
+# Controller usage run-001
+
+| seq | ts | phase | task | kind | prompt_est | completion_est | ctx_peak | note |
+|---:|---|---:|---|---|---:|---:|---:|---|
+| 1 | 2026-05-05T14:02:11Z | 0 | - | plan | 9200 | 1800 | 38 | phase0 |
+| 2 | 2026-05-05T14:11:05Z | 2 | 2.1 | dispatch_prepare | 8400 | 900 | 42 | att1 |
+| 3 | 2026-05-05T14:18:44Z | 2 | 2.1 | decision_resolve | 2100 | 350 | 18 | retry |
+```
+
+Allowed `kind` values:
+
+| kind | When |
+|---|---|
+| `plan` | phase 0 planning / plan amendment |
+| `run_loop` | controller-only run-loop decision without worker dispatch |
+| `dispatch_prepare` | prompt assembly + pre-dispatch gate |
+| `steer` | accepted steering patch/action |
+| `decision_resolve` | user option applied from decision capsule |
+| `finalize` | terminal lifecycle |
+
+`prompt_est` / `completion_est` are controller estimates unless the host
+exposes provider usage for its own turn. Provider values may be added later as
+optional columns. `phase: 0` is planning before phase 1 exists.
 
 #### Per-task ctx data file format (`.dtd/log/exec-<run>-task-<id>-att-<n>-ctx.md`)
 
@@ -1433,6 +1480,9 @@ Worker-native contract:
 
 - Allowed only when the engine exposes a trusted sandbox boundary and DTD can
   record `tool_runtime: worker_native` in `state.md`.
+- Worker registry must explicitly set `tool_runtime: worker_native` (or
+  `hybrid`) and `native_tool_sandbox: true`; otherwise resolve back to
+  `controller_relay` or block with `PERMISSION_REQUIRED`.
 - Worker returns a compact tool transcript summary and durable log refs.
 - The controller still validates final output paths before apply.
 
