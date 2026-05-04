@@ -40,17 +40,40 @@ github の daystar7777/dtd から prompt.md を取得してこのプロジェク
 
 ## どう使う?
 
-スラッシュコマンド:
+スラッシュ — 3 つのグループ: **開始 / 観察 / 復旧**.
+
+開始 (Start):
 
 ```text
-/dtd workers add               最初のワーカー LLM を登録
-/dtd mode on                   DTD モードを ON
-/dtd plan "API追加"             phase 別プラン作成 (DRAFT)
-/dtd approve                   プラン確定
-/dtd run                       実行
-/dtd pause                     次のタスク境界で停止
-/dtd status                    ダッシュボード
+/dtd workers add                 最初のワーカー LLM を登録
+/dtd workers test <id>           基本接続チェック (env / endpoint / auth)
+/dtd mode on                     DTD モードを ON
+/dtd plan "API追加"               phase 別プラン作成 (DRAFT)
+/dtd approve                     プラン確定
+/dtd run                         実行
 ```
+
+観察 (Observe):
+
+```text
+/dtd status                      ダッシュボード
+/dtd plan show                   現在のプラン詳細
+/dtd doctor                      ヘルスチェック
+/dtd workers list                登録済みワーカー一覧
+```
+
+復旧 (Recover, v0.2.0a Incident Tracking):
+
+```text
+/dtd pause                       次のタスク境界で停止
+/dtd incident list               ブロック中の事象一覧
+/dtd incident show <id>          詳細な失敗理由 + 復旧オプション
+/dtd incident resolve <id> retry 復旧オプションを選ぶ
+/dtd stop                        強制終了 (destructive)
+```
+
+> ワーカーヘルスチェックの詳細診断 (`--all`, `--full`, `--connectivity`,
+> ステージログ, 失敗分類) は v0.2.1 Runtime Resilience で提供。
 
 または自然言語で:
 

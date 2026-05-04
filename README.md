@@ -47,12 +47,15 @@ Start:
 
 ```text
 /dtd workers add                 register your first worker LLM
-/dtd workers test --all          check workers (env / endpoint / auth)
+/dtd workers test <id>           basic connectivity probe (env / endpoint / auth)
 /dtd mode on                     enable DTD mode
 /dtd plan "add user CRUD"        generate a phased plan (DRAFT)
 /dtd approve                     lock the plan
 /dtd run                         execute
 ```
+
+> Detailed worker health diagnostics (`--all`, `--full`, `--connectivity`,
+> stage logs, failure taxonomy) ship in v0.2.1 Runtime Resilience.
 
 Observe:
 

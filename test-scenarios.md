@@ -846,8 +846,11 @@ scenarios below verify that **a user following only README / quickstart /
 help can actually complete the product flow** — without reading `dtd.md`
 internals or AIMemory handoffs.
 
-These are populated incrementally per sub-release per
-`AIMemory/handoff_dtd-user-journey-doc-test-audit.gpt-5-codex.md`:
+Full Setup / Steps / Expected / Pass for each planned journey lives in the
+tracked file [`examples/user-journeys.md`](examples/user-journeys.md). The
+table here is the index — when a sub-release ships a journey, that journey
+moves from `planned` to `landed in <ver>` in `examples/user-journeys.md`,
+and a corresponding row appears in the Coverage Map above.
 
 | # | Journey | Lands in |
 |---|---------|----------|
@@ -864,10 +867,11 @@ These are populated incrementally per sub-release per
 | 41 | Korean/mixed-language primary path | v0.2.0e (after Locale Pack split) |
 | 42 | Help-only discoverability | v0.2.0d (introduces `/dtd help` topic system) |
 
-Detail design for each journey lives in
-`AIMemory/handoff_dtd-user-journey-doc-test-audit.gpt-5-codex.md`. Each
-journey expects a fixed input doc (README / quickstart / specific help
+Each journey expects a fixed input doc (README / quickstart / specific help
 page) and verifies the user can complete the flow without external context.
+History/audit context lives in
+`AIMemory/handoff_dtd-user-journey-doc-test-audit.gpt-5-codex.md`; canonical
+journey content is `examples/user-journeys.md` (tracked in repo).
 
 ---
 

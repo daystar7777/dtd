@@ -81,7 +81,28 @@ export OLLAMA_API_KEY=ollama   # Ollama doesn't need a real key
 
 ---
 
-## 3. Turn on DTD mode
+## 3. Check the worker
+
+```text
+/dtd workers test deepseek-local
+```
+
+Basic connectivity probe — verifies env var, endpoint, auth, and model in one
+short call. If this fails, fix env / endpoint / auth before continuing; the
+later `/dtd run` will dispatch tasks to this worker, and you'd rather
+discover setup issues here than during a run.
+
+```text
+✓ deepseek-local      OK     1.2s    sentinel passed
+```
+
+> Detailed stage logs and additional flags (`--all`, `--full`,
+> `--connectivity`) ship in v0.2.1 Runtime Resilience. The basic probe
+> covers env / endpoint / auth / model today.
+
+---
+
+## 4. Turn on DTD mode
 
 ```text
 /dtd mode on
@@ -92,7 +113,7 @@ every turn. Natural-language commands are now routed.
 
 ---
 
-## 4. Plan → approve → run
+## 5. Plan → approve → run
 
 ```text
 /dtd plan "add a hello-world endpoint to src/hello.js"
@@ -146,7 +167,7 @@ A few seconds later:
 
 ---
 
-## 5. Done
+## 6. Done
 
 `src/hello.js` now exists. Open it — it's the worker's output.
 
