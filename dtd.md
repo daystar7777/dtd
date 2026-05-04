@@ -93,6 +93,13 @@ Health check. Output uses the same Unicode/ASCII style as `/dtd status`. Reports
 - If `plan_status: RUNNING` AND `current_task` non-null: `resolved_context_pattern` MUST be non-null; ELSE WARN `running_task_missing_context_resolution`.
 - Plan XML `context-pattern` attribute (when present) MUST be one of `fresh|explore|debug`; ELSE ERROR `plan_context_pattern_invalid`.
 - `config.md context_patterns` MUST have entries for `fresh`, `explore`, `debug`; ELSE ERROR `context_patterns_config_missing`.
+- Plan XML `persona` attribute (when present) MUST resolve to
+  `config.md persona_patterns`; ELSE ERROR `plan_persona_invalid`.
+- Plan XML `reasoning-utility` attribute (when present) MUST resolve to
+  `config.md reasoning_utilities`; ELSE ERROR `plan_reasoning_utility_invalid`.
+- `config.md tool-runtime.default_worker_tool_mode` MUST be one of
+  `none|controller_relay|worker_native|hybrid`; ELSE ERROR
+  `tool_runtime_invalid`.
 - ctx file count vs attempt count: count `.dtd/log/exec-<run>-task-*-ctx.md` files vs attempt count in `.dtd/attempts/run-<run>.md` for the active run; report ratio as INFO. Mismatch is not blocking (silent installs without v0.2.0f workers don't write ctx files).
 
 **Incident state** (v0.2.0a):
@@ -438,19 +445,23 @@ user_decision_options: [wait_reset, switch_host_model, compact_and_resume, stop]
 ```
 
 When this capsule fires while `attention_mode: silent`, the silent window is
-considered ended (controller cannot continue safely). State updates in one
-atomic write:
+interrupted but NOT auto-flipped. The controller cannot continue safely, but it
+also must not assume the user is present. State updates in one atomic write:
 - `plan_status: PAUSED`
 - `last_pause_reason: error_blocked`
-- `attention_mode: interactive` (silent cannot continue without controller)
-- `attention_until: null`
-- `attention_mode_set_by: run_flag` (auto-flipped by run loop)
+- Preserve `attention_mode`, `attention_until`, `attention_goal`, and
+  `attention_mode_set_by` exactly as they were.
 - The capsule above
 
-The user sees both the morning summary AND the controller-exhaustion capsule
-on next turn.
+The user sees the controller-exhaustion capsule on the next observable turn.
+If the run was silent, also show a compact silent progress summary so the user
+can decide whether to wait, switch host model, compact, or enter interactive.
+The full morning-summary path is entered only when the user runs
+`/dtd interactive` or explicitly resolves the capsule with an option that
+surfaces deferred blockers.
 - If no ready non-blocked tasks remain, set `plan_status: PAUSED` with
-  `last_pause_reason: decision_capsule` and show a compact morning summary.
+  `last_pause_reason: decision_capsule` and show a compact summary. Do not
+  mutate attention mode as part of a read-only status render.
 - Silent mode never auto-executes destructive actions, never expands path
   permissions, and never crosses `silent_max_hours`.
 
@@ -602,12 +613,16 @@ Run loop (per task):
       2. PROJECT.md                   (rarely changes, cacheable)
       3. notepad.md <handoff> only    (dynamic, REWRITTEN before each dispatch, NOT cached)
       4. skills/<capability>.md       (per capability, cacheable)
-      5. task-specific section        (varies, not cached)
+      5. task-specific section        (varies, not cached; includes compact
+         persona/reasoning/tool-runtime controls when configured)
       ```
       Notepad `<handoff>` is dynamic by design; do not mark it for cache.
       **Worker context reset contract (GSD-style)**:
       - Resolve `context-pattern` (`fresh` | `explore` | `debug`) before prompt
         assembly and write the resolved values to `state.md`.
+      - Resolve `persona`, `reasoning-utility`, and `tool-runtime` before
+        prompt assembly. Inject only compact control capsules in the
+        task-specific section; never store or request raw chain-of-thought.
       - Every worker dispatch starts from a fresh worker context by default:
         first attempt, retry, phase boundary, and worker switch do not reuse
         provider chat/session history. In DTD, one worker dispatch is the GSD
@@ -706,7 +721,15 @@ Order (atomic from controller's POV — execute ALL steps before responding to u
      - On `terminal_status=COMPLETED`: any remaining deferred refs MUST already be resolved (otherwise the run would have paused on silent_window_ended_no_ready_work). If non-empty here, mark the underlying incidents as `superseded` (same as step 5) and clear.
      - On `terminal_status=STOPPED|FAILED`: mark the underlying incidents per the step-5 rule (`superseded`/`fatal`), then clear.
    - Reset `attention_mode: interactive`, `attention_mode_set_by: default`, `attention_until: null`, `attention_goal: null`. Silent windows do not survive terminal exits — the next `/dtd plan` starts fresh in interactive mode.
-   - **Keep** `decision_mode` and `decision_mode_set_by` across terminal exits. The user's choice of decision frequency is a project-level preference, not a run-level one. Doctor will report the persistent value as INFO on next install/check.
+   - If `decision_mode_set_by: run_flag`, reset `decision_mode` to
+     `config.decision-policy.default_decision_mode` and
+     `decision_mode_set_by: default`. `/dtd run --decision <mode>` is a
+     run-scoped override.
+   - If `decision_mode_set_by: user`, keep `decision_mode` across terminal
+     exits. `/dtd mode decision <mode>` is the project preference path.
+   - Clear `resolved_controller_persona`, `resolved_worker_persona`,
+     `resolved_reasoning_utility`, and `resolved_tool_runtime`. These are
+     per-dispatch/per-phase controls, not terminal state.
 6. **Append AIMemory `WORK_END`** (only if AIMemory present): one-line event with `status=<terminal_status> grade=<final_grade> <duration>`. Per §AIMemory Boundary.
 7. **Update state.md**: `plan_status: <terminal_status>`, `plan_ended_at: <ts>`, clear `current_task`/`current_phase`/`pending_patch`/`pending_attempts` fields, plus the incident-state clears from step 5, plus the decision-capsule clears from step 5 if applicable. Set `last_update`. Single atomic tmp-rename write.
 
@@ -840,8 +863,7 @@ above; the new decision_mode applies to any subsequent decision points.
 
 ### Morning summary format (v0.2.0f)
 
-When `/dtd interactive` exits silent (or when the silent window naturally ends
-and the controller flips to interactive automatically), the user sees:
+When `/dtd interactive` exits silent, the user sees:
 
 ```
 + DTD silent window ended — 4h12m elapsed
@@ -868,6 +890,13 @@ Rules:
   - `last_pause_at: <ts>`
 - `attention_mode: interactive` (atomic with the morning summary print).
 - AIMemory `NOTE`: `silent_window_ended, completed=<N> deferred=<M> skipped=<K>`.
+
+When `attention_until` expires while the user is away, the controller pauses at
+the next safe boundary with `last_pause_reason: silent_window_expired` and
+preserves `attention_mode: silent`. `/dtd status` may render a compact summary
+from durable state, but it is observational and does not flip the mode. The
+user runs `/dtd interactive` to enter the full morning-summary path and surface
+deferred capsules.
 
 If silent window ends with NO deferred blockers and ALL ready work is done,
 the dashboard collapses to one line:
@@ -1282,6 +1311,122 @@ Natural-language steering examples:
 | "이번 설계 페이즈는 탐색적으로 해" | set phase `context-pattern="explore"` |
 | "구현은 안정적으로 fresh로 가자" | set implementation phase/task `fresh` |
 | "이 에러는 디버그 패턴으로 다시 돌려" | retry current task with `debug` |
+
+---
+
+## Persona, Reasoning, and Tool-Use Patterns (v0.2.0f Codex R0 addendum)
+
+These controls sit beside `context-pattern`. They are selected by the
+controller during planning and resolved before each worker dispatch. They are
+short behavioral stances and execution utilities, not long role-play prompts.
+
+Design constraints:
+
+- Persona text is a compact stance line, not biography or decorative role-play.
+- Persona can NEVER override security, permission profiles, path policy,
+  destructive confirmation, secret redaction, or user decisions.
+- Do not request, reveal, or store raw chain-of-thought. Use private reasoning
+  internally and persist only concise rationale, decision, evidence, and
+  next-action summaries.
+- Tool use is explicit. Workers either use a trusted native tool runtime, or
+  ask the controller for a validated relay between dispatches.
+
+### Persona patterns
+
+Default pattern set:
+
+| id | Best phase/task | Controller stance | Worker stance |
+|---|---|---|---|
+| `operator` | run orchestration, silent mode | keep progress, surface blockers tersely | follow exact scope, report only deltas |
+| `planner` | phase 0, decomposition | make dependencies and decision points explicit | produce options and tradeoffs |
+| `researcher` | unknown codebase, external references | ask what evidence is missing | gather facts, cite refs, avoid edits |
+| `implementer` | code-write/refactor | minimize blast radius | patch the declared outputs cleanly |
+| `debugger` | failing task/retry/incident | isolate repro and smallest fix path | use evidence, logs, and hypotheses |
+| `reviewer` | review/verification | look for correctness and UX regressions | report findings, not broad rewrites |
+| `release_guard` | final phase/ship check | verify docs/tests/state consistency | check acceptance criteria and risks |
+
+Resolution order:
+
+1. Task `persona="<id>"`.
+2. Phase `persona="<id>"`.
+3. Capability default in `.dtd/config.md`.
+4. Context pattern default (e.g. `debug` -> `debugger`).
+5. Global default (`operator` for controller, `implementer` for workers).
+
+Plan XML attributes are optional and back-compatible:
+
+```xml
+<phase id="1" name="architecture" context-pattern="explore"
+       persona="planner" reasoning-utility="least_to_most">
+  <task id="1.1" persona="researcher" reasoning-utility="react"
+        tool-runtime="controller_relay">
+    ...
+  </task>
+</phase>
+```
+
+Prompt injection rule:
+
+- Add a compact `<persona>` capsule inside the task-specific section:
+  `controller=<id>; worker=<id>; stance="<one sentence>"`.
+- Keep it under 120 words total.
+- Do not add demographic, fictional, or irrelevant traits. If a requested
+  persona contains irrelevant traits, strip them and keep only domain stance.
+
+### Reasoning utilities
+
+Default utility set:
+
+| id | Best use | Behavior |
+|---|---|---|
+| `direct` | simple code-write, safe refactor | concise plan, execute, summarize |
+| `least_to_most` | complex phase planning | split into ordered subproblems first |
+| `react` | research/tool-heavy tasks | alternate plan/action/observation summaries |
+| `tool_critic` | verification, bug hunting | use external checks, then revise |
+| `self_refine` | writing/docs/UI polish | draft, critique, refine within budget |
+| `tree_search` | architecture/UX alternatives | sample small option set, choose with rubric |
+| `reflexion` | repeated failure | store one compact lesson for next retry |
+
+Reasoning output contract:
+
+- Hidden/private reasoning may be used by the model, but DTD persists only:
+  `decision`, `evidence_refs`, `risks`, `next_action`, and at most 5 lines of
+  rationale summary.
+- For `tree_search` and `self_consistency`-style sampling, store option ids and
+  final rubric scores, not raw candidate chains.
+- `reflexion` writes a compact lesson to notepad/attempt history only after a
+  concrete external signal (test failure, reviewer finding, incident, or user
+  correction). No free-floating self-talk.
+
+### Tool-use runtime policy
+
+Workers have four tool modes:
+
+| mode | Meaning | Default |
+|---|---|---|
+| `none` | worker cannot call tools | safe fallback |
+| `controller_relay` | worker emits a structured tool request; controller validates and runs it between dispatches | default |
+| `worker_native` | worker engine has its own sandboxed tools | opt-in only |
+| `hybrid` | worker-native for read-only tools, controller relay for writes | advanced |
+
+Controller relay contract:
+
+1. Worker returns `::tool_request::` as the terminal status instead of claiming
+   it ran the tool.
+2. Controller validates requested command/API against permission profile,
+   resource locks, path policy, network policy, and tool allowlist.
+3. Controller executes the tool outside the worker transcript, saves full
+   sanitized output to `.dtd/log/tool-<run>-task-<id>-<seq>.md`, and passes only
+   a compact result summary + log ref into the next fresh worker dispatch.
+4. Mutating file writes still go through `===FILE: <path>===` blocks and the
+   controller apply pipeline. Relay tools do not bypass validation/apply.
+
+Worker-native contract:
+
+- Allowed only when the engine exposes a trusted sandbox boundary and DTD can
+  record `tool_runtime: worker_native` in `state.md`.
+- Worker returns a compact tool transcript summary and durable log refs.
+- The controller still validates final output paths before apply.
 
 ---
 
@@ -2125,12 +2270,11 @@ Rendering rules:
 `/dtd status --full` adds one more line below `ctx` listing the next-task
 resolved pattern (when known): `| ctx-next   <pattern> for next task <id>`.
 
-When `attention_mode: silent` and the silent window has ended (controller
-auto-flipped to interactive via the morning-summary path), the next
-`/dtd status` shows the morning summary block (see
-`/dtd interactive` §Morning summary format) INSTEAD of the regular
-dashboard until the user dismisses it by running `/dtd run` or
-`/dtd incident show <id>`.
+When `attention_mode: silent` and the silent window has ended, the controller
+pauses at the next safe boundary and preserves silent mode. The next
+`/dtd status` may show a compact "silent window ended" summary INSTEAD of the
+regular dashboard, but status remains observational and does not flip state.
+The full morning-summary flow starts when the user runs `/dtd interactive`.
 
 When an active blocking incident exists (v0.2.0a), the dashboard adds **one**
 compact line in the status body before `recent`:

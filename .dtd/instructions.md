@@ -191,6 +191,23 @@ separate; never add them into one blended total.
 Controller may choose `fresh` / `explore` / `debug` during plan generation.
 User NL overrides are patches unless the active plan is still DRAFT.
 
+### Persona / reasoning / tool-runtime NL
+
+These route to optional plan attributes. In DRAFT, edit the plan directly; in
+APPROVED/RUNNING/PAUSED, create a steering patch and confirm if impact is
+medium/high.
+
+| User phrase pattern | Canonical effect | Required state |
+|---|---|---|
+| "use reviewer persona for this phase", "검토자 관점으로 봐줘" | set `persona="reviewer"` on matching phase/task | DRAFT or steer patch |
+| "debugger mode for this retry", "디버거처럼 원인부터 잡아" | set `persona="debugger"` + `reasoning-utility="tool_critic"` | failure/retry path |
+| "explore alternatives deeply", "여러 안을 비교해" | set `reasoning-utility="tree_search"` (usually with `context-pattern="explore"`) | planning/research |
+| "break it down step by step", "작게 나눠서 풀어" | set `reasoning-utility="least_to_most"` | planning/complex task |
+| "worker needs a shell/read tool", "툴 요청은 컨트롤러가 확인해" | set `tool-runtime="controller_relay"` | any worker task |
+
+Never promise that the worker will reveal its private reasoning. User-facing
+output is a compact rationale summary plus evidence/log refs.
+
 ---
 
 ## State-aware Disambiguation
@@ -332,7 +349,8 @@ Hard rules. Violations waste user tokens or degrade UX.
 2. .dtd/PROJECT.md                  (rarely changes, cache hit)
 3. .dtd/notepad.md <handoff> only   (dynamic — REWRITTEN before each dispatch, NO cache)
 4. .dtd/skills/<capability>.md      (per capability, cache hit per capability)
-5. task-specific section            (varies, no cache)
+5. task-specific section            (varies, no cache; includes compact
+   persona/reasoning/tool-runtime controls when configured)
 ```
 
 **Important**: only steps 1, 2, 4 are cache-friendly. The notepad `<handoff>` (step 3) is intentionally dynamic — controller rewrites it before each worker dispatch to reflect the latest run state. Do NOT mark it with `cache_control: ephemeral`.
@@ -348,10 +366,14 @@ Before each worker dispatch:
 1. Resolve context pattern from task override, phase override, capability
    default, then `config.md`.
 2. Resolve sampling from the selected pattern, then worker tuning fields.
-3. Update `state.md` Active context pattern fields.
-4. Start a fresh worker context. DTD v0.2.0 does not expose sticky provider
+3. Resolve persona pattern, reasoning utility, and tool runtime from task
+   override, phase override, capability defaults, then `config.md`.
+4. Update `state.md` Active context pattern fields, including
+   `resolved_controller_persona`, `resolved_worker_persona`,
+   `resolved_reasoning_utility`, and `resolved_tool_runtime`.
+5. Start a fresh worker context. DTD v0.2.0 does not expose sticky provider
    sessions; that can be added later behind an explicit opt-in.
-5. Rehydrate only durable artifacts: `state.md`, active plan/task, current
+6. Rehydrate only durable artifacts: `state.md`, active plan/task, current
    `<handoff>`, compact retry hint, and file/path refs. Do not paste raw prior
    worker transcripts into the next prompt.
 
@@ -363,6 +385,24 @@ Patterns:
   convergence before apply. Use for planning, research, UX, architecture.
 - `debug`: fresh retry context, failure handoff, compact attempt/log refs, low
   creativity. Use for stuck tasks, incidents, and reproducible bugs.
+
+Persona / reasoning / tool-use controls:
+
+- Persona is a short stance, not role-play. Keep the `<persona>` capsule under
+  120 words and never let it override permission, secret, path, or destructive
+  confirmation policy.
+- Reasoning utilities (`direct`, `least_to_most`, `react`, `tool_critic`,
+  `self_refine`, `tree_search`, `reflexion`) guide depth and verification.
+  Do NOT request, reveal, store, or pass raw chain-of-thought. Persist only
+  compact rationale summaries, evidence refs, risks, and next actions.
+- If `resolved_tool_runtime: controller_relay`, workers do not actually run
+  tools. They emit `::tool_request::` as terminal status. Controller validates
+  the request, runs it between dispatches, saves sanitized full output to
+  `.dtd/log/tool-<run>-task-<id>-<seq>.md`, and gives the next fresh worker
+  dispatch only a compact result summary plus log ref.
+- If `resolved_tool_runtime: worker_native`, it must be an explicitly trusted
+  sandbox. Worker-native tools still do not bypass final output path validation
+  or controller apply.
 
 ### 4. Context file inline tiers
 
@@ -527,7 +567,9 @@ Reason: long sessions easily fill controller context with repeated "what's the s
 - **Don't auto-pay in silent mode** (v0.2.0f). `silent_allow_paid_fallback: false` is the default. Paid tier transitions defer.
 - **Don't blend controller and worker token totals** (v0.2.0f). `/dtd perf` must keep them in separate sections. The user wants to see orchestration cost vs execution cost separately.
 - **Don't carry worker chat transcripts across dispatches** (v0.2.0f). Every worker dispatch starts from a fresh context per the GSD-style reset semantics. Improvements survive as durable artifacts (notepad distilled facts, file changes, attempt/log refs), NOT as raw chat history.
-- **Don't auto-flip silent → interactive without user action** (v0.2.0f). When `silent_deferred_decision_limit` is hit OR `attention_until` arrives, the controller PAUSES the run. The user must explicitly run `/dtd interactive` to surface the morning summary. (Rationale: the user may have stepped away; auto-flipping would surface decisions to an empty terminal.)
+- **Don't auto-flip silent → interactive without user action** (v0.2.0f). When `silent_deferred_decision_limit`, `attention_until`, or `CONTROLLER_TOKEN_EXHAUSTED` is hit, the controller PAUSES the run and preserves attention state. The user must explicitly run `/dtd interactive` to surface the full morning summary. (Rationale: the user may have stepped away; auto-flipping would surface decisions to an empty terminal.)
+- **Don't ask workers to reveal chain-of-thought** (v0.2.0f). Use reasoning utilities privately, then save only concise rationale summaries, evidence refs, risks, and next actions.
+- **Don't let worker tool use bypass controller policy** (v0.2.0f). Without a trusted worker-native sandbox, workers emit `::tool_request::`; the controller validates and runs relay tools between dispatches, logs sanitized output, then retries with a compact result ref.
 
 ---
 

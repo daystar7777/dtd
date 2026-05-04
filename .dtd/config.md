@@ -106,6 +106,66 @@
 - context_warn_pct: 50
 - context_checkpoint_pct: 70
 
+## persona-pattern (v0.2.0f Codex R0 addendum)
+
+# Compact stance controls chosen per phase/task. Personas are domain stances,
+# not role-play biographies, and never override permissions or safety rules.
+
+- default_controller_persona: operator
+- default_worker_persona: implementer
+- persona_patterns:
+    operator:      {stance: "optimize safe progress; surface blockers tersely"}
+    planner:       {stance: "make dependencies, options, and decision points explicit"}
+    researcher:    {stance: "gather evidence and references before changing files"}
+    implementer:   {stance: "make the smallest correct patch inside declared scope"}
+    debugger:      {stance: "isolate repro, hypothesis, and smallest fix path"}
+    reviewer:      {stance: "prioritize correctness, regressions, and missing tests"}
+    release_guard: {stance: "verify docs, tests, state, and acceptance consistency"}
+- capability_persona_defaults:
+    planning: planner
+    research: researcher
+    code-write: implementer
+    code-refactor: implementer
+    debug: debugger
+    review: reviewer
+    verification: release_guard
+- max_persona_prompt_words: 120
+
+## reasoning-utility (v0.2.0f Codex R0 addendum)
+
+# Utilities guide how deeply to reason for a phase/task. Raw chain-of-thought is
+# never requested, stored, or shown; only compact rationale summaries survive.
+
+- default_reasoning_utility: direct
+- reasoning_utilities:
+    direct:        {summary: "concise plan, execute, summarize", samples: 1}
+    least_to_most: {summary: "decompose into ordered subproblems", samples: 1}
+    react:         {summary: "plan/action/observation summaries for tool-heavy work", samples: 1}
+    tool_critic:   {summary: "verify with external checks, then revise", samples: 1}
+    self_refine:   {summary: "draft, critique, refine within budget", samples: 1}
+    tree_search:   {summary: "sample small option set, select with rubric", samples: 3}
+    reflexion:     {summary: "record one compact lesson after concrete failure", samples: 1}
+- capability_reasoning_defaults:
+    planning: least_to_most
+    research: react
+    code-write: direct
+    code-refactor: direct
+    debug: tool_critic
+    review: tool_critic
+    verification: tool_critic
+- expose_chain_of_thought: false
+- max_reasoning_summary_lines: 5
+
+## tool-runtime (v0.2.0f Codex R0 addendum)
+
+# Worker tool access must be explicit. Default relay keeps tool transcripts out
+# of controller chat and stores full sanitized output in .dtd/log/.
+
+- default_worker_tool_mode: controller_relay # none | controller_relay | worker_native | hybrid
+- worker_native_requires_sandbox: true
+- controller_relay_allows_mutating_tools: false
+- max_tool_result_kb: 4
+
 ## incident (v0.2.0a)
 
 # See dtd.md §Incident Tracking. Knobs for info-severity creation cadence.

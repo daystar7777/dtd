@@ -82,12 +82,17 @@
 
 ## Active context pattern (resolved before each worker dispatch) (v0.2.0f)
 
-# GSD-style context patterns — see dtd.md §Context Patterns.
+# GSD-style context patterns plus compact persona/reasoning/tool controls.
+# See dtd.md §Context Patterns and §Persona, Reasoning, and Tool-Use Patterns.
 # Cleared by finalize_run on terminal exit.
 
 - resolved_context_pattern: null     # fresh | explore | debug
 - resolved_handoff_mode: null        # standard | rich | failure
 - resolved_sampling: null            # compact display, e.g. "temp=0.0 top_p=1 samples=1"
+- resolved_controller_persona: null  # operator | planner | researcher | implementer | debugger | reviewer | release_guard
+- resolved_worker_persona: null      # same enum; compact stance only, no role-play biography
+- resolved_reasoning_utility: null   # direct | least_to_most | react | tool_critic | self_refine | tree_search | reflexion
+- resolved_tool_runtime: null        # none | controller_relay | worker_native | hybrid
 - last_context_reset_at: null
 - last_context_reset_reason: null    # dispatch | retry | phase_boundary | worker_switch | run_resume
 
