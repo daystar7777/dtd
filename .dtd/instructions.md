@@ -255,9 +255,10 @@ Same phrase, different action based on `plan_status` + `pending_patch`.
 |---|---|
 | `attention_mode: interactive`, no active run | `/dtd silent on --for <duration>` (require duration if missing — confirm) |
 | `attention_mode: interactive`, RUNNING | `/dtd run --silent=<duration>` (kicks silent + continues running) |
-| `attention_mode: silent` already | acknowledgment + show `attention_until` countdown; offer `/dtd silent extend <duration>` or `/dtd interactive` |
+| `attention_mode: silent` already | acknowledgment + show `attention_until` countdown + `attention_goal` if set; offer `/dtd silent extend <duration>` or `/dtd interactive` |
 | Plan-only host.mode | refuse: `silent on requires host.mode assisted or full` |
 | `host.mode: assisted` with `assisted_confirm_each_call: true` | warn: each worker apply will defer in silent — confirm intent |
+| User phrase includes a goal context (e.g. "프론트 마무리하고 자러갈게") | extract the goal portion as `attention_goal` and pass `--goal "<text>"`; show it in confirm so user can correct |
 
 ### "이제 물어보면서" / "interactive" / "이제 인터랙티브" (v0.2.0f exit-silent disambiguation)
 

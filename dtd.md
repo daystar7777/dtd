@@ -462,7 +462,17 @@ approve queued blockers.
 
 #### Silent-mode "ready work" algorithm
 
-At each decision point in the run loop, while `attention_mode: silent`:
+The behavior below assumes `config.attention.silent_blocker_policy:
+defer_and_continue` (default). The alternative
+`pause_on_first_blocker` short-circuits steps 1-3: on any blocker, set
+`plan_status: PAUSED`, `last_pause_reason: silent_first_blocker`, surface
+the morning summary on next user turn. `pause_on_first_blocker` is for
+users who prefer single-blocker safety over multi-task progress; it
+removes the "continue ready work" optimization but keeps the deferred-
+incident snapshot path so the user still sees the full capsule on resume.
+
+At each decision point in the run loop, while `attention_mode: silent` AND
+`silent_blocker_policy: defer_and_continue`:
 
 1. **Compute ready set**. A task is "ready" iff ALL hold:
    - It is in the active plan with `done=false`.
