@@ -1615,7 +1615,27 @@ implementation is the next milestone.
 - **README polish + setup walkthrough** with screenshots / animated flow.
 - **`/dtd plan show --explain` mode** for first-time users (line-by-line plan walkthrough).
 
-### v0.2 — Operations hardening (designed by Codex; deferred from v0.1.1 to keep v0.1.1 small)
+### v0.2 — Operations hardening + lifecycle (revised sequence including v0.2.0d Self-Update)
+
+Revised v0.2 sub-release tree (from v0.2 design R1 + v0.2.0d addendum):
+
+```
+v0.2.0a   Incident Tracking       (R0 in progress as of 2026-05-05)
+v0.2.0d   Self-Update              /dtd update — fetch latest from github with diff preview
+                                    (NEW per user request; ships after 0a, before 0b/0c)
+v0.2.0b   Permission Ledger       (.dtd/permissions.md ask|allow|deny)
+v0.2.0c   Snapshot / Revert       (.dtd/snapshots/ + /dtd revert)
+v0.2.1    Runtime Resilience      loop guard + worker session resume
+v0.2.2    Compaction UX           notepad v2 7-heading
+```
+
+These are spec'd in detail in (in AIMemory archive):
+- `handoff_dtd-v011-spec-design.gpt-5-codex.md` (V011-1~9)
+- `handoff_dtd-v011-ops-recovery-status.gpt-5-codex.md` (V011-Ops-1~10)
+- `handoff_dtd-v02-design-r1.claude-opus-4-7.md` (sequence revision)
+- `handoff_dtd-v020d-design.claude-opus-4-7.md` (Self-Update addendum)
+
+Each sub-release goes through full R-round flow (design → review → patches → GO → tag).
 
 These are spec'd in detail in handoff_dtd-v011-spec-design.gpt-5-codex.md and
 handoff_dtd-v011-ops-recovery-status.gpt-5-codex.md (in AIMemory archive).
