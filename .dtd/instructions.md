@@ -215,7 +215,7 @@ Same phrase, different action based on `plan_status` + `pending_patch`.
 - Confidence ≥ 0.95: act, just print "→ <action>" status line
 - Confidence 0.8-0.95: act, print "→ <action> (interpreted as: <NL phrase>). 되돌리려면 `<undo>`"
 - Confidence < 0.8: confirm in one line. Wait.
-- Destructive actions (`stop`, `mode off`, `workers rm`, `uninstall --purge`): ALWAYS confirm with explicit phrase, regardless of confidence
+- Destructive actions (`stop`, `mode off`, `workers rm`, `uninstall --purge`, `incident resolve <id> <destructive_option>`): ALWAYS confirm with explicit phrase, regardless of confidence. Destructive incident options are defined in `dtd.md` §`/dtd incident resolve` (set: `stop` / `purge` / `delete` / `force_overwrite` / `revert_partial` / `terminal_finalize`).
 
 Sample confirms (keep short):
 
