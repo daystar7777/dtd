@@ -2642,7 +2642,17 @@ v0.2.1    Runtime Resilience      loop guard + worker session resume + Worker He
                                     14 stage diagnostic log + WORKER_* failure taxonomy,
                                     decision capsule WORKER_HEALTH_FAILED.
                                     User journey scenarios 33-35 added with this release.
-v0.2.2    Compaction UX           notepad v2 7-heading
+v0.2.2    Compaction UX           notepad v2 8-heading (Goal/Constraints/
+                                    Progress/Decisions/Next Steps/Critical Context/
+                                    Relevant Files/Reasoning Notes — last added
+                                    per v0.2.0f follow-up Codex P2 for compact
+                                    rationale storage from reasoning utilities).
+v0.2.3    Spec modularization     dtd.md split into router + .dtd/reference/<topic>.md
+                                    files. Reduces always-load token cost for hosts
+                                    that fetch dtd.md. Lazy-load policy: reference
+                                    docs loaded only on /dtd help <topic> or
+                                    explicit topic drilling. (NEW per Codex v0.2.0f
+                                    follow-up P2; lowest priority of v0.2 line.)
 ```
 
 These are spec'd in detail in (in AIMemory archive):
