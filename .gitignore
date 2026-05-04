@@ -1,0 +1,32 @@
+# DTD repo root .gitignore
+# Excludes development workspace state from the public repo.
+# (.dtd/.gitignore separately covers .dtd/ runtime: tmp/, log/, eval/, attempts/, runs/)
+
+# Internal development trail (agent-work-mem work.log + handoff files)
+AIMemory/
+
+# Local test workspaces
+testbed/
+test-projects/
+
+# External cloned references (have their own git)
+agent-work-mem/
+
+# Host-specific local config
+.claude/
+.cursor/
+.codex/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Backups from /dtd uninstall (if user runs uninstall in this repo someday)
+.dtd.uninstalled-*/
+
+# Env (defensive — there shouldn't be any but just in case)
+.env
+.env.local

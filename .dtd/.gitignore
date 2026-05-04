@@ -1,0 +1,26 @@
+# DTD — local-only artifacts. Do not commit.
+
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# Runtime scratch + per-run history
+tmp/
+log/
+eval/
+attempts/
+runs/
+
+# Backups from /dtd uninstall
+../.dtd.uninstalled-*/
+
+# Stale lock dropfile (if used by tools)
+.rotation.lock
+.dtd.lock
+
+# Editor / OS noise within .dtd/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
