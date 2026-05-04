@@ -173,20 +173,20 @@ Worker registry management. Backed by `.dtd/workers.md`.
   - `workers.md` only ever holds `api_key_env: <NAME>`. `.dtd/.env` is the canonical secret file path (NOT plain `.env`).
   - If the host provides a secure-input channel out-of-band of the chat conversation, wizard MAY use that path to write `.dtd/.env` directly. v0.1.1 chat hosts follow the user-sets-it path.
 
-  **Apply step**: before writing, shows redacted summary:
+  **Apply step**: before writing, shows summary (no secret-derived info — wizard never saw a value):
   ```
   About to add worker:
     id: qwen-local
     endpoint: http://localhost:1234/v1/chat/completions
     model: qwen2.5-coder:32b
     api_key_env: QWEN_API_KEY
-    api_key_value: <REDACTED>
+    api_key_value: not collected (set .dtd/.env or shell env)
     max_context: 32768
     capabilities: code-write, code-refactor
     permission_profile: code-write
   Apply? yes | edit <field> | cancel
   ```
-  Only on `yes` does controller append to `workers.md` and write the env var to `.env`.
+  Only on `yes` does controller append to `workers.md`. The wizard does NOT write `.dtd/.env` in v0.1.1 (chat-host hosts) — user sets the value out-of-band per step 5.
 
   **Wizard isolation**: wizard turns are setup-context, not run-context. Don't mutate notepad/steering/attempts/phase-history. Don't include wizard Q/A in future worker prompts.
 - `test <id>`: send a no-op probe (echo prompt) to that worker, report latency + auth status

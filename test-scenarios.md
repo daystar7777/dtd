@@ -568,16 +568,34 @@ Format:
 - on `revert_partial`: deletes the 1 applied final + cleans up 2 temp files; lease released; attempt blocked
 - on `accept_partial`: deletes 2 temp files; task marked grade<NORMAL or partial
 
-### 22p. Worker-add wizard end-to-end
+### 22p. Worker-add wizard end-to-end (chat-safe secret flow)
 
 **Setup**: clean install, no workers yet.
 **Steps**: NL `/ㄷㅌㄷ qwen 워커 하나 추가해줘`.
-**Expected**: thin wizard starts. Asks alias hint (suggests `qwen-local`), endpoint (suggests LMStudio default), model, api_key_env (suggests `QWEN_API_KEY`), api_key_value (with redaction warning), max_context, capabilities, permission_profile. Shows redacted summary. On `yes`: writes `workers.md` + `.env`. Offers `/dtd workers test`.
+**Expected**: thin wizard starts. Asks (one field at a time, in chat):
+1. alias hint (suggests `qwen-local`)
+2. endpoint (suggests LMStudio `http://localhost:1234/v1/chat/completions` based on hint)
+3. model (suggests `qwen2.5-coder:32b` or similar)
+4. api_key_env name (suggests `QWEN_API_KEY`) — NAME ONLY
+5. **NOT** api_key_value. Wizard prints POSIX/PowerShell snippet and instructs user to set `.dtd/.env` themselves out-of-band, OR rely on shell env. Wizard waits for user to confirm "set" or "skip".
+6. max_context (suggests provider default)
+7. capabilities (suggests based on alias hint, e.g. qwen → code-write/code-refactor)
+8. permission_profile (defaults code-write)
+9. summary + apply confirm.
+
+Redacted summary line for the key field is: `api_key_value: not collected (set .dtd/.env or shell env)` — NOT `<REDACTED>` (which would imply the wizard saw a value).
+
+On `yes`: writes `workers.md` only. Offers `/dtd workers test <id>`.
+On `cancel`: no files modified.
+
 **Pass**:
-- API key value NEVER appears in workers.md, log, AIMemory, status, chat summary
-- `.env` contains `QWEN_API_KEY=<value>`; `workers.md` contains `api_key_env: QWEN_API_KEY`
-- wizard turns NOT in notepad/steering/attempts/phase-history
-- on cancel: no workers.md or .env modification
+- Raw API key value NEVER enters the chat conversation (controller transcript)
+- `.dtd/workers.md` contains `api_key_env: QWEN_API_KEY` (env var NAME, not value)
+- `.dtd/.env` is the canonical path; if user set it via the provided snippet, it contains `QWEN_API_KEY=<value>`. If user used existing shell env, `.dtd/.env` may be empty for this key.
+- Plain `.env` (project root) is NOT used — canonical path is `.dtd/.env`
+- Wizard turns NOT copied into notepad / steering / attempts / phase-history / AIMemory
+- Cancel before apply: no `workers.md` or `.dtd/.env` modification
+- Length / prefix / suffix / fingerprint of any secret NEVER echoed in chat
 
 ### 23. Dashboard ASCII default + width compliance
 
@@ -614,7 +632,16 @@ Format:
 | 22e | LMStudio LAN IP + Tailscale (multi-machine reach) |
 | 22f | commercial OpenAI-compat API (DeepSeek) |
 | 22g | tuning params merge (temperature/seed/reasoning_effort/extra_body) |
-| 22h | DTD adoption on existing in-progress project |
+| 22h | DTD adoption on existing in-progress project (Pattern B) |
+| 22i | MAX_ITERATIONS_REACHED full decision capsule (R2) |
+| 22j | AUTH_FAILED durable blocker decision capsule (R2) |
+| 22k | NETWORK_UNREACHABLE recovery options (R2) |
+| 22l | WORKER_INACTIVE wait/cancel/switch/takeover (R2 spec, R3 full capsule example) |
+| 22m | fallback chain shown in status + paid_fallback_requires_confirm (R2 + R3 config knobs) |
+| 22n | /dtd run --until phase:N bounded execution + durable last_pause_boundary (R2 + R3) |
+| 22o.1 | DISK_FULL during temp-write (clean abort, no final files changed) (R3 split) |
+| 22o.2 | PARTIAL_APPLY during rename phase (some final files written, no auto-resume) (R3 split) |
+| 22p | Worker-add wizard end-to-end with chat-safe secret flow (R3) |
 | 23 | dashboard width/fallback (P2-10) |
 
 Controller no-self-grade gate (P1-2): exercised wherever step 4 of escalation ladder is reached (Scenario 17 covers this; specific REVIEW_REQUIRED gate is observed in phase-history.md gate column).
