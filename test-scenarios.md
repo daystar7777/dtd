@@ -361,6 +361,124 @@ Format:
 - `.dtd/tmp/dispatch-001-1.1.txt` exists in human-readable form
 - `/dtd run --paste` correctly parses pasted response and continues lifecycle
 
+### 22d. Workers split — install workflow + privacy
+
+**Setup**: Fresh project, no `.dtd/` yet.
+**Steps**:
+1. Run install bootstrap.
+2. Verify `.dtd/workers.example.md` (committed reference) AND `.dtd/workers.md` (local copy) both exist after install.
+3. `.dtd/.gitignore` includes `workers.md`.
+4. Edit `workers.md`: add a worker with sensitive endpoint (e.g. LAN IP).
+5. `git status` — `workers.md` should NOT appear as untracked or modified; `workers.example.md` should be tracked.
+6. Re-run install (simulating an upgrade): `workers.md` untouched, `workers.example.md` refreshed.
+**Pass**:
+- Both files exist after install
+- `workers.md` user edits persist across re-install (never overwritten)
+- `git check-ignore -v .dtd/workers.md` confirms ignore rule
+- `git ls-files .dtd/workers.example.md` confirms tracked
+
+### 22e. LMStudio LAN IP + Tailscale — multi-machine reach
+
+**Setup A** (LAN IP):
+- Machine A: LMStudio running, "Serve on local network" enabled (binds 0.0.0.0:1234).
+- Machine B: different host on same LAN.
+
+**Steps A**:
+1. On machine B: register worker with `endpoint: http://<machine-A LAN IP>:1234/v1/chat/completions`.
+2. `/dtd workers test <id>` from machine B.
+3. (Negative) Set endpoint to `http://127.0.0.1:1234/...` from machine B → `/dtd workers test`.
+
+**Pass A**:
+- Test from machine B with LAN IP succeeds (200 from probe POST)
+- Test with `127.0.0.1` from machine B fails (connection refused / network unreachable)
+- Doctor INFO suggests LAN IP / Tailscale alternative
+
+**Setup B** (Tailscale):
+- Both machines on same Tailscale tailnet (logged in same account).
+- Machine A still bound to 0.0.0.0:1234.
+
+**Steps B**:
+1. On machine A: `tailscale ip -4` → e.g., `100.64.0.10`.
+2. Machine B (different network — coffee-shop WiFi): register worker with `endpoint: http://100.64.0.10:1234/v1/chat/completions`.
+3. `/dtd workers test <id>`.
+
+**Pass B**:
+- Test succeeds via tailnet IP across networks
+- No port forwarding, no public exposure
+- API key (if any) never appears in any log file
+
+### 22f. Commercial OpenAI-compatible API (DeepSeek)
+
+**Setup**: User has a DeepSeek API key in env: `export DEEPSEEK_API_KEY=sk-...`.
+**Steps**:
+1. Register worker:
+   ```markdown
+   ## deepseek-cloud
+   - endpoint: https://api.deepseek.com/v1/chat/completions
+   - model: deepseek-coder
+   - api_key_env: DEEPSEEK_API_KEY
+   - max_context: 64000
+   - capabilities: code-write
+   - enabled: true
+   - permission_profile: code-write
+   ```
+2. `/dtd workers test deepseek-cloud`.
+3. Run a small plan with this worker.
+**Pass**:
+- 200 response, OpenAI-shaped output (`choices[0].message.content`)
+- Worker output parsed correctly (`===FILE:===` blocks + `::done::` line)
+- Files applied to project per `<output-paths>`
+- API key (`sk-...`) NEVER appears in: `.dtd/tmp/dispatch-*.json`, `.dtd/log/*.md`, `.dtd/state.md`, AIMemory `work.log`, status output, chat history
+- doctor secret-leak scan: 0 hits across all `.dtd/log/`, `.dtd/state.md`, AIMemory
+
+### 22g. Tuning params merge into request body
+
+**Setup**: Register a worker with full tuning fields:
+```markdown
+## tuned-worker
+- endpoint: http://localhost:11434/v1/chat/completions
+- model: deepseek-coder:6.7b
+- api_key_env: OLLAMA_API_KEY
+- max_context: 32000
+- capabilities: code-write
+- temperature: 0.7
+- top_p: 0.9
+- seed: 42
+- stop: "###,END"
+- reasoning_effort: medium
+- extra_body: {"top_k": 40, "min_p": 0.05}
+- enabled: true
+- permission_profile: code-write
+```
+**Steps**:
+1. `/dtd plan` + `/dtd approve` + `/dtd run` for a single-task plan.
+2. Inspect `.dtd/tmp/dispatch-<run>-<task>.json` request body before dispatch.
+**Pass**:
+- Body has `"temperature": 0.7`, `"top_p": 0.9`, `"seed": 42`, `"reasoning_effort": "medium"`
+- `"stop": ["###", "END"]` (comma-list parsed to JSON array)
+- `extra_body` keys present at top level: `"top_k": 40`, `"min_p": 0.05`
+- DTD-internal fields NOT in body: `tier`, `failure_threshold`, `aliases`, `display_name`, `permission_profile`, `escalate_to`, `enabled`
+- `stream` field absent or `false` (v0.1 enforces)
+
+### 22h. Adopt DTD on in-progress project
+
+**Setup**: User has a partially-built project. `src/api/users.ts` exists (built manually before DTD adoption); `src/api/products.ts` and `src/api/orders.ts` not yet started.
+**Steps**:
+1. Install DTD into the project.
+2. Fill `.dtd/PROJECT.md`: project description, tech stack, "what's done: User CRUD; what's pending: Product + Order CRUD".
+3. `/dtd plan "complete CRUD: Users (done), Products, Orders"`.
+4. Edit DRAFT `.dtd/plan-001.md`:
+   - Phase 1 (User CRUD) tasks: add `status="done" worker="manual"`, fill `<output-paths actual="true">src/api/users.ts</output-paths>`.
+   - Phase 2 (Product) and Phase 3 (Order) tasks: leave `<done>false</done>`, assign `<worker>` to a real worker.
+5. (Optional) Add a row to `.dtd/phase-history.md` for phase 1 with `note="adopted prior work"`.
+6. `/dtd approve` → `/dtd run`.
+**Pass**:
+- `/dtd run` skips phase 1 (no dispatch attempts; `attempts/run-001.md` has 0 entries for phase 1 tasks)
+- Dispatches start at phase 2.1 (first pending task)
+- `phase-history.md` has phase 1 row (manually added) + phase 2/3 rows generated by run
+- Worker output for phase 2 successfully writes `src/api/products.ts`
+- `/dtd status` correctly shows "phase 2/3, manual phase 1 already done"
+
 ### 23. Dashboard ASCII default + width compliance
 
 **Setup**: install with `config.dashboard_style: ascii` (default for v0.1) and `dashboard_width: 80`. Plan RUNNING.
@@ -392,6 +510,11 @@ Format:
 | 20 | AIMemory boundary (P1 §8 + 7-case exceptions) |
 | 21 | secret redaction (P2-9 promoted to P1) |
 | 22a, 22b, 22c | worker dispatch HTTP transport (happy path / errors / plan-only paste) |
+| 22d | workers split + privacy (.env / .env.example pattern) |
+| 22e | LMStudio LAN IP + Tailscale (multi-machine reach) |
+| 22f | commercial OpenAI-compat API (DeepSeek) |
+| 22g | tuning params merge (temperature/seed/reasoning_effort/extra_body) |
+| 22h | DTD adoption on existing in-progress project |
 | 23 | dashboard width/fallback (P2-10) |
 
 Controller no-self-grade gate (P1-2): exercised wherever step 4 of escalation ladder is reached (Scenario 17 covers this; specific REVIEW_REQUIRED gate is observed in phase-history.md gate column).
