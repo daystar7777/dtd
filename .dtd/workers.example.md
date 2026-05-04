@@ -184,11 +184,17 @@ forwarding, no public exposure. Tailscale free tier is enough for personal use.
 
 ### DeepSeek API (commercial, OpenAI-compatible)
 
+Per current DeepSeek docs (api-docs.deepseek.com): the canonical model ids are
+`deepseek-v4-pro` (high-quality) and `deepseek-v4-flash` (cheaper/faster). The
+older compatibility names `deepseek-chat` / `deepseek-reasoner` /
+`deepseek-coder` are scheduled for deprecation 2026-07-24 — use them only if
+you need transitional support.
+
 ```markdown
 ## deepseek-cloud
 - endpoint: https://api.deepseek.com/v1/chat/completions
-- model: deepseek-coder
-- api_key_env: DEEPSEEK_API_KEY     # get from platform.deepseek.com
+- model: deepseek-v4-pro             # or deepseek-v4-flash for cheaper
+- api_key_env: DEEPSEEK_API_KEY      # get from platform.deepseek.com
 - max_context: 64000
 - capabilities: code-write, code-refactor, review
 - cost_tier: paid

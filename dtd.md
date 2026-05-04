@@ -34,7 +34,9 @@ Subsequent runs verify and offer upgrade — never destructive.
 Health check. Output uses the same Unicode/ASCII style as `/dtd status`. Reports:
 
 **Install integrity**:
-- DTD install: all 15 `.dtd/` template files + `dtd.md` present (instructions.md, config.md, workers.md, worker-system.md, resources.md, state.md, steering.md, phase-history.md, PROJECT.md, notepad.md, .gitignore, .env.example, plus 3 skills/*.md)
+- DTD install: all 15 `.dtd/` committed template files + `dtd.md` present.
+  Committed templates: `instructions.md`, `config.md`, **`workers.example.md`** (schema reference; `workers.md` is a generated, gitignored local registry — see Worker Registry checks below), `worker-system.md`, `resources.md`, `state.md`, `steering.md`, `phase-history.md`, `PROJECT.md`, `notepad.md`, `.gitignore`, `.env.example`, plus 3 `skills/*.md`.
+- Local registry: `.dtd/workers.md` exists (created from `workers.example.md` at install if missing; gitignored).
 - Host always-read pointer: present and references `.dtd/instructions.md`
 - `dtd.md` present at host slash command dir (Claude Code: `.claude/commands/dtd.md`, etc.)
 
@@ -252,7 +254,7 @@ Run loop (per task):
       - Estimate input tokens (full prompt) + reserved output budget against the worker's `max_context`.
       - If estimate ≥ worker's `soft_context_limit` (default 70%) AND this is NOT a final/closing response: **checkpoint, close current phase, split task into smaller sub-tasks, do NOT dispatch the oversized task as-is**. Append `phase-history.md` row noting `note: phase split on soft cap`.
       - If estimate ≥ `hard_context_limit` (default 85%): refuse dispatch, require split.
-      - If estimate ≥ `emergency_context_limit` (default 95%): emergency checkpoint, mark `state.md` `awaiting_user_decision: true` AND `awaiting_user_reason: CONTEXT_EXHAUSTED`, stop for controller/user decision. `/dtd status` displays the reason.
+      - If estimate ≥ `emergency_context_limit` (default 95%): emergency checkpoint. Fill the **decision capsule** (per state.md schema): `awaiting_user_decision: true`, `awaiting_user_reason: CONTEXT_EXHAUSTED`, `decision_id: dec-NNN`, `decision_prompt: "Worker context near limit. How should DTD proceed?"`, `decision_options: [{id:checkpoint, label:"checkpoint and stop", effect:"finalize_run(STOPPED)", risk:"manual resume needed"}, {id:split_phase, label:"split phase and continue", effect:"split task, lower budget", risk:"may produce smaller deliverable"}, {id:wait_compact, label:"compact notepad and retry", effect:"shrink prompt prefix", risk:"loses some history"}]`, `decision_default: checkpoint`, `decision_resume_action: "after user choice, controller acts on the option's effect"`. `/dtd status` displays the prompt + options + default.
       - Record estimate, decision, and split reason to `.dtd/log/exec-NNN-task-N-ctx.md` and `phase-history.md`.
       - Worker's `::ctx::` self-report (if any) is advisory; controller's calculation is authoritative.
    c. Dispatch (mode-dependent — see Modes section).
@@ -525,7 +527,7 @@ Worker `::blocked:: <reason>` reason → normalized (lowercase, stopwords stripp
 2. **Tier escalation** — follow `escalate_to` chain to next worker.
 3. **Add reviewer worker** — inject reviewer's analysis as hint to the original/next worker.
 4. **Controller intervention** — controller handles directly (must be classified as `small_direct_fix` or `artifact_authoring` per Controller Categories below; `REVIEW_REQUIRED` gate applies).
-5. **User escalation** — `escalate_to: user` is terminal. Set `state.md` `awaiting_user_decision: true`, `awaiting_user_reason: ESCALATION_TERMINAL`, `user_decision_options: [accept, rework, abandon]`. `/dtd status` displays the reason.
+5. **User escalation** — `escalate_to: user` is terminal. Fill decision capsule: `awaiting_user_decision: true`, `awaiting_user_reason: ESCALATION_TERMINAL`, `decision_id: dec-NNN`, `decision_prompt: "Worker chain exhausted on task <id>. How to proceed?"`, `decision_options: [{id:accept, label:"accept current", effect:"keep current grade, advance"}, {id:rework, label:"rework", effect:"reset counters, retry from current step"}, {id:abandon, label:"abandon", effect:"finalize_run(STOPPED)"}]`, `decision_default: rework`. `/dtd status` displays the prompt + options.
 
 ---
 
@@ -1195,6 +1197,29 @@ etc.), translate it into DTD's XML schema in `.dtd/plan-001.md`:
 Your original doc stays where it was (e.g., `docs/roadmap.md`); DTD's
 `plan-001.md` becomes the executable mirror.
 
+### Pseudo-worker validation rule
+
+`worker="manual"` and `worker="controller"` are **pseudo-worker** annotations,
+allowed ONLY on tasks already marked done. They signal "this task was completed
+outside DTD's dispatch system" — controller skips them entirely (no dispatch,
+no validation, no lease, no attempt entry).
+
+Validation:
+
+- Pending task (`<done>false</done>`) with `worker="manual"` or `worker="controller"`:
+  → `/dtd doctor` ERROR `pseudo_worker_on_pending_task`. `/dtd run` refuses.
+- Done task (`status="done"` AND `<done>true</done>`) with these pseudo-workers:
+  → OK; routing/permission/lock checks all skipped for that task.
+- Reserved word check in `/dtd doctor` is suppressed for these two values when
+  used in `<worker>` of a done task. (Same words remain rejected as worker IDs
+  in `workers.md` registry — only the `<worker>` field on done plan tasks
+  treats them as legitimate annotations.)
+
+This keeps `controller` reserved as a system-meaning identifier in NL routing
+(per `instructions.md` Naming Resolution) while letting plan XML use it as an
+adoption-history annotation. The two contexts don't conflict because plan XML
+parsing happens before NL resolution.
+
 ### Best practices for adoption
 
 - **PROJECT.md is the bridge.** Fill it with enough current state that workers
@@ -1232,9 +1257,27 @@ implementation is the next milestone.
 - **README polish + setup walkthrough** with screenshots / animated flow.
 - **`/dtd plan show --explain` mode** for first-time users (line-by-line plan walkthrough).
 
-### v0.2
+### v0.2 — Operations hardening (designed by Codex; deferred from v0.1.1 to keep v0.1.1 small)
 
-- **Category routing as a first-class layer** above worker IDs and aliases. Categories: `quick`, `deep`, `planning`, `review`, `code-write`, `visual-engineering`, `docs`, `explore`, `writing`. Users say "explore에 시켜" and routing maps to a worker registered for that category. (v0.1 already supports `capabilities` + `roles`; v0.2 adds the explicit category layer.)
+These are spec'd in detail in handoff_dtd-v011-spec-design.gpt-5-codex.md and
+handoff_dtd-v011-ops-recovery-status.gpt-5-codex.md (in AIMemory archive).
+v0.1.1 has hooks (decision capsule structure, state field placeholders); v0.2
+implements the full systems.
+
+- **Permission Decision Ledger** (V011-1): `.dtd/permissions.md` with ask|allow|deny rules per `edit/bash/external_directory/task/snapshot/revert/todowrite/question` keys. `/dtd permission list/approve/reject/rules` commands. Pending request capsule in state.md (already partially in v0.1.1 decision capsule).
+- **Structured Notepad v2 handoff** (V011-2): 7-heading `<handoff>` template (Goal/Constraints/Progress/Decisions/Next Steps/Critical Context/Relevant Files), <= 1KB worker-visible.
+- **Snapshot / Revert hooks** (V011-3): `.dtd/snapshots/` (gitignored), pre-apply file hash + git diff metadata, `/dtd revert last|attempt|task`.
+- **Worker session resume** (V011-4): `worker_session_id`, `resume_strategy: fresh|same-worker|new-worker|controller-takeover` in attempt timeline.
+- **Loop guard / doom-loop detection** (V011-5): `loop_guard_status`, signature = worker+task+prompt-hash+failure-hash, threshold action ask|worker_swap|controller.
+- **External directory permission** (V011-6): absolute paths trigger explicit approval.
+- **Approval packet** (V011-7): `.dtd/runs/run-NNN-approval.md` written on `/dtd approve` with goal/phases/risks/path-scope frozen.
+- **Status dashboard v2** (V011-8): adds `perms`, `snapshot`, `loop`, `incident` lines.
+- **Incident tracking** (V011-Ops-1~3): `.dtd/log/incidents/inc-NNN.md` with reason taxonomy (NETWORK_UNREACHABLE / TIMEOUT / AUTH_FAILED / CONTEXT_HARD_CAP / PARTIAL_APPLY / LOOP_GUARD / etc.), recoverability classification, resume rules.
+- **Worker-add wizard** (V011-Ops-10): conversational setup with field-by-field collection + secret redaction + ephemeral context. `/ㄷㅌㄷ qwen 워커 하나 추가해줘` pattern.
+
+### v0.2 — Earlier roadmap items (orthogonal)
+
+- **Category routing as a first-class layer** above worker IDs and aliases. Categories: `quick`, `deep`, `planning`, `review`, `code-write`, `visual-engineering`, `docs`, `explore`, `writing`. (v0.1 has capabilities + roles; v0.2 makes categories explicit.)
 - **Hash-anchored edits** for finer-grained patch application (currently full-file replacement).
 - **LSP / AST tool integration** for capable hosts (optional, not portable).
 - **Streaming worker responses** with incremental file application.

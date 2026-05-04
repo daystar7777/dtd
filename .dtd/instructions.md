@@ -16,6 +16,44 @@
 
 ---
 
+## Slash command aliases (canonical → alias)
+
+The canonical slash prefix is `/dtd`. Aliases that route to the same canonical
+action set:
+
+```
+/dtd <args>      ← canonical (always works)
+/ㄷㅌㄷ <args>     ← Korean initial-consonant alias ("디티디")
+/디티디 <args>    ← full Korean alias
+```
+
+Routing rule: **detect prefix → strip → normalize to `/dtd` → feed remainder
+to NL/canonical router**. If remainder is empty, default to `/dtd status`.
+
+Examples (all equivalent):
+
+```
+/dtd status                     → /dtd status
+/ㄷㅌㄷ 상태                     → /dtd status
+/ㄷㅌㄷ 상태보여줘                → /dtd status (NL → status intent)
+/디티디 지금 어디까지 됐어?       → /dtd status
+/ㄷㅌㄷ 워커 추가                 → /dtd workers add
+/ㄷㅌㄷ qwen 워커 하나 추가해줘    → /dtd workers add (with alias hint "qwen")
+```
+
+Implementation:
+
+1. Detect ASCII or Korean prefix at start of message.
+2. Strip prefix, normalize to canonical `/dtd`.
+3. Feed remainder through NL intent router (per Intent Gate below).
+4. Record canonical action only in state/log/attempts — never the alias spelling.
+
+Doctor reports alias support as INFO (host slash-command system support varies).
+If host doesn't support non-ASCII slash command filenames, the alias still works
+through this in-context routing rule once DTD mode is on.
+
+---
+
 ## Per-turn protocol
 
 On every user turn, before responding:
@@ -300,6 +338,41 @@ cat >> AIMemory/work.log <<EOF
 DTD run-001 (plan-001): "<goal first line>". <N> phases, <M> tasks, <K> workers. Plan: .dtd/plan-001.md
 EOF
 ```
+
+---
+
+## Status / read-only call isolation (observational reads)
+
+Some commands are **observational reads** — the user is asking what's happening,
+not changing it. These calls MUST NOT mutate run memory.
+
+Classify these as `observational_read`:
+
+- `/dtd status` (any flag)
+- `/dtd plan show` (any flag)
+- `/dtd doctor`
+- `/dtd workers` (list / test)
+- `/dtd attempts show` (future)
+- `/dtd incident show` (future v0.2)
+- NL: "지금 어디까지 됐어?", "상태 보여줘", "그 에러 다시 보여줘", "처음 계획 보여줘", "어디서 막혔어?"
+- (Korean alias forms route to same set — `/ㄷㅌㄷ 상태` etc.)
+
+For observational reads:
+
+- DO NOT update `notepad.md`
+- DO NOT append `steering.md`
+- DO NOT append `phase-history.md`
+- DO NOT append `attempts/run-NNN.md`
+- DO NOT append `AIMemory/work.log` (except rare protocol/debug NOTE that the controller itself initiates separately)
+- DO NOT update `state.md.last_update`
+- DO NOT include the question/answer in future worker prompts
+- DO NOT affect grading, retry counters, steering counters, loop guard, or escalation
+
+Optional field (state.md): `last_status_viewed_at: <ts>` — INFO only, not a run state mutation.
+
+**Exception**: if the user makes a *decision* after seeing status (e.g. status shows pending_patch, user replies "approve patch"), record the decision, NOT the status view that preceded it.
+
+Reason: long sessions easily fill controller context with repeated "what's the status?" turns. Keeping reads observational means status checks stay cheap and don't pollute notepad/handoff.
 
 ---
 

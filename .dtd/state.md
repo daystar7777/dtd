@@ -50,11 +50,23 @@
 ## Pause / stop intent
 
 - pause_requested: false          # /dtd pause sets this; controller checks between tasks
-- awaiting_user_decision: false   # set when escalate_to: user terminal hit OR context exhausted
-- awaiting_user_reason: null      # null | CONTEXT_EXHAUSTED | ESCALATION_TERMINAL | PATCH_PENDING_CONFIRM
-                                  #      | MAX_ITERATIONS_REACHED | ...
-                                  # Single canonical reason string. /dtd status displays this.
-- user_decision_options: []       # menu of choices when awaiting
+
+# User decision capsule (structured replacement for ad-hoc awaiting):
+- awaiting_user_decision: false   # true blocks dispatch; status displays the capsule below
+- awaiting_user_reason: null      # canonical enum: CONTEXT_EXHAUSTED | ESCALATION_TERMINAL
+                                  #               | PATCH_PENDING_CONFIRM | MAX_ITERATIONS_REACHED
+                                  #               | LOOP_GUARD (v0.2) | RESOURCE_TAKEOVER (v0.2)
+                                  #               | DESTRUCTIVE_ACTION (v0.2)
+                                  #               | EXTERNAL_DIRECTORY_ACCESS (v0.2)
+                                  #               | INCIDENT_BLOCKED (v0.2)
+                                  #               | PERMISSION_REQUIRED (v0.2)
+- decision_id: null               # e.g. "dec-001" — monotonic per run
+- decision_prompt: null           # one-line user-facing question
+- decision_options: []            # list of {id, label, effect, risk}
+- decision_default: null          # id of the conservative default
+- decision_resume_action: null    # what controller does on each option choice
+- decision_expires_at: null       # optional auto-default after timeout (v0.2 may use)
+- user_decision_options: []       # legacy field (still populated for back-compat); prefer decision_options
 
 ## Progress
 

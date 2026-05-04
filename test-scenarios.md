@@ -1,6 +1,6 @@
 # DTD v0.1 Test Scenarios
 
-> 22 acceptance scenarios for v0.1. Not auto-runnable — these are
+> 32 acceptance scenarios for v0.1 + v0.1.1. Not auto-runnable — these are
 > (a) QA checklist for releases, (b) Codex review criteria, (c) user
 > usage examples. Each scenario has Setup / Steps / Expected / Pass.
 
@@ -25,9 +25,11 @@ Format:
 1. Feed `prompt.md` to the agent.
 2. Agent runs Tasks 1-12.
 3. Agent reports "DTD installed".
-**Expected**: `.dtd/` tree created with 15 templates; `dtd.md` at project root + host slash command dir; host always-read file has DTD pointer block; `state.md` shows `mode: off`, host_mode set to detected mode.
+**Expected**: `.dtd/` tree created with 15 committed templates + 1 generated local registry (`workers.md` from `workers.example.md`); `dtd.md` at project root + host slash command dir; host always-read file has DTD pointer block; `state.md` shows `mode: off`, host_mode set to detected mode.
 **Pass criteria**:
-- `.dtd/instructions.md`, `.dtd/config.md`, `.dtd/workers.md`, `.dtd/worker-system.md`, `.dtd/resources.md`, `.dtd/state.md`, `.dtd/steering.md`, `.dtd/phase-history.md`, `.dtd/PROJECT.md`, `.dtd/notepad.md`, `.dtd/.gitignore`, `.dtd/.env.example`, and 3 `.dtd/skills/*.md` exist (15 files total)
+- 15 committed `.dtd/` templates exist: `instructions.md`, `config.md`, `workers.example.md`, `worker-system.md`, `resources.md`, `state.md`, `steering.md`, `phase-history.md`, `PROJECT.md`, `notepad.md`, `.gitignore`, `.env.example`, `skills/code-write.md`, `skills/review.md`, `skills/planning.md`
+- `.dtd/workers.md` exists locally as a copy of `workers.example.md` (gitignored — `git check-ignore -v .dtd/workers.md` confirms ignore rule)
+- `git ls-files .dtd/workers.example.md` confirms tracked; `git ls-files .dtd/workers.md` returns empty
 - runtime dirs `.dtd/log/`, `.dtd/eval/`, `.dtd/tmp/`, `.dtd/attempts/`, `.dtd/runs/` exist (empty)
 - `dtd.md` present at project root and at host's slash command directory
 - Host always-read file (`CLAUDE.md`, `.cursorrules`, `AGENTS.md`, etc.) ends with the DTD pointer block
@@ -415,7 +417,7 @@ Format:
    ```markdown
    ## deepseek-cloud
    - endpoint: https://api.deepseek.com/v1/chat/completions
-   - model: deepseek-coder
+   - model: deepseek-v4-pro                    # or deepseek-v4-flash; older `deepseek-coder` deprecated 2026-07-24
    - api_key_env: DEEPSEEK_API_KEY
    - max_context: 64000
    - capabilities: code-write
