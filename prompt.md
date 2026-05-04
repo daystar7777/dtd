@@ -130,7 +130,8 @@ DTD install plan:
     - <slash command host dir>/dtd.md  (host-specific, see Task 8)
     - .dtd/instructions.md
     - .dtd/config.md
-    - .dtd/workers.md
+    - .dtd/workers.example.md (committed reference)
+       → also copies to .dtd/workers.md (your local-only registry) if not exists
     - .dtd/worker-system.md
     - .dtd/resources.md
     - .dtd/state.md
@@ -193,7 +194,7 @@ GitHub raw URL prefix:
 | `dtd.md` | `<project root>/dtd.md` (canonical) AND `<host slash dir>/dtd.md` |
 | `.dtd/instructions.md` | `.dtd/instructions.md` |
 | `.dtd/config.md` | `.dtd/config.md` |
-| `.dtd/workers.md` | `.dtd/workers.md` |
+| `.dtd/workers.example.md` | `.dtd/workers.example.md` (committed reference) AND `.dtd/workers.md` (gitignored local registry — only created if not exists) |
 | `.dtd/worker-system.md` | `.dtd/worker-system.md` |
 | `.dtd/resources.md` | `.dtd/resources.md` |
 | `.dtd/state.md` | `.dtd/state.md` |
@@ -211,7 +212,27 @@ GitHub raw URL prefix:
 
 - `examples/plan-001.md` — illustrative plan (see for XML schema)
 - `examples/run-001-summary.md` — illustrative run summary
-- `test-scenarios.md` — 22 QA scenarios for v0.1 verification
+- `test-scenarios.md` — QA scenarios for v0.1 verification
+
+**Post-fetch step — initialize workers.md from workers.example.md**:
+
+After Task 7 fetches all files, check if `.dtd/workers.md` exists locally. If
+NOT (typical fresh install), copy `.dtd/workers.example.md` → `.dtd/workers.md`.
+This local copy is your actual worker registry; it's gitignored so endpoints,
+model names, and aliases stay local. The committed `workers.example.md` stays
+in repo as schema + examples reference.
+
+POSIX:
+```bash
+[ -f .dtd/workers.md ] || cp .dtd/workers.example.md .dtd/workers.md
+```
+
+Windows PowerShell:
+```powershell
+if (-not (Test-Path .dtd/workers.md)) { Copy-Item .dtd/workers.example.md .dtd/workers.md }
+```
+
+Same pattern as `.env` / `.env.example` (key names committed, key values local).
 
 ### Task 8 — Add host pointer to always-read file
 
@@ -254,14 +275,15 @@ blank line separator.
 
 Simulate `/dtd doctor` to verify the install:
 
-1. All 15 `.dtd/` template files exist (instructions.md, config.md, workers.md, worker-system.md, resources.md, state.md, steering.md, phase-history.md, PROJECT.md, notepad.md, .gitignore, .env.example, plus 3 skills/*.md)
+1. All 15 `.dtd/` committed template files exist (instructions.md, config.md, workers.example.md, worker-system.md, resources.md, state.md, steering.md, phase-history.md, PROJECT.md, notepad.md, .gitignore, .env.example, plus 3 skills/*.md). PLUS `.dtd/workers.md` exists locally (gitignored, copy of workers.example.md created on first install).
 2. Runtime directories exist: `.dtd/log/`, `.dtd/eval/`, `.dtd/tmp/`, `.dtd/attempts/`, `.dtd/runs/`
 3. `dtd.md` exists at project root and at host slash command dir
 4. Host always-read file has the DTD pointer block
 5. `.dtd/state.md` `mode: off` (DTD activation, NOT host capability)
 6. `.dtd/state.md` `host_mode: <plan-only|assisted|full>` matches detected capability
 7. `.dtd/config.md` `host.mode` matches the same value
-8. `.dtd/workers.md` active registry is empty (example workers are commented-out reference only)
+8. `.dtd/workers.example.md` exists (committed schema reference)
+8b. `.dtd/workers.md` exists locally (created from workers.example.md if it didn't exist; gitignored). Active registry under "## Active registry" heading is empty on fresh install — recommend `/dtd workers add`.
 9. `.dtd/.gitignore` excludes `.env`, `tmp/`, `log/`, `eval/`, `attempts/`, `runs/` (canonical local-protection file)
 10. agent-work-mem detected (recommend if absent, do not block)
 11. PROJECT.md is not pure-TODO if `host_mode` is `assisted` or `full` (WARN)
@@ -354,7 +376,8 @@ Do **not** silently overwrite. Detect existing files and prompt:
 | `dtd.md` (project root + host slash dir) | Refresh (overwrite OK after confirm) — spec file |
 | `.dtd/instructions.md` | Refresh (after confirm) |
 | `.dtd/config.md` | **Never overwrite** without explicit user "yes" — user data |
-| `.dtd/workers.md` | **Never overwrite** — user data |
+| `.dtd/workers.example.md` | Refresh OK (committed schema/examples; no user data) |
+| `.dtd/workers.md` | **Never overwrite** — user data (gitignored, your actual registry) |
 | `.dtd/worker-system.md` | Refresh (after confirm) |
 | `.dtd/resources.md` | If non-empty, **never overwrite** (active leases) |
 | `.dtd/state.md` | If `plan_status` is RUNNING/PAUSED, **abort upgrade** until cleared |

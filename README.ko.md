@@ -220,7 +220,9 @@ Aider, Cline, Continue, Windsurf, gemini-cli, 그 외 agentic harness.
 └── .dtd/
     ├── instructions.md                 ← 컨트롤러 행동 spec
     ├── config.md                       ← 글로벌 설정
-    ├── workers.md                      ← 워커 레지스트리 (사용자 편집)
+    ├── workers.example.md              ← 스키마 + endpoint 예시 (커밋됨)
+    ├── workers.md                      ← 실제 레지스트리 (gitignored, 로컬 전용)
+                                           install 시 workers.example.md 복사로 생성됨
     ├── worker-system.md                ← 워커 출력 discipline
     ├── resources.md                    ← active lock/lease
     ├── state.md                        ← 런타임 상태
@@ -245,6 +247,7 @@ Aider, Cline, Continue, Windsurf, gemini-cli, 그 외 agentic harness.
 - 며칠 걸리는 multi-phase 작업 — 세션 가로질러 pause/resume 필요
 - AI 변경 사항을 감사 로그로 남기고 싶은 팀
 - 에이전트끼리 컨텍스트 복붙이 지긋지긋한 사람
+- **이미 phase로 진행 중인 프로젝트에 DTD 적용** — 설치 후 done 표시만 하면 DTD가 남은 작업부터 이어받음. 3가지 패턴이 [dtd.md §Adopting DTD](dtd.md#adopting-dtd-on-existing-in-progress-work)에 있습니다.
 
 ---
 

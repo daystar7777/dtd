@@ -227,7 +227,9 @@ your-project/
 └── .dtd/
     ├── instructions.md                ← controller's behavior spec
     ├── config.md                      ← global settings
-    ├── workers.md                     ← worker registry (you edit)
+    ├── workers.example.md             ← schema + endpoint examples (committed)
+    ├── workers.md                     ← your actual registry (gitignored, local-only)
+                                          installs as a copy of workers.example.md
     ├── worker-system.md               ← worker output discipline
     ├── resources.md                   ← active locks/leases
     ├── state.md                       ← runtime state
@@ -252,6 +254,7 @@ your-project/
 - Long multi-phase work that spans sessions (pause/resume)
 - Teams who want auditable AI changes (every dispatch logged, every grade tracked)
 - Anyone tired of pasting context between agents
+- **Adopting DTD mid-project** — install on an in-progress phased project, mark already-done tasks in the plan, and let DTD pick up the remaining work. Three patterns documented in [dtd.md §Adopting DTD on existing in-progress work](dtd.md#adopting-dtd-on-existing-in-progress-work).
 
 ---
 

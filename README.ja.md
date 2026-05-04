@@ -225,7 +225,9 @@ Anthropic-compat shim)。
 └── .dtd/
     ├── instructions.md                 ← コントローラー行動仕様
     ├── config.md                       ← グローバル設定
-    ├── workers.md                      ← ワーカーレジストリ (ユーザー編集)
+    ├── workers.example.md              ← スキーマ + endpoint 例 (commit 対象)
+    ├── workers.md                      ← 実際のレジストリ (gitignored、ローカル専用)
+                                           install 時 workers.example.md のコピーとして生成
     ├── worker-system.md                ← ワーカー出力 discipline
     ├── resources.md                    ← active lock/lease
     ├── state.md                        ← ランタイム状態
@@ -250,6 +252,7 @@ Anthropic-compat shim)。
 - 数日かかるマルチ phase 作業 — セッションをまたいで pause/resume が必要
 - AI 変更を audit log で残したいチーム
 - エージェント間でコンテキストをコピペするのに疲れた人
+- **既に phase で進行中のプロジェクトに DTD 採用** — install 後 done マークだけで DTD が残りの作業から引き継ぎ。3 パターンを [dtd.md §Adopting DTD](dtd.md#adopting-dtd-on-existing-in-progress-work) に記載。
 
 ---
 

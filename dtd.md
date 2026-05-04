@@ -45,14 +45,17 @@ Health check. Output uses the same Unicode/ASCII style as `/dtd status`. Reports
 - Probed capabilities currently match the recorded `host_mode` (re-detect available)
 
 **Worker registry**:
-- `workers.md` parses; only H2 sections OUTSIDE `<!-- ... -->` example blocks count as registry
+- `.dtd/workers.example.md` exists (committed schema reference)
+- `.dtd/workers.md` exists locally (gitignored user registry; if missing → ERROR with hint: `cp .dtd/workers.example.md .dtd/workers.md` or rerun install)
+- `workers.md` parses; only H2 sections under "## Active registry" heading count as registry
 - Disabled (`enabled: false`) entries reported but skipped in routing
 - Alias collisions: worker alias vs other worker, alias vs role, alias/display_name vs `controller.name`
 - Reserved word usage rejected (`controller, user, worker, self, all, any, none, default`)
 - Threshold consistency: `failure_threshold` is positive int per worker
 - `escalate_to` chain: no cycles, terminates at `user`
 - Capabilities reasonable: at least one worker for each role declared in `config.md` `roles`
-- If active registry empty: WARN, recommend `/dtd workers add`
+- Endpoint URL sanity: not literally `localhost` if user expects multi-machine access (INFO, suggest LAN IP / Tailscale — see workers.example.md)
+- If active registry empty: WARN, recommend `/dtd workers add` or paste from `workers.example.md`
 
 **agent-work-mem**:
 - Detected (`AIMemory/PROTOCOL.md` + `INDEX.md` + `work.log` all exist) → INFO "integrated"
@@ -675,9 +678,22 @@ Body (JSON):
     {"role": "system", "content": "<system_prompt>"},
     {"role": "user",   "content": "<user_prompt>"}
   ],
-  "temperature": 0.0,
   "max_tokens":  <reserved_output_budget>,
-  "stream":      false
+
+  // Tuning fields below are MERGED from worker config (workers.md).
+  // Defaults applied if worker doesn't set them:
+  "temperature": <worker.temperature ?? 0.0>,
+  "top_p":       <worker.top_p ?? 1.0>,
+  "stream":      <worker.stream ?? false>,         // v0.1 enforces false; v0.2 will allow true
+  // optional, only included if set in worker config:
+  "seed":              <worker.seed>,
+  "stop":              <worker.stop as array>,
+  "response_format":   <worker.response_format>,   // text | {"type": "json_object"}
+  "frequency_penalty": <worker.frequency_penalty>,
+  "presence_penalty":  <worker.presence_penalty>,
+  "reasoning_effort":  <worker.reasoning_effort>,  // OpenAI o1/o3/gpt-5 reasoning models
+  // shallow-merged at top level for provider-specific:
+  ...<worker.extra_body>
 }
 ```
 
@@ -784,9 +800,42 @@ Extract `.choices[0].message.content` → that's the worker's raw output (will c
 
 All failures append entry to `.dtd/attempts/run-NNN.md` per §Attempt Timeline.
 
+### Tuning fields — how worker config merges into the request body
+
+Each worker entry in `workers.md` may set tuning fields (see `workers.example.md`
+schema). Controller merges them into the request body per the rules above:
+
+| Field | Default | Notes |
+|---|---|---|
+| `temperature` | `0.0` | 0.0 deterministic, 0.5 balanced, 1.0+ creative. Use 0.0-0.2 for code. |
+| `top_p` | `1.0` | Nucleus sampling; usually leave default. |
+| `seed` | (omitted) | Reproducibility, provider-dependent support. |
+| `stop` | (omitted) | Comma-list in worker config → JSON array in body. |
+| `response_format` | `"text"` | `"json_object"` requires worker support. |
+| `frequency_penalty` | `0.0` | Rare; usually leave default. |
+| `presence_penalty` | `0.0` | Rare; usually leave default. |
+| `reasoning_effort` | (omitted) | OpenAI o1/o3/gpt-5 reasoning only; ignored by others. |
+| `stream` | `false` | **v0.1 always false.** Workers with `stream: true` configured: controller forces false anyway, logs WARN. |
+| `extra_body` | `{}` | JSON object shallow-merged into request body for provider-specific params (e.g. `top_k`, `min_p`). Use sparingly. |
+
+The controller does NOT pass through unknown worker fields — only the explicit
+tuning whitelist above plus `extra_body`. This prevents accidental leakage of
+internal DTD config (`tier`, `failure_threshold`, `aliases`, etc.) into the
+worker's request.
+
+### Reasoning / "thinking" model response handling
+
+For workers using reasoning models:
+
+- **OpenAI o1 / o3 / gpt-5 (reasoning)**: provider returns standard `choices[0].message.content`; chain-of-thought hidden. Set `reasoning_effort` per worker.
+- **DeepSeek-R1 / V3**: response may include `choices[0].message.reasoning_content` AND `content`. Controller extracts ONLY `content` for `===FILE:===` parsing. Optionally save `reasoning_content` to `.dtd/log/exec-<run>-task-<id>-reasoning.md` for debugging (gitignored along with `log/`).
+- **Anthropic extended thinking via shim**: depends on shim mapping; usually maps back to standard `content`.
+
+In all cases the controller's parsing logic is identical — extract `content`, parse markers. The reasoning content is informational only.
+
 ### Streaming (v0.2)
 
-v0.1 sets `stream: false`. Streaming (`stream: true`, SSE response) is deferred to v0.2 for partial file application during long generation. Until then: full response or nothing.
+v0.1 enforces `stream: false`. Streaming (`stream: true`, SSE response) is deferred to v0.2 for partial file application during long generation. Until then: full response or nothing.
 
 ### Provider-specific notes
 
@@ -1079,6 +1128,96 @@ This is a **first-class** policy. Violations are install-blocking errors.
    - Rationale: keeping policy in `.dtd/.gitignore` means uninstall removes it cleanly; root-level edits leave residue.
 
 6. **Worker response**: if a worker echoes secrets in its output, controller **must redact before saving** to `.dtd/log/`. Replace matched patterns with `<REDACTED>` and append a NOTE to the log file.
+
+---
+
+## Adopting DTD on existing in-progress work
+
+DTD is not greenfield-only. You can install it on a project that already has
+phased development underway and bring the remaining work under DTD without
+rewriting history. Three patterns, in order of effort:
+
+### Pattern A — Forward-only (simplest, recommended)
+
+Install DTD, then use `/dtd plan` ONLY for remaining work. Past work stays in your
+code + git history; you don't try to retroactively model it.
+
+```
+1. fetch prompt.md ... apply to project   (install DTD, ~30s)
+2. Fill .dtd/PROJECT.md with current project state:
+     - what the project does
+     - tech stack
+     - what's already done (1 paragraph)
+     - what's left (1 paragraph)
+3. /dtd workers add  (or paste from workers.example.md)
+4. /dtd mode on
+5. /dtd plan "remaining: <X, Y, Z>"
+6. /dtd approve  →  /dtd run
+```
+
+DTD only sees and tracks the new work. Your existing code is the starting state,
+nothing else needs annotation.
+
+### Pattern B — Hybrid retroactive (audit-friendly)
+
+If you want the full project under DTD's audit umbrella (every phase logged,
+including past), add already-done phases/tasks to the plan with `status="done"`
+markings before approving:
+
+```
+1. /dtd plan "the full project goal"     (covers past + future)
+2. /dtd plan show — review the DRAFT
+3. Edit .dtd/plan-001.md by hand:
+     - For already-completed phases/tasks:
+       <task id="1.1" status="done" worker="manual" grade="GOOD"
+             dur="prior-to-DTD">
+         <output-paths actual="true">src/api/users.ts, src/api/users.test.ts</output-paths>
+       </task>
+     - Use worker="manual" or worker="controller" to signal
+       "not dispatched via DTD" (safe: routing skips done tasks)
+4. (Optional) Pre-populate .dtd/phase-history.md with rows for past phases:
+   note="manual prior work, imported at adoption"
+5. (Optional) Pre-populate .dtd/notepad.md <learnings> with prior decisions
+6. /dtd approve  →  /dtd run    (only pending tasks dispatch)
+```
+
+### Pattern C — Translate an existing planning doc
+
+If you already have your own phased planning markdown (a roadmap.md, plan.md,
+etc.), translate it into DTD's XML schema in `.dtd/plan-001.md`:
+
+1. Each top-level phase in your doc → `<phase id="N">` block
+2. Each task/checkpoint → `<task id="N.M">` with `<goal>`, `<output-paths>`
+3. Done items → add `status="done" worker="manual"` and fill `<output-paths actual="true">`
+4. Pending items → leave `<done>false</done>`, assign `<worker>` or `<capability>`
+5. Run `/dtd plan show` to verify rendering, then `/dtd approve` + `/dtd run`
+
+Your original doc stays where it was (e.g., `docs/roadmap.md`); DTD's
+`plan-001.md` becomes the executable mirror.
+
+### Best practices for adoption
+
+- **PROJECT.md is the bridge.** Fill it with enough current state that workers
+  understand the codebase without you having to repeat in every task.
+- **worker="manual"** on past tasks is a clear signal in audit logs and avoids
+  re-dispatch attempts.
+- **phase-history.md prior rows** can use `note="adopted at <date>, prior work
+  not via DTD"` for clarity.
+- **Don't backfill attempt timeline** (`.dtd/attempts/run-NNN.md`) — that's
+  immutable per-dispatch history; for past manual work, keep your git history
+  as the audit source.
+- **First run starts at the next pending task** — DTD reads `<done>true</done>`
+  marks correctly and skips ahead.
+
+### Doctor for adoption sanity
+
+Run `/dtd doctor` after adopting:
+
+- PROJECT.md TODO check: should pass (you filled it in)
+- Plan state check: plan-001 is DRAFT or APPROVED, size ≤ 24 KB
+- Path policy: any `<output-paths actual="true">` paths still exist on disk
+
+If past tasks have `output-paths` pointing at files that no longer exist (refactored away), the doctor will WARN — fix the plan or accept the warning.
 
 ---
 
