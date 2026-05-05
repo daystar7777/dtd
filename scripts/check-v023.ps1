@@ -206,6 +206,16 @@ Add-Result "v023.r2_0.localized_readme_discovery" "localized READMEs expose /dtd
      ($readmeJaText -match '/dtd r2 readiness') -and
      ($readmeKoText -match 'v0\.2\.1\+') -and
      ($readmeJaText -match 'v0\.2\.1\+'))
+Add-Result "v023.r2_0.readme_v03_status_current" "READMEs state v0.3 final GO, tag pending, and R2 readiness entry" `
+    (($readmeText -match 'R0 \(design\) \+ R1 \(runtime\) GO across all 5 sub-releases') -and
+     ($readmeText -match 'Codex\s+final\s+review\s+pass\s+2026-05-06') -and
+     ($readmeText -match 'R2 plan \+ R2-0 entry gate also\s+GO') -and
+     ($readmeText -match 'Tag pending user authorization') -and
+     ($readmeKoText -match 'R2 plan \+ R2-0 entry gate.*GO') -and
+     ($readmeJaText -match 'R2 plan \+ R2-0 entry gate.*GO') -and
+     ($readmeKoText -match '2026-05-06') -and
+     ($readmeJaText -match '2026-05-06') -and
+     (($readmeText + $readmeKoText + $readmeJaText) -notmatch 'pending Codex final GO'))
 Add-Result "v023.r2_0.help_observe_v03_discovery" "observe help exposes v0.3 observational commands within line budget" `
     (($helpObserveText -match '/dtd consensus show <task_id\|--active>') -and
      ($helpObserveText -match '/dtd session-sync show') -and
