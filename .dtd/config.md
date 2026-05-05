@@ -23,6 +23,12 @@
 
 - profile_resolution_mode: state_driven   # state_driven | manual | auto_probe
 - default_profile: minimal                 # initial profile when state is fresh
+# v0.2.3 R1: each "active" entry is a dtd.md stub OR an instructions
+# section. Canonical detail for many topics now lives in
+# .dtd/reference/<topic>.md and is drilled-into via
+# `/dtd help <topic> --full` only when the controller actually needs it.
+# The reference_drilldown_topics list below names the deeper canonical
+# files the controller may load on demand for that profile.
 - profile_sections:
     minimal:
       - "instructions.md §TL;DR"
@@ -32,6 +38,7 @@
       - "instructions.md §Status / read-only call isolation"
       - "dtd.md §Modes"
       - "dtd.md §Canonical Actions (status / doctor / mode)"
+      reference_drilldown_topics: []
     planning:
       - "<all minimal sections>"
       - "instructions.md §NL → Canonical Action Mapping"
@@ -43,6 +50,9 @@
       - "dtd.md §/dtd approve"
       - "dtd.md §Worker Registry & Routing"
       - "dtd.md §Plan Schema (XML)"
+      reference_drilldown_topics:
+        - "workers"
+        - "plan-schema"
     running:
       - "<all planning sections>"
       - "instructions.md §Token Economy Rules"
@@ -59,12 +69,24 @@
       - "dtd.md §Phase Iteration Control"
       - "dtd.md §Per-Run Notepad"
       - "dtd.md §Attempt Timeline"
+      reference_drilldown_topics:
+        - "run-loop"
+        - "autonomy"
+        - "persona-reasoning-tools"
+        - "workers"
+        - "perf"
     recovery:
       - "<all running sections>"
       - "dtd.md §Incident Tracking (v0.2.0a)"
       - "dtd.md §/dtd incident list/show/resolve"
       - "dtd.md §Status Dashboard (v0.2.0a/v0.2.0f rendering)"
       - "instructions.md §Don't Do These (full)"
+      reference_drilldown_topics:
+        - "incidents"
+        - "autonomy"
+        - "doctor-checks"
+        - "status-dashboard"
+        - "self-update"
 - profile_transition_logging: false       # optional diagnostic; never log profile changes to steering.md
 - profile_transition_log_path: .dtd/log/profile-transitions.md
 - aggressive_unload: false                # if true, hosts that support unload may evict non-profile sections (advanced)
