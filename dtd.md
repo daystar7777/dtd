@@ -67,6 +67,9 @@ Sections:
 - Consensus state (v0.3.0c) — staged-output isolation, group
   lock semantics, late-result-never-apply invariant, 11-key
   permission set
+- Session sync (v0.3.0d) — mandatory encryption invariant,
+  `repo_identity_hash` priority, SESSION_CONFLICT capsule
+  before same-session reuse, connectivity ≠ conflict
 - Locale state (v0.2.0e) — locale pack existence, required sections,
   bootstrap-alias presence, ≤ 12 KB pack budget
 - Spec modularization (v0.2.3 R1) — reference dir, 13 canonical topics,
@@ -251,6 +254,63 @@ surfaces explicit confirm before each dispatch.
 > 6.consensus + group lock + late-result cancellation + doctor
 > checks): see `.dtd/reference/v030c-consensus.md`.
 > Lazy-load via `/dtd help v030c-consensus --full`.
+
+### `/dtd session-sync [show|sync|expire|purge]` (v0.3.0d)
+
+Cross-machine worker session affinity. Default `enabled: false`
+(per-machine v0.2.1 behavior). When enabled, ALL synced payloads
+are MANDATORILY encrypted — raw provider session ids are NEVER
+written to a synced folder or branch (Codex P1.6).
+
+Forms:
+
+```text
+/dtd session-sync show                        # observational; local + synced sessions
+/dtd session-sync sync                        # mutating; manual sync now
+/dtd session-sync expire <session_id_hash>    # mutating; mark a session expired
+/dtd session-sync purge --before <date>       # bulk purge old entries
+```
+
+(Interactive `/dtd session-sync setup` wizard deferred to R1 per
+Codex additional amendment; R0 manual config via `.dtd/config.md`
+must be safe.)
+
+Backends: `none | filesystem | git_branch`. Filesystem syncs
+through user-configured cloud folder (Dropbox / iCloud / OneDrive /
+Drive); git_branch commits to a dedicated branch with periodic
+push.
+
+Encryption invariant (Codex P1.6 — MANDATORY when backend ≠ none):
+- `session_sync_encryption_key_env` MUST resolve to a non-empty
+  value. Missing / empty: ERROR `session_sync_no_encryption_key`,
+  sync DISABLED for the run (NEVER plaintext fallback).
+- Synced ledger contains only `session_id_hash` + metadata; raw
+  `session_id` lives in `.dtd/session-sync.encrypted`
+  (AES-256-GCM, key derived via HKDF from env-var value, per-row
+  96-bit nonce).
+
+Repo identity: uses the same 3-tier `repo_identity_hash` as
+v0.3.0a (git remote+first-commit-sha → state.md.project_id UUID →
+absolute path tie-breaker only). Sync target paths are
+`<sync_root>/<repo_identity_hash>/`.
+
+Decision capsule:
+- `SESSION_CONFLICT` fires when 2 machines have different
+  `session_id_hash` for the same `(worker, provider)` tuple.
+  Options `[use_local, use_remote, fresh, stop]`. Default
+  `fresh` (Codex: keep `ask` conflict_strategy default).
+
+A sync connectivity failure (network, push rejected, sync path
+missing) does NOT block dispatch — it logs WARN
+`session_sync_unreachable` and falls back to per-machine
+behavior. A real `SESSION_CONFLICT` MUST create a decision
+capsule before any same-session reuse (Codex additional
+amendment: connectivity ≠ conflict).
+
+> Full canonical reference (3 backends + run-loop steps 5.5.5b +
+> 9.session-sync + encryption invariant + 9 doctor checks +
+> migration): see `.dtd/reference/v030d-cross-machine-session-sync.md`.
+> Lazy-load via `/dtd help v030d-cross-machine-session-sync --full`.
 
 ### `/dtd loop-guard [show|prune]` (v0.3.0a)
 

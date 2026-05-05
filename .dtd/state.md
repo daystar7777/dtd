@@ -79,6 +79,18 @@
 
 - project_id: null                     # UUID; null pre-v0.3.0a installs migrate at next /dtd update
 
+## Session sync (v0.3.0d)
+
+# Cross-machine session affinity tracking. Updated by
+# pre-dispatch sync read + finalize_run sync write.
+# See .dtd/reference/v030d-cross-machine-session-sync.md.
+
+- session_sync_last_read_at: null
+- session_sync_last_write_at: null
+- session_sync_pending_conflicts: []   # list of {provider, machine_id, session_id_hash}
+- machine_id: null                     # auto-generated UUID at install (Codex: UUID + optional display_name)
+- machine_display_name: null           # optional human label, e.g. "laptop-A"
+
 ## Notepad compaction (v0.2.2 R1)
 
 # Phase-boundary + manual compaction tracking. See
@@ -287,6 +299,7 @@
                                   #       | WORKER_NATIVE_TOOL_SANDBOX_INVALID
                                   # v0.3.0b: WORKER_QUOTA_EXHAUSTED_PREDICTED
                                   # v0.3.0c: CONSENSUS_DISAGREEMENT | CONSENSUS_PARTIAL_FAILURE
+                                  # v0.3.0d: SESSION_CONFLICT
 - decision_id: null               # e.g. "dec-001" — monotonic per run
 - decision_prompt: null           # one-line user-facing question
 - decision_options: []            # list of {id, label, effect, risk}

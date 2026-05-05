@@ -319,6 +319,40 @@ Sections:
   `consensus_per_worker_lock_violation` (acquired wrong lock
   shape).
 
+### v0.3.0d Cross-machine session sync checks
+
+- Backend != `none` AND env var named in
+  `config.session_sync.encryption_key_env` is unset / empty:
+  ERROR `session_sync_no_encryption_key`. Sync is **disabled** for
+  the run; controller falls back to v0.2.1 per-machine behavior
+  (Codex P1.6: missing key MUST be ERROR, not WARN with plaintext
+  fallback).
+- Backend = `filesystem` AND `config.session_sync.sync_path`
+  missing or not writable: ERROR `session_sync_path_invalid`.
+- Backend = `git_branch` AND `config.session_sync.sync_branch`
+  does not exist locally: WARN `session_sync_branch_missing`.
+- Backend != `none` AND `.dtd/session-sync.md` contains rows but
+  `.dtd/session-sync.encrypted` is missing: ERROR
+  `session_sync_plaintext_violation` (synced ledger would leak
+  raw session metadata; Codex P1.6 invariant violation).
+- `state.md.session_sync_pending_conflicts` non-empty: WARN
+  `session_sync_unresolved_conflicts` recommending
+  `/dtd session-sync show`.
+- `.dtd/session-sync.md` rows where `expires_at < now`: INFO
+  `session_sync_expired_rows_pending`.
+- `repo_identity_hash` falls through to TERTIARY (absolute path)
+  when sync is enabled: WARN
+  `session_sync_repo_identity_unstable` recommending
+  `state.md.project_id` set or git remote configured.
+- Backend != `none` AND `state.md.machine_id` is null: ERROR
+  `session_sync_machine_id_missing` (auto-generated at install;
+  null means migration drift).
+- Last sync attempt logged a connectivity failure (network
+  unreachable, push rejected, sync path missing): WARN
+  `session_sync_unreachable` (runtime, not static; logged in
+  `.dtd/log/run-NNN-summary.md`; does NOT block dispatch — Codex
+  additional amendment).
+
 ### v0.3.0a Cross-run loop guard checks
 
 - `.dtd/cross-run-loop-guard.md` exists if

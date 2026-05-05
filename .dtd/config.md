@@ -124,6 +124,23 @@
 - cross_run_retention_days: 30            # prune signatures whose last_seen is older
 - cross_run_max_signatures: 500           # hard cap; doctor WARN above; auto-prune at finalize_run
 
+## session-sync (v0.3.0d)
+
+# Cross-machine session continuation. Default: off (per-machine).
+# When enabled, ALL synced payloads are mandatorily encrypted (Codex
+# P1.6); raw provider session ids are NEVER written to the sync
+# folder/branch. See .dtd/reference/v030d-cross-machine-session-sync.md.
+
+- enabled: false                            # boolean
+- backend: none                             # none | filesystem | git_branch
+- sync_path: null                           # filesystem path (e.g. ~/Dropbox/dtd-sync); used when backend=filesystem
+- sync_branch: null                         # git branch name; used when backend=git_branch
+- sync_remote: origin                       # git remote for git_branch backend
+- sync_commit_interval_min: 15              # commit cadence for git_branch backend
+- encryption_key_env: DTD_SESSION_SYNC_KEY  # env var NAME (never literal value); MUST resolve when enabled
+- conflict_strategy: ask                    # ask | last_writer_wins | local_wins | remote_wins (Codex: keep ask default)
+- expires_default_hours: 24                 # default expiry on freshly-recorded sessions
+
 ## quota (v0.3.0b)
 
 # Token-rate-aware predictive routing. See dtd.md §/dtd workers test

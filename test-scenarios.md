@@ -3110,6 +3110,177 @@ Locks; consensus group treated as one lock-holder, not N.
 
 ---
 
+## v0.3.0d — Cross-machine session sync
+
+### 142. Sync disabled (default backend: none)
+
+**Setup**: fresh DTD install; default `session_sync.enabled: false`,
+`backend: none`.
+
+**Steps**: `/dtd run`. Worker dispatch happens normally.
+
+**Expected**:
+- No sync read at run start.
+- No sync write at finalize_run.
+- Session resume strategy resolver behaves exactly as v0.2.1 R1
+  (per-machine).
+- No `.dtd/session-sync.md` and no `.dtd/session-sync.encrypted`
+  files created.
+
+**Pass**: backend `none` is a strict no-op; v0.2.1 behavior
+preserved.
+
+### 143. Backend != none without encryption key fails closed
+
+**Setup**:
+- `session_sync.enabled: true`
+- `backend: filesystem`
+- `sync_path: /tmp/dtd-sync`
+- `encryption_key_env: DTD_SESSION_SYNC_KEY` but env var **unset**.
+
+**Steps**: `/dtd run` triggers any worker dispatch.
+
+**Expected** (per Codex P1.6):
+- ERROR `session_sync_no_encryption_key` fires.
+- Sync is **disabled** for this run (NOT WARN with plaintext
+  fallback).
+- Controller falls back to per-machine v0.2.1 behavior.
+- Dispatch proceeds normally; session not synced.
+
+**Pass**: missing key never permits plaintext fallback; sync
+silently degrades to per-machine.
+
+### 144. Filesystem backend writes encrypted at finalize_run
+
+**Setup**:
+- `session_sync.enabled: true`, `backend: filesystem`
+- `sync_path: /tmp/dtd-sync`
+- `DTD_SESSION_SYNC_KEY` env var set to non-empty value.
+- `repo_identity_hash` computed (assume git remote available).
+
+**Steps**: `/dtd run` dispatches a worker that captures a
+session_id; finalize_run runs.
+
+**Expected**:
+- `<sync_path>/<repo_identity_hash>/session-sync.md` written
+  containing only `machine_id`, `provider`, `session_id_hash`,
+  timestamps, status.
+- `<sync_path>/<repo_identity_hash>/session-sync.encrypted`
+  written with AES-256-GCM-encrypted raw `session_id` payload.
+- Raw `session_id` value NEVER appears in `session-sync.md`,
+  any log, or any committed artifact.
+- `state.md.session_sync_last_write_at` updated.
+
+**Pass**: encrypted at rest; metadata only in cleartext synced
+file.
+
+### 145. Git branch backend commits but raw id never committed
+
+**Setup**:
+- `session_sync.enabled: true`, `backend: git_branch`
+- `sync_branch: dtd-session-sync`, `sync_remote: origin`
+- `commit_interval_min: 15`
+- `DTD_SESSION_SYNC_KEY` env var set.
+
+**Steps**: `/dtd run`; finalize_run + commit_interval expires.
+
+**Expected**:
+- Commit on `dtd-session-sync` branch contains
+  `.dtd/session-sync.md` (metadata) + `.dtd/session-sync.encrypted`
+  (binary blob).
+- `git log -p dtd-session-sync` for the committed file shows NO
+  raw `session_id` strings — only hashes and encrypted blob.
+- Push to `origin` happens; failure logged as
+  `session_sync_unreachable` WARN, not ERROR.
+
+**Pass**: synced branch contains zero plaintext session ids.
+
+### 146. Cross-machine resume via session_id_hash match
+
+**Setup**: 2 machines (laptop-A, desktop-B), same DTD install,
+same repo (resolves to same `repo_identity_hash`).
+- Machine A starts a worker session; session_id captured;
+  finalize_run syncs.
+- User switches to Machine B; both machines have configured
+  filesystem backend pointed at the same shared folder.
+
+**Steps**: on Machine B, `/dtd run` resumes the same plan.
+
+**Expected**:
+- Pre-dispatch step 5.5.5b reads sync ledger; finds active
+  session for `(worker, provider)` from Machine A.
+- v0.2.1 R1 strategy resolver hinted to use `same-worker`
+  with the synced `session_id_hash`.
+- Encrypted blob decrypted using `DTD_SESSION_SYNC_KEY`; raw
+  `session_id` recovered for resume call.
+- Dispatch uses resumed session.
+
+**Pass**: cross-machine continuation works without losing the
+session.
+
+### 147. SESSION_CONFLICT fires on divergent hashes
+
+**Setup**: 2 machines BOTH have active sessions for same
+`(worker, provider)` tuple but different `session_id_hash` (each
+started a session before the first sync).
+
+**Steps**: 3rd machine reads sync; OR machine A reads after B
+diverged.
+
+**Expected**:
+- Capsule `awaiting_user_reason: SESSION_CONFLICT` fires.
+- Options `[use_local, use_remote, fresh, stop]`.
+- Default `fresh`.
+- Capsule fires BEFORE any same-session reuse (Codex additional
+  amendment: a real conflict requires explicit user decision).
+- After resolution: loser session marked `superseded` in synced
+  ledger; both rows persist for audit.
+
+**Pass**: divergent sessions never silently tie-break; user
+explicitly decides.
+
+### 148. Connectivity failure WARNs but does NOT block
+
+**Setup**:
+- `session_sync.enabled: true`, `backend: filesystem`
+- `sync_path: /Volumes/Dropbox-not-mounted` (simulate unreachable)
+- Encryption key set.
+
+**Steps**: `/dtd run` reaches finalize_run; sync write attempts.
+
+**Expected**:
+- WARN `session_sync_unreachable` logged in
+  `.dtd/log/run-NNN-summary.md`.
+- Dispatch and finalize_run COMPLETE — sync failure is NEVER a
+  blocking error (Codex additional amendment: connectivity ≠
+  conflict).
+- Local `.dtd/session-sync.md` still updated.
+- Sync retried at next finalize_run.
+
+**Pass**: connectivity issues degrade gracefully; never block
+the run.
+
+### 149. Repo identity tertiary fallback warns
+
+**Setup**:
+- Project has no git remote AND `state.md.project_id` is null.
+- `session_sync.enabled: true`, `backend: filesystem`.
+
+**Steps**: `/dtd doctor`.
+
+**Expected**:
+- WARN `session_sync_repo_identity_unstable` recommending the
+  user set `project_id` via `/dtd update` or configure a git
+  remote.
+- Sync still functions (using absolute-path tertiary as
+  tie-breaker), but will FAIL to match on a different machine
+  whose absolute path differs.
+
+**Pass**: tertiary fallback is allowed but flagged; user warned
+that cross-machine match will not work without stable identity.
+
+---
+
 ## v0.3.0a — Cross-run loop guard
 
 ### 126. Stable cross-run signature differs from within-run signature

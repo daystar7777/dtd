@@ -30,6 +30,12 @@ snapshots/archived/
 # committed. Lazy-created at first finalize_run capture-before-clear.
 cross-run-loop-guard.md
 
+# v0.3.0d cross-machine session sync ledger — gitignored; contents may
+# leak per-machine activity if pushed. The encrypted blob holds raw
+# session ids (mandatory encryption per Codex P1.6).
+session-sync.md
+session-sync.encrypted
+
 # Backups from /dtd uninstall
 ../.dtd.uninstalled-*/
 
