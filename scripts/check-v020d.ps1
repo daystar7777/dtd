@@ -75,8 +75,17 @@ Add-Result -Id "v020d.dtdmd.help_cmd" -Name "dtd.md has /dtd help command body" 
 Add-Result -Id "v020d.dtdmd.b_steps" -Name "dtd.md has B1-B7 update flow" `
     -Pass (($dtdMd -match 'B1 Lock') -and ($dtdMd -match 'B5\.5 Rollback') -and ($dtdMd -match 'B7 Cleanup'))
 
-Add-Result -Id "v020d.dtdmd.help_resolution" -Name "dtd.md has Topic resolution algorithm" `
-    -Pass ($dtdMd -match 'Topic resolution algorithm')
+# Topic resolution algorithm — v0.2.3 R1: lives in
+# .dtd/reference/help-system.md (extracted). dtd.md keeps a stub
+# pointer.
+$helpSystemRef = Join-Path $RepoRoot ".dtd/reference/help-system.md"
+$helpSystemText = if (Test-Path -LiteralPath $helpSystemRef) { Get-Content -LiteralPath $helpSystemRef -Raw } else { "" }
+
+Add-Result -Id "v020d.help_system_ref.resolution" -Name "help-system ref has Topic resolution algorithm (v0.2.3 R1 extracted)" `
+    -Pass ($helpSystemText -match 'Topic resolution algorithm')
+
+Add-Result -Id "v020d.dtdmd.help_stub" -Name "dtd.md keeps /dtd help stub with topic resolution pointer" `
+    -Pass (($dtdMd -match '### `/dtd help \[topic\] \[--full\]`') -and ($dtdMd -match 'Topic resolution'))
 
 # Doctor §Self-Update state and §Help system — v0.2.3 R1: live in
 # .dtd/reference/doctor-checks.md (extracted). dtd.md keeps a stub

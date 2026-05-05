@@ -187,104 +187,26 @@ NL routing:
 
 ### `/dtd help [topic] [--full]` (v0.2.0d)
 
-Layered help system. `/dtd help` (no arg) shows ≤ 25-line lifecycle
-overview. `/dtd help <topic>` shows ≤ 50-line topic detail. `--full`
-prints the entire reference for that topic.
+Layered help system. Default ≤ 25-line overview from
+`.dtd/help/index.md`. `/dtd help <topic>` shows ≤ 50-line topic detail
+from `.dtd/help/<topic>.md`. `--full` prints the entire topic file or
+the matching `.dtd/reference/<topic>.md` reference.
 
-Forms:
+Topic resolution: input → help dir → keyword search → catalog.
+v0.2.3 extension: `--full` may render exactly one
+`.dtd/reference/<topic>.md` file (do not load dtd.md or other
+reference files).
 
-```text
-/dtd help                  default: ≤ 25-line overview from .dtd/help/index.md
-/dtd help <topic>          ≤ 50-line topic detail from .dtd/help/<topic>.md
-/dtd help <topic> --full   full topic file (no Summary/Quick examples extract)
-```
+Canonical topics (v0.2.0d): `start`, `observe`, `recover`, `workers`,
+`stuck`, `update`, `plan`, `run`, `steer`. Plus `index` (catalog).
 
-#### Topic resolution algorithm
+Output is `observational_read`: never writes `state.md`, `notepad.md`,
+`phase-history.md`, or `attempts/run-NNN.md`. Static template render.
 
-1. Parse user input: `/dtd help [topic] [--full]`.
-2. If no topic: render `.dtd/help/index.md` (≤ 25 lines).
-3. If topic exists in `.dtd/help/<topic>.md`: render that file's
-   "Summary" + "Quick examples" sections (≤ 50 lines unless `--full`).
-4. Else: search `.dtd/help/*.md` for keyword match (case-insensitive
-   on filename + summary line). Show top 3 candidate topics:
-   ```
-   No topic 'foo'. Did you mean:
-   | start    first-run flow
-   | workers  worker registry + basic test
-   | help     show available topics
-   ```
-5. Else: show full topic list from `.dtd/help/index.md`.
-
-v0.2.3 reference-topic extension:
-
-- If `--full` and `.dtd/reference/<topic>.md` exists, render that ONE
-  reference file. Do not load `dtd.md` or other reference files.
-- If a topic exists only in `.dtd/reference/<topic>.md`, default
-  `/dtd help <topic>` renders the one-line summary from
-  `.dtd/reference/index.md` and hints:
-  `Run /dtd help <topic> --full for the reference file.`
-- Unknown-topic search includes both `.dtd/help/*.md` and
-  `.dtd/reference/index.md`.
-
-#### Canonical topics (v0.2.0d set)
-
-| Topic | Covers |
-|---|---|
-| `start` | first-run flow |
-| `observe` | read-only commands |
-| `recover` | when stuck |
-| `workers` | worker registry + basic test |
-| `stuck` | incident-specific recovery |
-| `update` | self-update flow |
-| `plan` | planning commands |
-| `run` | running + bounded execution |
-| `steer` | steering / patches |
-
-#### Topic file structure
-
-Each `.dtd/help/<topic>.md`:
-
-```markdown
-# DTD help: <topic>
-
-## Summary
-(1-2 paragraphs)
-
-## Quick examples
-(3-5 code blocks)
-
-## Canonical commands
-(slash command spec)
-
-## State / config fields
-(field list with defaults)
-
-## NL phrases
-(Korean/mixed examples)
-
-## Next topics
-(related topic links)
-```
-
-Each file ≤ 2 KB. `.dtd/help/index.md` ≤ 1 KB.
-
-#### Output discipline (observational read)
-
-- Classified as `observational_read` per `instructions.md` §Status read isolation.
-- Help output never appends to `notepad.md`, `phase-history.md`, or
-  `attempts/run-NNN.md`.
-- Help output never writes to `state.md`.
-- Help output is rendered from a static template — no LLM generation,
-  no dynamic prompt — so it is also free.
-
-NL routing (per locale pack):
-
-| Phrase | Canonical |
-|---|---|
-| `"도움말"` / `"help"` | `/dtd help` |
-| `"워커 도움말"` / `"help workers"` | `/dtd help workers` |
-| `"막혔을 때"` / `"help stuck"` | `/dtd help stuck` |
-| `"업데이트 도움말"` / `"help update"` | `/dtd help update` |
+> Full canonical reference: see `.dtd/reference/help-system.md`
+> (resolution algorithm, topic file structure, NL routing table,
+> v0.2.3 reference-topic extension, output discipline).
+> Lazy-load via `/dtd help help-system --full`.
 
 ### `/dtd uninstall [--soft|--hard|--purge]`
 
