@@ -139,19 +139,27 @@ Add-Result -Id "v020f.dtdmd.doctor_context_pattern" `
     -Name "dtd.md has Doctor §Context-pattern state" `
     -Pass ($dtdMd -match '\*\*Context-pattern state\*\* \(v0\.2\.0f\)')
 
-# Silent ready-work algorithm
-Add-Result -Id "v020f.dtdmd.silent_algorithm" `
-    -Name 'dtd.md has Silent-mode "ready work" algorithm' `
-    -Pass ($dtdMd -match 'Silent-mode "ready work" algorithm')
+# Silent ready-work algorithm — v0.2.3 R1: lives in .dtd/reference/autonomy.md (extracted)
+$autonomyRef = Join-Path $RepoRoot ".dtd/reference/autonomy.md"
+$autonomyText = if (Test-Path -LiteralPath $autonomyRef) { Get-Content -LiteralPath $autonomyRef -Raw } else { "" }
 
-# Defer triggers table
-Add-Result -Id "v020f.dtdmd.defer_triggers" -Name "dtd.md has defer triggers table" `
-    -Pass ($dtdMd -match 'Defer triggers \(silent mode\)')
+Add-Result -Id "v020f.autonomy_ref.silent_algorithm" `
+    -Name 'autonomy ref has Silent-mode "ready work" algorithm (v0.2.3 R1 extracted)' `
+    -Pass ($autonomyText -match 'Silent-mode "ready work" algorithm')
 
-# CONTROLLER_TOKEN_EXHAUSTED capsule body
-Add-Result -Id "v020f.dtdmd.controller_exhausted_capsule" `
-    -Name "dtd.md has CONTROLLER_TOKEN_EXHAUSTED decision capsule body" `
-    -Pass ($dtdMd -match 'awaiting_user_reason: CONTROLLER_TOKEN_EXHAUSTED')
+# Defer triggers table — also in autonomy ref after R1 extraction
+Add-Result -Id "v020f.autonomy_ref.defer_triggers" -Name "autonomy ref has defer triggers table" `
+    -Pass ($autonomyText -match 'Defer triggers \(silent mode\)')
+
+# CONTROLLER_TOKEN_EXHAUSTED capsule body — also in autonomy ref
+Add-Result -Id "v020f.autonomy_ref.controller_exhausted_capsule" `
+    -Name "autonomy ref has CONTROLLER_TOKEN_EXHAUSTED decision capsule body" `
+    -Pass ($autonomyText -match 'awaiting_user_reason: CONTROLLER_TOKEN_EXHAUSTED')
+
+# dtd.md still has the section header (R1 extraction stub)
+Add-Result -Id "v020f.dtdmd.autonomy_stub" `
+    -Name "dtd.md retains autonomy section header + v0.2.3 R1 extraction note" `
+    -Pass (($dtdMd -match '### Autonomy & Attention Modes \(v0\.2\.0f\)') -and ($dtdMd -match 'v0\.2\.3 R1 extraction'))
 
 # Controller usage ledger
 Add-Result -Id "v020f.dtdmd.controller_usage_ledger" `
