@@ -48,6 +48,25 @@
 - loop_guard_threshold: 3              # mirrors config.loop_guard_threshold
 - loop_guard_last_check_at: null
 
+## Cross-run loop guard (v0.3.0a)
+
+# Stable cross-run signature ledger interaction. See
+# .dtd/reference/v030a-cross-run-loop-guard.md for the algorithm.
+
+- cross_run_loop_guard_status: idle    # idle | watching | hit
+- cross_run_match_count: 0             # ephemeral counter; reset at finalize_run
+- pending_cross_run_signature: null    # current run's stable signature flagged for cross-run match
+- last_cross_run_check_at: null        # ts of last ledger read
+- last_cross_run_finalize_at: null     # ts of last finalize_run capture-before-clear
+
+## Project identity (v0.3.0a)
+
+# Stable project identifier for cross-run / cross-machine signature
+# components. Auto-generated UUID at install if not user-set. See
+# .dtd/reference/v030a-cross-run-loop-guard.md §"repo_identity_hash".
+
+- project_id: null                     # UUID; null pre-v0.3.0a installs migrate at next /dtd update
+
 ## Notepad compaction (v0.2.2 R1)
 
 # Phase-boundary + manual compaction tracking. See

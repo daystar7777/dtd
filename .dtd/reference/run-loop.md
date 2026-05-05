@@ -838,6 +838,37 @@ responding to user):
    - Update `state.md.last_permission_prune_at: <ts>`.
    - Recount `state.md.active_time_limited_rule_count` from
      remaining non-tombstoned time-limited rules.
+5d. **Cross-run loop-guard capture-before-clear** (v0.3.0a R0):
+   - DEDICATED step (not nested under step 7); MUST run BEFORE
+     step 7 clears within-run loop guard fields. Per Codex
+     amendment: "Capture the within-run loop signature before
+     clearing loop guard fields in finalize_run; do not depend
+     on fields after reset."
+   - If `state.md.loop_guard_signature_count >= 1` (within-run
+     guard saw at least one match this run):
+     - Compute stable cross-run signature per
+       `.dtd/reference/v030a-cross-run-loop-guard.md`
+       §"Stable cross-run signature (P1.1 amendment)" using:
+       - `state.md.project_id` (or git remote URL fingerprint
+         per the topic file's repo_identity_hash priority).
+       - The last failed attempt's task goal (normalized).
+       - Worker provider+model OR capability id.
+       - Output path scope hash.
+       - Failure class (categorical).
+       - Normalized error line.
+     - Read `.dtd/cross-run-loop-guard.md` (apply tombstones
+       first; skip rows with `revoked:` set).
+     - Upsert: if signature matches an active row, increment
+       `run_count` + update `last_seen` + record current
+       run's `last_resolution`. Else append new row with
+       `run_count: 1`.
+     - Auto-prune signatures whose `last_seen` is past
+       `config.cross_run_retention_days` (append tombstones,
+       not physical removal).
+     - Update `state.md.last_cross_run_finalize_at: <ts>`.
+   - This step is observational w.r.t. permissions and
+     incidents (no v0.2.0a/v0.2.0b state mutation); it only
+     writes to `.dtd/cross-run-loop-guard.md` ledger.
 6. **Append AIMemory `WORK_END`** (only if AIMemory present):
    one-line event with
    `status=<terminal_status> grade=<final_grade> <duration>`. Per

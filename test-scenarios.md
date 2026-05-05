@@ -2949,6 +2949,154 @@ journey content is `examples/user-journeys.md` (tracked in repo).
 
 ---
 
+## v0.3.0a — Cross-run loop guard
+
+### 126. Stable cross-run signature differs from within-run signature
+
+**Setup**: any project. Within-run signature uses
+`worker_id="qwen-local" + task_id="2.1" + prompt_hash + failure_hash`.
+User aliases qwen-local → "코드워커" in workers.md before next run.
+
+**Steps**: trigger same conceptual failure on next run after
+worker_id rename.
+
+**Expected** (per Codex P1.1):
+- v0.2.1 within-run signature CHANGES (worker_id changed).
+- v0.3.0a cross-run signature is STABLE (uses
+  `worker_provider_model_or_capability` instead).
+- Cross-run match works across the rename; within-run
+  match doesn't.
+
+**Pass**: stable cross-run signature catches patterns that
+v0.2.1 misses due to user-local alias variation.
+
+### 127. repo_identity_hash priority
+
+**Setup**: 3 projects:
+- (A) Git repo with remote `git@github.com:user/proj.git`.
+- (B) No git remote; `state.md.project_id` set to UUID.
+- (C) No git remote AND no project_id.
+
+**Steps**: trigger cross-run signature in each.
+
+**Expected**:
+- (A): `repo_identity_hash` =
+  `sha256(remote_url + first_commit_sha)`.
+- (B): `repo_identity_hash` = `sha256(project_id_uuid)`.
+- (C): `repo_identity_hash` = `sha256(absolute_path)`.
+  Doctor INFO `project_id_unset_using_fallback`.
+
+**Pass**: priority PRIMARY → SECONDARY → TERTIARY (Codex
+P1.7); absolute path NEVER primary.
+
+### 128. finalize_run step 5d capture-before-clear
+
+**Setup**: run with within-run loop guard
+`signature_count: 2` at finalize time.
+
+**Steps**: finalize_run terminates run.
+
+**Expected**:
+- Step 5d executes BEFORE step 7 (Codex amendment: capture
+  before clearing).
+- Compute stable cross-run signature using last failed
+  attempt's data.
+- Read `.dtd/cross-run-loop-guard.md`; upsert. If new:
+  append row with `run_count: 1`. If existing: increment
+  `run_count` + update `last_seen`.
+- `state.md.last_cross_run_finalize_at: <ts>`.
+- THEN step 7 clears within-run fields.
+
+**Pass**: signature captured BEFORE clear; cross-run ledger
+gets data; doctor sees no `cross_run_finalize_capture_missed`.
+
+### 129. LOOP_GUARD_CROSS_RUN_HIT fires after threshold runs
+
+**Setup**: `config.cross_run_threshold: 2`. Stable signature
+S1 has `run_count: 2` in
+`.dtd/cross-run-loop-guard.md` (last_seen within retention).
+Run 3 dispatching same task; current attempt produces S1.
+
+**Steps**: observe controller after current attempt fails.
+
+**Expected**:
+- S1 matches; `run_count = 2 >= cross_run_threshold`.
+- Capsule `LOOP_GUARD_CROSS_RUN_HIT` fires with 5 options:
+  `[ask_user, swap_to_specific, controller, prune_signature, stop]`.
+- `decision_default: ask_user`.
+- `state.md.pending_cross_run_signature: S1`.
+- Compact `/dtd status --full` shows hit + short hint
+  (Codex P1 additional).
+
+**Pass**: cross-run threshold + capsule semantics work.
+
+### 130. prune_signature appends tombstone (Codex P1 additional)
+
+**Setup**: capsule `LOOP_GUARD_CROSS_RUN_HIT` active for
+signature S1.
+
+**Steps**: user picks `prune_signature` option.
+
+**Expected**:
+- Tombstone row appended to `## Tombstones` with
+  `revoked: <ts>` reference to S1.
+- Original S1 row in `## Active signatures` REMAINS (audit
+  trail per v0.2.0b style).
+- Resolution algorithm treats S1 as inactive (tombstones-first
+  per amended algorithm).
+- Future runs producing S1 treated as fresh patterns.
+
+**Pass**: prune is non-destructive; resolution treats it as
+inactive.
+
+### 131. Retention auto-prune at finalize_run
+
+**Setup**: 5 stable signatures. 2 have `last_seen` older than
+`config.cross_run_retention_days: 30`. Run finalize_run.
+
+**Steps**: observe step 5d output.
+
+**Expected**:
+- 2 retention-expired signatures get tombstone rows.
+- 3 within-retention untouched.
+- Doctor reports `cross_run_signature_expired_unpruned: 0`.
+
+**Pass**: retention auto-prune keeps ledger bounded.
+
+### 132. /dtd loop-guard show compact display
+
+**Setup**: 4 active signatures + 2 tombstones. Recent run
+hit cross-run threshold for S1.
+
+**Steps**: `/dtd loop-guard show` (compact, default).
+
+**Expected**:
+- Output shows ONLY the active cross-run hit (S1) + short
+  hint (Codex P1 additional).
+- Tombstoned rows NOT shown by default.
+- All 4 active + 2 tombstones shown when
+  `/dtd loop-guard show --full`.
+
+**Pass**: compact default; full ledger behind --full flag.
+
+### 133. /dtd loop-guard prune --before <date> bulk tombstone
+
+**Setup**: 10 active signatures with various last_seen dates.
+6 are older than 2026-04-01.
+
+**Steps**: `/dtd loop-guard prune --before 2026-04-01`.
+
+**Expected**:
+- 6 tombstone rows appended.
+- 4 newer signatures untouched.
+- Audit trail preserved (originals + tombstones).
+- Resolution treats the 6 as inactive.
+
+**Pass**: bulk prune is non-destructive; tombstones reference
+originals.
+
+---
+
 ## v0.3.0b — Token-rate-aware scheduling
 
 ### 118. /dtd workers test --quota shows accurate remaining

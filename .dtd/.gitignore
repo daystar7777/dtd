@@ -26,6 +26,10 @@ log/permissions.md
 snapshots/snap-*/
 snapshots/archived/
 
+# v0.3.0a cross-run loop guard ledger — local stable signatures. Never
+# committed. Lazy-created at first finalize_run capture-before-clear.
+cross-run-loop-guard.md
+
 # Backups from /dtd uninstall
 ../.dtd.uninstalled-*/
 

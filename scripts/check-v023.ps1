@@ -48,7 +48,8 @@ function Test-HasHangulSyllable([string]$Text) {
 $referenceTopics = @(
     "autonomy", "incidents", "persona-reasoning-tools", "perf", "workers",
     "plan-schema", "status-dashboard", "self-update", "help-system",
-    "run-loop", "doctor-checks", "roadmap", "load-profile"
+    "run-loop", "doctor-checks", "roadmap", "load-profile",
+    "v030a-cross-run-loop-guard"
 )
 $canonicalReferenceTopics = $referenceTopics
 
@@ -59,7 +60,7 @@ if (Test-Path -LiteralPath $referenceDir) {
 }
 
 Add-Result "v023.reference.dir" ".dtd/reference directory exists" (Test-Path -LiteralPath $referenceDir)
-Add-Result "v023.reference.count" ".dtd/reference has 14 markdown files" ($referenceFiles.Count -eq 14) "count=$($referenceFiles.Count)"
+Add-Result "v023.reference.count" ".dtd/reference has 15 markdown files (14 topics + index after v0.3.0a)" ($referenceFiles.Count -eq 15) "count=$($referenceFiles.Count)"
 
 $indexPath = Join-Path $referenceDir "index.md"
 Add-Result "v023.reference.index" "reference index.md exists" (Test-Path -LiteralPath $indexPath)
@@ -72,7 +73,10 @@ if (Test-Path -LiteralPath $indexPath) {
     Add-Result "v023.reference.index.topic_count_wording" "index says 13 reference topics" ($indexText -match "13 reference topics")
     Add-Result "v023.reference.index.status_column" "index has Status column" ($indexText -match "\| Topic \| Covers \| Status \| Source \|")
     foreach ($topic in $canonicalReferenceTopics) {
-        $topicLine = @($indexText -split "`r?`n" | Where-Object { $_ -match [regex]::Escape($topic) } | Select-Object -First 1)
+        # Match ONLY the table-row line that starts with `| ` and has the
+        # topic in backticks (avoids matching prose mentions of the topic).
+        $rowPattern = '^\| `' + [regex]::Escape($topic) + '` '
+        $topicLine = @($indexText -split "`r?`n" | Where-Object { $_ -match $rowPattern } | Select-Object -First 1)
         Add-Result "v023.reference.index.canonical.$topic" "index marks $topic canonical" `
             (($topicLine.Count -gt 0) -and ($topicLine[0] -match "canonical"))
     }

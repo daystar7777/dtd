@@ -1,4 +1,4 @@
-# DTD Reference Index (v0.2.3 R1 complete)
+# DTD Reference Index (v0.2.3 R1 complete + v0.3.0a expansion)
 
 > Lazy-load topic catalog. Each file in this directory expands a `dtd.md`
 > section into a deeper reference doc. `/dtd help <topic> --full` (or
@@ -8,6 +8,11 @@
 > v0.2.3 R1 status: all 13 reference topics are canonical here.
 > `dtd.md` keeps compact summaries and action routing; full topic detail
 > lives in this directory.
+>
+> v0.3.0a expansion: catalog grew from 13 to 14 topics. Per Codex v0.3
+> review, v0.3+ sub-release runtime contracts use NEW lazy-loaded
+> reference topics (e.g. `v030a-cross-run-loop-guard.md`) rather than
+> expanding cross-cutting `run-loop.md` past its typical 32 KB cap.
 
 ## Topics
 
@@ -26,6 +31,7 @@
 | `doctor-checks` | All doctor checks across sub-releases | canonical | `.dtd/reference/doctor-checks.md` |
 | `roadmap` | v0.2 sub-release tree | canonical | `.dtd/reference/roadmap.md` |
 | `load-profile` | v0.2.3 controller cognitive scoping | canonical | `.dtd/reference/load-profile.md` |
+| `v030a-cross-run-loop-guard` | v0.3.0a stable cross-run signature + ledger + finalize_run capture-before-clear | canonical | `.dtd/reference/v030a-cross-run-loop-guard.md` |
 
 ## Extraction Rationale
 

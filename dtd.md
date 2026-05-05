@@ -62,6 +62,8 @@ Sections:
   discipline (no chain-of-thought leak)
 - Quota state (v0.3.0b) — per-worker usage ledger, predictive
   routing thresholds, paid-fallback authorization, redaction
+- Cross-run loop guard (v0.3.0a) — stable signature ledger
+  format, capture-before-clear at finalize_run, retention prune
 - Locale state (v0.2.0e) — locale pack existence, required sections,
   bootstrap-alias presence, ≤ 12 KB pack budget
 - Spec modularization (v0.2.3 R1) — reference dir, 13 canonical topics,
@@ -203,6 +205,48 @@ Korean / Japanese NL routing in respective locale packs.
 `/dtd notepad compact` is mutating but not destructive (it
 reorganizes, never deletes audit trail — older entries roll into
 the free-form `## learnings` section).
+
+### `/dtd loop-guard [show|prune]` (v0.3.0a)
+
+Cross-run loop guard ledger management. Within-run loop guard
+remains in `/dtd workers` (v0.2.1).
+
+Forms:
+
+```text
+/dtd loop-guard show [--all|--recent|--full]   # observational
+/dtd loop-guard prune <signature>               # mutating; tombstone
+/dtd loop-guard prune --before <date>           # bulk tombstone
+```
+
+Cross-run signature is STABLE across runs (per Codex P1.1
+amendment): repo identity (git remote URL + first-commit-sha,
+NOT absolute path), normalized task goal, worker provider+model
+or capability, output path scope, failure class enum, normalized
+error line. See `.dtd/reference/v030a-cross-run-loop-guard.md`
+§"Stable cross-run signature (P1.1 amendment)" for full formula.
+
+Capture-before-clear: when within-run loop guard reached
+`count >= 1` during a run, finalize_run step 5d (NEW) computes
+the stable cross-run signature and upserts into
+`.dtd/cross-run-loop-guard.md` BEFORE step 7 clears within-run
+fields.
+
+`LOOP_GUARD_CROSS_RUN_HIT` capsule fires when
+`cross_run_match_count >= config.cross_run_threshold` (default
+2 prior runs). Options: `[ask_user, swap_to_specific,
+controller, prune_signature, stop]`, default `ask_user`.
+
+`prune_signature` action appends a tombstone (Codex P1
+additional), never physically removes.
+
+Compact `/dtd status --full` shows only the active cross-run hit
++ short hint; full prior resolutions in
+`/dtd loop-guard show --full`.
+
+> Full canonical reference (algorithm + ledger format + doctor
+> checks): see `.dtd/reference/v030a-cross-run-loop-guard.md`.
+> Lazy-load via `/dtd help v030a-cross-run-loop-guard --full`.
 
 ### `/dtd snapshot [list|show|purge|rotate]` (v0.2.0c)
 

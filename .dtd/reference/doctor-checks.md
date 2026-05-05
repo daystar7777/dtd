@@ -283,6 +283,40 @@ Sections:
   `silent_window_transient_expired_unrevoked` (rule effectively
   inactive but tombstone not added; cosmetic).
 
+### v0.3.0a Cross-run loop guard checks
+
+- `.dtd/cross-run-loop-guard.md` exists if
+  `config.cross_run_loop_guard_enabled: true`; ELSE INFO
+  `cross_run_ledger_missing` (lazy-created on first
+  finalize_run capture-before-clear).
+- Each row matches format
+  `<first_seen> | <signature> | <run_count> | <last_seen> | <last_resolution> | <by>`;
+  ELSE WARN `cross_run_ledger_row_invalid` with line ref.
+- Total active (non-tombstoned) signatures ≤
+  `config.cross_run_max_signatures` (default 500); ELSE WARN
+  `cross_run_ledger_overflow` recommending purge.
+- Signatures with `last_seen` past
+  `config.cross_run_retention_days` AND no tombstone: INFO
+  `cross_run_signature_expired_unpruned` recommending
+  `/dtd loop-guard prune --before <retention_cutoff>`.
+- `state.md.pending_cross_run_signature` non-null AND
+  `awaiting_user_decision: false`: WARN
+  `cross_run_pending_orphan` (capsule didn't fill;
+  recover with `/dtd doctor --takeover`).
+- `state.md.cross_run_loop_guard_status` ∈
+  `idle | watching | hit`; ELSE ERROR
+  `cross_run_status_invalid`.
+- Within-run `loop_guard_signature_count` was >= 1 at last
+  finalize but no matching cross-run row appended: WARN
+  `cross_run_finalize_capture_missed` (capture-before-clear
+  step 5d didn't run).
+- Cross-run row references unknown failure_class enum: WARN
+  `cross_run_failure_class_unknown`.
+- `state.md.project_id` non-null when
+  `cross_run_loop_guard_enabled: true`; ELSE INFO
+  `project_id_unset_using_fallback` (using git remote OR path
+  fallback per `repo_identity_hash` priority).
+
 ### v0.3.0b Token-rate-aware scheduling checks
 
 - For workers with `daily_token_quota: <int>`, the per-run

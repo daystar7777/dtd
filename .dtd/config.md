@@ -95,6 +95,18 @@
 - profile_transition_log_path: .dtd/log/profile-transitions.md
 - aggressive_unload: false                # if true, hosts that support unload may evict non-profile sections (advanced)
 
+## cross-run loop guard (v0.3.0a)
+
+# Persist loop guard signatures across runs to detect long-term
+# patterns within-run guard (v0.2.1) doesn't catch. Signatures use
+# the v0.3.0a stable formula (NOT v0.2.1 within-run formula). See
+# .dtd/reference/v030a-cross-run-loop-guard.md.
+
+- cross_run_loop_guard_enabled: true
+- cross_run_threshold: 2                  # prior runs needed before LOOP_GUARD_CROSS_RUN_HIT fires
+- cross_run_retention_days: 30            # prune signatures whose last_seen is older
+- cross_run_max_signatures: 500           # hard cap; doctor WARN above; auto-prune at finalize_run
+
 ## quota (v0.3.0b)
 
 # Token-rate-aware predictive routing. See dtd.md §/dtd workers test
