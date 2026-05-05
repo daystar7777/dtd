@@ -310,6 +310,31 @@ Sections:
   attempts in `attempts/run-NNN.md`; ELSE WARN
   `loop_guard_count_drift`.
 
+## Notepad schema (v0.2.2)
+
+- `.dtd/notepad.md` parses (markdown well-formed); ELSE WARN
+  `notepad_parse_error` with line ref.
+- Schema detection: first H2 is `## handoff` AND H3 children
+  include `### Goal` → schema v2; else schema v1.
+- Schema v1: INFO `notepad_schema_v1` recommending update to v2
+  via `/dtd update` Amendment 9 migration.
+- Schema v2: all 8 expected H3 headings present under `## handoff`
+  (Goal / Constraints / Progress / Decisions / Next Steps /
+  Critical Context / Relevant Files / Reasoning Notes); ELSE WARN
+  `notepad_v2_missing_heading: <heading>`.
+- Per-heading content size ≤ 2× budget (e.g. Reasoning Notes ≤
+  400 chars); ELSE WARN `notepad_heading_oversized: <heading>`
+  recommending `/dtd notepad compact`.
+- Total `## handoff` size ≤ 2 KB (2× the 1.2 KB worker-visible
+  budget; allows buffer for non-worker-visible content); ELSE
+  WARN `notepad_handoff_oversized`.
+- Reasoning Notes content discipline: heuristic scan for
+  chain-of-thought leakage — phrases like "let me think",
+  "step-by-step", multi-paragraph blocks > 5 lines per entry.
+  ELSE WARN `reasoning_notes_chain_of_thought_leak` with line ref.
+- `Reasoning Notes` heading exists in v2 schema notepad; ELSE WARN
+  `notepad_v2_missing_reasoning_notes`.
+
 ## Snapshot state (v0.2.0c)
 
 - `.dtd/snapshots/` directory exists if

@@ -54,6 +54,12 @@ Sections:
   overly-broad bash allow, expired `until` rules, ledger size cap
 - Snapshot state (v0.2.0c) — `.dtd/snapshots/` size, manifest
   integrity, preimage SHA, patch dry-run cleanliness
+- Worker health + runtime resilience (v0.2.1) — health-check log
+  retention, redaction discipline, resume strategy validity, loop
+  guard signature consistency
+- Notepad schema (v0.2.2) — schema v1/v2 detect, 8-heading
+  presence, per-heading budget, Reasoning Notes content
+  discipline (no chain-of-thought leak)
 - Locale state (v0.2.0e) — locale pack existence, required sections,
   bootstrap-alias presence, ≤ 8 KB pack budget
 - Spec modularization (v0.2.3 R1) — reference dir, 13 canonical topics,
@@ -117,6 +123,81 @@ Output is `observational_read`: never writes `state.md`, `notepad.md`,
 > (resolution algorithm, topic file structure, NL routing table,
 > v0.2.3 reference-topic extension, output discipline).
 > Lazy-load via `/dtd help help-system --full`.
+
+### `/dtd notepad [show|search|compact]` (v0.2.2)
+
+Notepad lifecycle + structured-handoff inspection.
+
+Forms:
+
+```text
+/dtd notepad show [--full|--handoff-only]   # observational
+/dtd notepad search <query>                 # search across .dtd/runs/
+/dtd notepad show <run-id>                  # historical (from .dtd/runs/)
+/dtd notepad compact                        # manual compaction (rare)
+```
+
+**Schema v2 (v0.2.2)**: `## handoff` H2 with 8 H3 children:
+`Goal | Constraints | Progress | Decisions | Next Steps |
+Critical Context | Relevant Files | Reasoning Notes`. Total
+worker-visible ≤ 1.2 KB.
+
+**Per-heading budget + compaction priority**:
+
+| Heading | Budget | Compaction priority |
+|---|---:|---|
+| Goal | 150 ch | KEEP |
+| Constraints | 200 ch | KEEP |
+| Progress | 200 ch | TRUNCATE first → "Phase N done; see phase-history.md" |
+| Decisions | 200 ch | KEEP |
+| Next Steps | 150 ch | KEEP |
+| Critical Context | 250 ch | KEEP |
+| Relevant Files | 100 ch | TRUNCATE second |
+| Reasoning Notes | 200 ch | KEEP last 3 entries |
+
+**Reasoning Notes discipline**: compact `decision/evidence_refs/
+risks/next_action/lesson` outputs from v0.2.0f reasoning utilities
+(`tree_search`, `reflexion`, `tool_critic`, `react`,
+`least_to_most`, etc.). Never chain-of-thought; ≤ 5 lines per
+entry. Doctor flags narrative leakage as
+`reasoning_notes_chain_of_thought_leak`.
+
+**Schema detection** (controller-side):
+- First H2 in notepad is `## handoff` AND H3 children include
+  `### Goal` → schema v2 → enable per-heading compaction.
+- Else → schema v1 (free-form) → treat `<handoff>` as one block.
+
+**Compaction algorithm** at phase boundary:
+1. Read current notepad; parse 8 v2 headings + 4 free-form
+   sections (`learnings`, `decisions`, `issues`, `verification`).
+2. Free-form sections: preserve last 3 entries; older summarize
+   to one bullet per category.
+3. `<handoff>`: if total ≤ 1.2 KB, no change. Else apply
+   per-heading priorities (truncate Relevant Files first, then
+   Progress; KEEP others).
+4. If still over budget after truncation: log WARN to
+   `.dtd/log/run-NNN.md`; doctor surfaces
+   `notepad_heading_oversized` next time.
+
+**Backward-compat**: pre-v0.2.2 free-form notepads keep working;
+controller treats them as schema v1 with no per-heading compaction.
+`/dtd update` v0.2.2 schema migration prepends v2 headings above
+existing free-form content (Amendment 9; user data preserved).
+
+NL routing (English):
+
+| Phrase | Canonical |
+|---|---|
+| "show notepad" | `/dtd notepad show` |
+| "search past notes for X" | `/dtd notepad search X` |
+| "compact notepad" | `/dtd notepad compact` |
+
+Korean / Japanese NL routing in respective locale packs.
+
+`/dtd notepad show/search` are observational reads.
+`/dtd notepad compact` is mutating but not destructive (it
+reorganizes, never deletes audit trail — older entries roll into
+the free-form `## learnings` section).
 
 ### `/dtd snapshot [list|show|purge|rotate]` (v0.2.0c)
 

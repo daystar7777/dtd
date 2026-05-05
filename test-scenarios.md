@@ -1078,6 +1078,166 @@ follow normal confidence rules; no silent run termination via NL.
 
 ---
 
+## v0.2.2 — Compaction UX (Notepad v2 8-heading)
+
+### 80. New install creates schema v2 notepad with all 8 headings empty
+
+**Setup**: fresh install at v0.2.2.
+
+**Steps**: read `.dtd/notepad.md`.
+
+**Expected**:
+- First H2 is `## handoff (v0.2.2 8-heading)`.
+- 8 H3 children under handoff: Goal, Constraints, Progress,
+  Decisions, Next Steps, Critical Context, Relevant Files,
+  Reasoning Notes.
+- All 8 H3 sections empty (just placeholder text).
+- Free-form sections (`## learnings`, `## decisions`,
+  `## issues`, `## verification`) present and empty.
+
+**Pass**: schema v2 template ships clean.
+
+### 81. Worker sees only `<handoff>` 8 headings (≤ 1.2 KB total)
+
+**Setup**: active run with populated handoff (all 8 headings
+within budget).
+
+**Steps**: dispatch a worker; inspect the prompt assembly.
+
+**Expected**:
+- Worker prompt includes the `## handoff` H2 and all 8 H3
+  children verbatim (≤ 1.2 KB combined).
+- `## learnings`, `## decisions`, `## issues`,
+  `## verification` are NOT included (controller-only).
+- Token budget for handoff section ≤ 1.2 KB.
+
+**Pass**: workers see structured handoff only; total within budget.
+
+### 82. Compaction at phase boundary truncates Progress + Relevant Files first
+
+**Setup**: handoff at 1.5 KB (over budget); each heading at 2× its
+allowed budget.
+
+**Steps**: phase boundary triggers compaction.
+
+**Expected**:
+- Step 1: `Relevant Files` truncated to last 5 path refs.
+- Step 2: `Progress` truncated to "Phase N completed; see
+  phase-history.md".
+- Other 6 headings (Goal, Constraints, Decisions, Next Steps,
+  Critical Context, Reasoning Notes) preserved as-is.
+- Total handoff ≤ 1.2 KB after compaction.
+
+**Pass**: priority order (TRUNCATE first → Relevant Files;
+TRUNCATE second → Progress) respected; KEEP headings unchanged.
+
+### 83. Schema v1 notepad keeps working (backward-compat); doctor INFO
+
+**Setup**: pre-v0.2.2 install with free-form `### handoff`
+(no `## handoff` H2 + H3 children).
+
+**Steps**:
+1. Dispatch worker.
+2. `/dtd doctor`.
+
+**Expected**:
+- Step 1: worker receives the free-form `<handoff>` block as one
+  chunk (no per-heading parsing).
+- Step 2: doctor INFO `notepad_schema_v1` recommending migration.
+  No ERROR.
+
+**Pass**: backward-compat; old notepads work, doctor recommends
+upgrade without blocking.
+
+### 84. Per-heading oversized triggers WARN; /dtd notepad compact clears
+
+**Setup**: schema v2 notepad. `Reasoning Notes` heading at 600
+chars (3× the 200-char budget).
+
+**Steps**:
+1. `/dtd doctor`.
+2. `/dtd notepad compact`.
+3. `/dtd doctor`.
+
+**Expected**:
+- Step 1: WARN
+  `notepad_heading_oversized: Reasoning Notes` with size+budget.
+- Step 2: compaction reduces Reasoning Notes to last 3 entries
+  (≤ 200 chars); older entries roll into `## learnings` section.
+- Step 3: WARN cleared.
+
+**Pass**: oversized headings detected; manual compact clears.
+
+### 85. /dtd notepad search finds across .dtd/runs/ archive
+
+**Setup**: 3 archived runs in `.dtd/runs/run-001-notepad.md`,
+`-002-notepad.md`, `-003-notepad.md`. Active notepad is run-004.
+
+**Steps**: `/dtd notepad search "JWT auth"`.
+
+**Expected**:
+- Search scans all 4 files (3 archive + 1 active).
+- Output groups matches by file with line numbers.
+- Hits in active notepad come first; then run-003 (most recent
+  archive).
+
+**Pass**: cross-run search works; archive is queryable; output is
+auditable.
+
+### 85b. Notepad v2 has Reasoning Notes; worker prompts include compact reasoning capsule
+
+**Setup**: schema v2 notepad with Reasoning Notes populated:
+
+```
+- decision: cache layer at edge, not origin
+  evidence: [log:exec-001-task-3.1, attempt:att-2]
+  risks: cold-cache penalty for cold paths
+  next: add ttl monitoring
+```
+
+Plan task uses `reasoning-utility="tool_critic"` per v0.2.0f.
+
+**Steps**: dispatch the task; inspect worker prompt.
+
+**Expected**:
+- Worker prompt includes the Reasoning Notes content + a
+  `<reasoning>` block with `output_contract: decision /
+  evidence_refs / risks / next_action`.
+- Worker is told NOT to include raw chain-of-thought.
+
+**Pass**: reasoning capsule plumbing works end-to-end without
+leakage.
+
+### 85c. Reflexion utility writes 1-line lesson; older entries roll into learnings
+
+**Setup**: 4 prior reflexion entries in Reasoning Notes
+(over the "keep last 3" rule). Worker dispatch uses
+`reasoning-utility="reflexion"`.
+
+**Steps**: post-process worker response; observe notepad changes.
+
+**Expected**:
+- New 1-line lesson entry appended to Reasoning Notes.
+- Oldest entry rolled into `## learnings` as one-line bullet.
+- Reasoning Notes always has ≤ 3 most-recent entries.
+
+**Pass**: reflexion lessons preserved durably; size stays bounded.
+
+### 85d. Doctor flags reasoning_notes_chain_of_thought_leak
+
+**Setup**: Reasoning Notes contains a multi-paragraph "let me
+think step-by-step..." narrative entry (10 lines).
+
+**Steps**: `/dtd doctor`.
+
+**Expected**: WARN `reasoning_notes_chain_of_thought_leak` with
+line ref + remediation hint ("compact to ≤ 5 lines per entry").
+
+**Pass**: heuristic catches narrative leakage; protects against
+chain-of-thought storage in durable state.
+
+---
+
 ## v0.2.1 — Runtime Resilience
 
 ### 70. /dtd workers test --all --quick returns OK / FAIL / WARN per worker
