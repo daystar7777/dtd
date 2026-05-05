@@ -1,63 +1,210 @@
 # DTD reference: run-loop
 
-> v0.2.3 R0 scaffold. Full content extraction lands in R1+.
-> Source-of-truth today: `dtd.md` §`/dtd run`.
+> Canonical reference for `/dtd run` and `finalize_run`.
+> Lazy-loaded via `/dtd help run-loop --full`. Not auto-loaded.
+> v0.2.3 R1 extraction from `dtd.md` (single-source). Detailed
+> per-turn protocol steps live in `.dtd/instructions.md`; this file
+> documents the user-facing command spec + terminal lifecycle.
 
 ## Summary
 
-`/dtd run [--until <boundary>] [--decision <mode>] [--silent[=<duration>] | --interactive]`.
+`/dtd run` executes an APPROVED or PAUSED plan. Optional flags
+control bounded execution (`--until`), decision policy
+(`--decision`), and attention mode (`--silent` / `--interactive`).
+`finalize_run` is the shared terminal lifecycle for any
+COMPLETED / STOPPED / FAILED exit.
 
-Run loop per task:
-1. Read state.md (mode, plan_status, pause_requested, awaiting_user_decision).
-2. Read steering.md cursor; apply low-impact entries.
-3. Check pending_patch (refuse new dispatch until resolved).
+## `/dtd run [--until <boundary>] [--decision plan|permission|auto] [--silent[=<duration>] | --interactive]`
+
+Execute the plan. Allowed when:
+
+- `plan_status: APPROVED` AND `pending_patch: false` → start RUNNING
+- `plan_status: PAUSED` AND `pending_patch: false` → resume RUNNING
+- Otherwise refused with reason
+
+### Optional `--until <boundary>` — bounded execution
+
+Pauses at a user-specified checkpoint instead of running to natural
+completion. Boundary syntax:
+
+| Syntax | Meaning |
+|---|---|
+| `--until phase:<id>` | Pause AFTER the named phase completes (inclusive) |
+| `--until task:<id>` | Pause AFTER the named task completes |
+| `--until before:<phase\|task>` | Pause BEFORE the named phase/task starts (next dispatch refused) |
+| `--until next-decision` | Pause as soon as any decision capsule needs filling (auth fail, max iter, etc.) |
+
+NL routing examples (instructions.md):
+
+| User phrase | Canonical |
+|---|---|
+| "3페이즈까지만 해줘" | `/dtd run --until phase:3` |
+| "리뷰 전까지만 돌려" | `/dtd run --until before:review` |
+| "UI 만들고 멈춰" | `/dtd run --until task:<UI task id>` |
+| "다음 결정 나올때까지" | `/dtd run --until next-decision` |
+
+Boundary stored in `state.md` while RUNNING:
+
+```yaml
+- run_until: phase:3                # null | phase:<id> | task:<id> | before:<id> | next-decision
+- run_until_reason: user-checkpoint # user-test | user-decision | manual-check | explicit-limit
+```
+
+When boundary reached:
+
+1. In-flight task (if any) finishes (same as `/dtd pause`).
+2. Set `plan_status: PAUSED`.
+3. Append `phase-history.md` row with `gate: user-checkpoint` and
+   `note: <run_until value>`.
+4. **Copy boundary to durable display fields** before clearing:
+   - `last_pause_reason: run_until_boundary`
+   - `last_pause_boundary: <run_until value>` (e.g., "phase:3")
+   - `last_pause_at: <timestamp>`
+5. Clear `run_until` and `run_until_reason` (active-run fields).
+6. `/dtd status` reads `last_pause_*` to display: "Paused at
+   requested boundary: phase:3 (set by user --until); next:
+   /dtd run".
+
+Resume is just `/dtd run` again (no `--until` = run to natural
+completion). On resume:
+
+- Clear `last_pause_*` fields.
+- Apply a new `--until` if you want another bounded segment.
+
+Why split active vs durable: status display must stay reliable
+across resume sessions and after the active flag clears. `run_until`
+is the runtime control; `last_pause_*` is the audit/display.
+
+**Do not confuse `--until` with `pause_requested`**: `--until` is a
+planned boundary set at run-time; `pause_requested` is an
+interrupt. Both lead to PAUSED but the audit trail is different.
+
+## Run loop (per task) — overview
+
+Detailed per-turn protocol lives in `.dtd/instructions.md`. The
+run loop, summarized:
+
+1. Read `state.md` (mode, plan_status, pause_requested,
+   awaiting_user_decision).
+2. Read `steering.md` cursor; apply low-impact entries.
+3. Check `pending_patch` (refuse new dispatch until resolved).
 4. Pick next ready batch (topo + parallel-group).
 5. Pre-dispatch lock partitioning.
 6. For each task in batch:
-   a. Build worker prompt (5-step canonical assembly + GSD-style reset).
-   b. Context budget gate (soft 70% / hard 85% / emergency 95%).
-   c. Dispatch (HTTP per worker registry).
-   d. Heartbeat lease.
-   e. Receive + parse response (`::done::` / `::blocked::`).
-   f. Validate before apply (output-paths × permission_profile × locks × block_patterns).
-   g. Apply phase 1 (write all temps) + phase 2 (rename all).
-   h. Compute grade (controller-side; never worker self-grade).
-   i. Append phase row to phase-history.md.
-   j. Apply patches between tasks only.
+   - **6.a** Build worker prompt (5-step canonical assembly +
+     GSD-style reset).
+   - **6.b** Context budget gate (soft 70% / hard 85% /
+     emergency 95%).
+   - **6.c** Dispatch (HTTP per worker registry; see workers.md).
+   - **6.d** Heartbeat lease.
+   - **6.e** Receive + parse response (`::done::` / `::blocked::`).
+   - **6.f** Validate before apply (output-paths × permission_profile
+     × locks × block_patterns).
+   - **6.g** Apply phase 1 (write all temps) + phase 2 (rename all).
+   - **6.h** Compute grade (controller-side; never worker self-grade).
+   - **6.i** Append phase row to `phase-history.md`.
+   - **6.j** Apply patches between tasks only.
 
-## --until boundaries
+## `finalize_run(terminal_status)` — shared terminal lifecycle
 
-- `phase:<id>` — pause after phase passes
-- `task:<id>` — pause after task completes
-- `before:<phase-name>` — pause before named phase
-- `next-decision` — pause when any decision capsule fires
+**Required by ALL terminal exits**: COMPLETED (run loop end),
+STOPPED (`/dtd stop`), FAILED (unrecoverable error, e.g. all
+workers dead). NOT called for PAUSED (pause is non-terminal).
 
-## v0.2.0f flags
+Order (atomic from controller's POV — execute ALL steps before
+responding to user):
 
-- `--silent[=<duration>]` — defer non-urgent blockers; ≤ silent_max_hours.
-- `--decision plan|permission|auto` — how often to ask.
-- `--interactive` — explicit interactive mode (default).
+1. **Release leases**: scan `resources.md` for any leases owned by
+   this run; remove all. Cancel any in-flight heartbeat.
+2. **Archive notepad**: copy `.dtd/notepad.md` →
+   `.dtd/runs/run-NNN-notepad.md`. Create `.dtd/runs/` if missing.
+3. **Reset notepad**: replace `.dtd/notepad.md` content with the
+   template state (5 sections, all `(empty)`).
+4. **Write run summary**: `.dtd/log/run-NNN-summary.md` with phase
+   grades / output paths / duration / final grade.
+5. **Clear incident state** (v0.2.0a):
+   - For every incident in `.dtd/log/incidents/index.md` belonging
+     to this run with `status=open`:
+     - On `terminal_status=COMPLETED` or `STOPPED` → set
+       `status: superseded`, `resolved_at: <ts>`,
+       `resolved_option: terminal_run`.
+     - On `terminal_status=FAILED` → set `status: fatal`,
+       `resolved_at: <ts>`, `resolved_option: terminal_failed`.
+   - Update each affected `.dtd/log/incidents/inc-<run>-<seq>.md`
+     detail file accordingly.
+   - In state.md (held for the step-7 atomic write below): clear
+     `active_incident_id`, `active_blocking_incident_id`,
+     `recent_incident_summary`. Keep `last_incident_id` and
+     `incident_count` for cross-run reference.
+   - If `awaiting_user_decision` was an incident-backed reason
+     (`INCIDENT_BLOCKED`), also clear `awaiting_user_decision`,
+     `awaiting_user_reason`, `decision_id`, `decision_prompt`,
+     `decision_options`, `decision_default`, `decision_resume_action`,
+     `decision_expires_at`, `user_decision_options` as part of
+     step 7.
+5b. **Clear attention/context-pattern state** (v0.2.0f):
+   - Clear `resolved_context_pattern`, `resolved_handoff_mode`,
+     `resolved_sampling`, `last_context_reset_at`,
+     `last_context_reset_reason`. These describe an in-flight
+     dispatch and do not survive terminal exit.
+   - Clear `deferred_decision_refs` and `deferred_decision_count`:
+     - On `terminal_status=COMPLETED`: any remaining deferred refs
+       MUST already be resolved (otherwise the run would have
+       paused on silent_window_ended_no_ready_work). If non-empty
+       here, mark the underlying incidents as `superseded` (same
+       as step 5) and clear.
+     - On `terminal_status=STOPPED|FAILED`: mark the underlying
+       incidents per the step-5 rule (`superseded`/`fatal`), then
+       clear.
+   - Reset `attention_mode: interactive`,
+     `attention_mode_set_by: default`, `attention_until: null`,
+     `attention_goal: null`. Silent windows do not survive
+     terminal exits — the next `/dtd plan` starts fresh in
+     interactive mode.
+   - If `decision_mode_set_by: run_flag`, reset `decision_mode` to
+     `config.decision-policy.default_decision_mode` and
+     `decision_mode_set_by: default`. `/dtd run --decision <mode>`
+     is a run-scoped override.
+   - If `decision_mode_set_by: user`, keep `decision_mode` across
+     terminal exits. `/dtd mode decision <mode>` is the project
+     preference path.
+   - Clear `resolved_controller_persona`,
+     `resolved_worker_persona`, `resolved_reasoning_utility`, and
+     `resolved_tool_runtime`. These are per-dispatch/per-phase
+     controls, not terminal state.
+6. **Append AIMemory `WORK_END`** (only if AIMemory present):
+   one-line event with
+   `status=<terminal_status> grade=<final_grade> <duration>`. Per
+   §AIMemory Boundary.
+7. **Update state.md**: `plan_status: <terminal_status>`,
+   `plan_ended_at: <ts>`, clear `current_task`/`current_phase`/
+   `pending_patch`/`pending_attempts` fields, plus the
+   incident-state clears from step 5, plus the decision-capsule
+   clears from step 5 if applicable. Set `last_update`. Single
+   atomic tmp-rename write.
 
-## finalize_run(terminal_status)
-
-Required for COMPLETED / STOPPED / FAILED (NOT PAUSED). 7 atomic steps:
-1. Release leases.
-2. Archive notepad.
-3. Reset notepad.
-4. Write run summary.
-5. Clear incident state (v0.2.0a).
-5b. Clear attention/context-pattern state (v0.2.0f).
-6. Append AIMemory WORK_END.
-7. Update state.md atomically.
+If any step fails partway, the controller logs an
+`ORPHAN_RUN_NOTE` to `AIMemory/work.log` (if present) describing
+what was completed vs not, and prints a recovery hint to the user.
+Doctor's "orphaned notepad content" check catches the most common
+failure (step 3 not executed).
 
 ## Anchor
 
-See `dtd.md` §`### /dtd run` for full run loop, lock partitioning,
-context budget gate, validate-before-apply, two-phase apply,
-finalize_run order.
+This file IS the canonical source for `/dtd run` command spec
+(including `--until` boundary semantics) and `finalize_run`
+terminal lifecycle. The detailed per-turn protocol (run loop
+steps 6.a-j with full validation and apply rules) is sourced from
+`.dtd/instructions.md`.
+v0.2.3 R1 extraction completed; `dtd.md` §`/dtd run` and
+§`finalize_run(terminal_status)` now point here.
 
 ## Related topics
 
-- `incidents.md` — failures become incidents during dispatch/apply.
-- `autonomy.md` — silent mode ready-work algorithm.
-- `plan-schema.md` — plan XML drives the run loop.
+- `incidents.md` — failures during dispatch/apply produce
+  incidents.
+- `autonomy.md` — silent mode ready-work algorithm controls when
+  loop pauses.
+- `plan-schema.md` — plan XML drives the run loop dispatch.
+- `workers.md` — dispatch transport for step 6.c-e.
+- `perf.md` — controller usage ledger writes during run loop.

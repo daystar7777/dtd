@@ -13,7 +13,7 @@
 
 | Topic | Covers | Status | Source |
 |---|---|---|---|
-| `run-loop` | Run loop pre-dispatch + dispatch + apply phases | stub | `dtd.md` `/dtd run` |
+| `run-loop` | Run loop pre-dispatch + dispatch + apply phases | canonical | `.dtd/reference/run-loop.md` |
 | `incidents` | v0.2.0a Incident Tracking | canonical | `.dtd/reference/incidents.md` |
 | `autonomy` | v0.2.0f decision_mode + attention_mode + silent algorithm | canonical | `.dtd/reference/autonomy.md` |
 | `persona-reasoning-tools` | v0.2.0f personas + reasoning utilities + tool runtime | canonical | `.dtd/reference/persona-reasoning-tools.md` |
