@@ -8,10 +8,12 @@
 
 v0.1 / v0.1.1 / v0.2.0a tagged; rest of v0.2 line release-ready
 or R0+R1 complete pending user tag authorization.
-v0.3 line **complete at R0 + R1 across all 5 sub-releases**.
-Codex review GO accepted (handoff
-`handoff_dtd-v030-r0-r1-batch-codex-review.gpt-5-codex.md`)
-for R0 c/d + R1 e/b/a; c R1 + d R1 pending final review.
+v0.3 line **GO at R0 + R1 across all 5 sub-releases**.
+Codex final review pass accepted (handoff
+`handoff_dtd-v030c-v030d-r1-codex-review.gpt-5-codex.md` 2026-05-06
+01:20). All R0 + R1 patches integrated through `07fc465`. Tagging
+pending user authorization. Residual risk: R2 = live DTD run
+against a nontrivial test project.
 
 Released:
 - **v0.1** — first lock; 18/18 acceptance smoke (2026-05-05).
@@ -34,7 +36,8 @@ R0 + R1 complete (Codex GO accepted; tag pending user auth):
 - **v0.2.2** — Compaction UX (notepad v2 8-heading + Reasoning Notes
   + chain-of-thought leak filter).
 
-v0.3 line — Path A (e → b → a → c → d) execution status:
+v0.3 line — Path A (e → b → a → c → d) execution status —
+**ALL FIVE GO at R0 + R1**:
 - **v0.3.0e** — Time-limited permissions UX. R0 GO (`19bf3f1`);
   R1 (`ea5fd09`) review-passed (Codex `1ab11f3`).
 - **v0.3.0b** — Token-rate-aware scheduling. R0 GO (`19bf3f1`);
@@ -43,10 +46,10 @@ v0.3 line — Path A (e → b → a → c → d) execution status:
   (`0681088`); R1 (`e67b10b`) review-passed (Codex `1ab11f3`).
 - **v0.3.0c** — Multi-worker consensus dispatch. R0 with P1.4 +
   P1.5 inline (`be948b5`) review-passed (Codex `1ab11f3`);
-  R1 (`257210a`) pending final review.
+  R1 (`257210a`) review-passed (Codex `07fc465`).
 - **v0.3.0d** — Cross-machine session affinity. R0 with P1.6 + P1.7
   inline (`6013ac2`) review-passed (Codex `1ab11f3`);
-  R1 (`0aacd5a`) pending final review.
+  R1 (`0aacd5a`) review-passed (Codex `07fc465`).
 
 Per-sub-release reference topic pattern (Codex's recommendation):
 catalog grew from 13 → 18 across v0.3 line:
@@ -56,9 +59,11 @@ catalog grew from 13 → 18 across v0.3 line:
 - `v030e-time-limited-permissions.md` (R1 dedicated)
 - `v030b-quota-scheduling.md` (R1 dedicated)
 
-2 commits awaiting Codex final review (c R1 + d R1):
-- `handoff_dtd-v030c-v030d-r1-review-request.claude-opus-4-7.md`
-  (c+d R1 — session 9)
+R2 (Codex's residual risk): live DTD run against a nontrivial test
+project to exercise consensus staging, worker cancellation,
+git-branch sync, and session conflict recovery end-to-end. Spec'd
+out in `.dtd/reference/v030-r2-live-test-plan.md` (planned —
+session #11).
 
 ## v0.1.1
 
