@@ -1,7 +1,7 @@
 # DTD reference: load-profile (v0.2.3)
 
-> v0.2.3 R0 scaffold. Full content extraction lands in R1+.
-> Source-of-truth today: `dtd.md` §Lazy-Load Profile.
+> Canonical reference for v0.2.3 Lazy-Load Profile.
+> Lazy-loaded via `/dtd help load-profile --full`. Not auto-loaded.
 
 ## Summary
 
@@ -59,9 +59,9 @@ don't support this.
 
 ## Anchor
 
-See `dtd.md` §`## Lazy-Load Profile (v0.2.3)` for full resolution rules,
-section coverage, profile boundaries, doctor checks, token economy
-impact, NL routing.
+This file IS the canonical source for v0.2.3 Lazy-Load Profile.
+`dtd.md` keeps the compact profile table, resolution summary, and
+doctor-facing invariants.
 
 Token caveat: lazy-load reduces controller cognitive scope by default.
 It reduces prompt tokens only when the host honors selective loading or
@@ -71,4 +71,5 @@ aggressive unload.
 
 - `run-loop.md` — running profile activates these.
 - `incidents.md` + `autonomy.md` — recovery profile activates these.
-- `perf.md` — measures actual token usage; lazy-load reduces it.
+- `perf.md` — measures actual token usage; do not claim savings unless
+  the ledger shows them.

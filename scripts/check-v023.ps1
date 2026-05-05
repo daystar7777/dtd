@@ -50,6 +50,9 @@ $referenceTopics = @(
     "plan-schema", "status-dashboard", "self-update", "help-system",
     "run-loop", "doctor-checks", "roadmap", "load-profile"
 )
+$canonicalReferenceTopics = @(
+    "autonomy", "incidents", "persona-reasoning-tools", "perf", "load-profile"
+)
 
 $referenceDir = Join-Path $RepoRoot ".dtd/reference"
 $referenceFiles = @()
@@ -68,7 +71,13 @@ if (Test-Path -LiteralPath $indexPath) {
     foreach ($topic in $referenceTopics) {
         Add-Result "v023.reference.index.topic.$topic" "index lists $topic" ($indexText -match [regex]::Escape($topic))
     }
-    Add-Result "v023.reference.index.topic_count_wording" "index says 13 topic stubs" ($indexText -match "13 topic stubs")
+    Add-Result "v023.reference.index.topic_count_wording" "index says 13 reference topics" ($indexText -match "13 reference topics")
+    Add-Result "v023.reference.index.status_column" "index has Status column" ($indexText -match "\| Topic \| Covers \| Status \| Source \|")
+    foreach ($topic in $canonicalReferenceTopics) {
+        $topicLine = @($indexText -split "`r?`n" | Where-Object { $_ -match [regex]::Escape($topic) } | Select-Object -First 1)
+        Add-Result "v023.reference.index.canonical.$topic" "index marks $topic canonical" `
+            (($topicLine.Count -gt 0) -and ($topicLine[0] -match "canonical"))
+    }
 }
 
 foreach ($topic in $referenceTopics) {
@@ -93,7 +102,7 @@ $scenariosMd = Read-Text "test-scenarios.md"
 $builderText = Read-Text "scripts/build-manifest.ps1"
 
 Add-Result "v023.dtd.reference_count" "dtd.md documents index + 13 reference topics" `
-    ($dtdMd -match "index\.md.*all 13 canonical reference topic stubs")
+    ($dtdMd -match "index\.md.*all 13 canonical reference topics")
 Add-Result "v023.dtd.help_full_reference" "dtd.md help --full loads one reference file" `
     (($dtdMd -match '\.dtd/reference/<topic>\.md') -and ($dtdMd -match 'Do not load `dtd\.md` or other reference files'))
 Add-Result "v023.dtd.profile_observational" "dtd.md says observational reads do not persist profile" `
@@ -124,6 +133,10 @@ foreach ($n in 94..97) {
 }
 Add-Result "v023.scenarios.reference_count" "scenario 94 expects 14 markdown files" `
     ($scenariosMd -match "14 markdown files exist")
+Add-Result "v023.scenarios.reference_budget_16kb" "scenario 94 expects <= 16 KB reference budget" `
+    ($scenariosMd -match "Each is <= 16 KB")
+Add-Result "v023.scenarios.reference_status" "scenario 94 expects canonical/stub status" `
+    ($scenariosMd -match "canonical.*stub")
 Add-Result "v023.scenarios.no_steering_profile" "scenario 96 does not log profile transitions to steering" `
     (($scenariosMd -match "steering\.md") -and ($scenariosMd -match "not appended") -and ($scenariosMd -match "profile-transitions\.md"))
 Add-Result "v023.scenarios.token_caveat" "scenario 97 allows unchanged prompt tokens" `

@@ -1238,9 +1238,10 @@ truly observational.
 
 ## v0.2.3 — Spec modularization + Lazy-load profile
 
-### 94. .dtd/reference/ scaffold exists with index + 13 topic stubs
+### 94. .dtd/reference/ catalog exists with index + 13 topics
 
-**Setup**: post-v0.2.3 R0 install.
+**Setup**: post-v0.2.3 install. R0 topics may be stubs; R1+ topics may be
+canonical full extractions.
 
 **Steps**: inspect `.dtd/reference/` directory.
 
@@ -1249,12 +1250,13 @@ truly observational.
   persona-reasoning-tools, perf, workers, plan-schema,
   status-dashboard, self-update, help-system, run-loop,
   doctor-checks, roadmap, load-profile.
-- Each is ≤ 8 KB.
-- Each topic stub has Summary + Anchor section pointing at dtd.md or
-  AIMemory archive.
-- index.md lists all 13 reference topics with one-line description.
+- Each is <= 16 KB.
+- Each topic has Summary + Anchor section.
+- index.md lists all 13 reference topics with one-line description and a
+  `canonical` or `stub` status.
 
-**Pass**: scaffold present; lazy-load architecture verified at file level.
+**Pass**: reference catalog present; lazy-load architecture verified at file
+level.
 
 ### 95. /dtd help <topic> --full drills into reference (when ready)
 
@@ -1263,8 +1265,8 @@ content (not just stubs). For R0 scaffold, this is a contract test
 against the design.
 
 **Steps**:
-1. `/dtd help autonomy` — shows ≤ 50-line Summary + Quick examples
-   from `.dtd/help/autonomy.md` (or generated from index).
+1. `/dtd help autonomy` — shows compact summary generated from
+   `.dtd/reference/index.md` plus a `--full` hint.
 2. `/dtd help autonomy --full` — drills into `.dtd/reference/autonomy.md`
    for full spec extraction.
 
@@ -1274,8 +1276,9 @@ Default `/dtd help autonomy` should render a compact summary from
 reference file.
 
 **Expected**:
-- `/dtd help` (no flag) loads only `.dtd/help/<topic>.md` (≤ 2 KB).
-- `--full` flag loads `.dtd/reference/<topic>.md` (≤ 8 KB).
+- `/dtd help` (no flag) loads only `.dtd/help/<topic>.md` when present, or
+  `.dtd/reference/index.md` for reference-only topics.
+- `--full` flag loads `.dtd/reference/<topic>.md` (<= 16 KB).
 - Neither loads `dtd.md` itself (lazy-load policy).
 - Output remains observational; no state.md mutation.
 
@@ -1633,7 +1636,7 @@ help output stays under 50 lines; user can drill via `/dtd help <other-topic>`.
 | 91 | v0.2.0d: /dtd help shows default 25-line overview |
 | 92 | v0.2.0d: /dtd help <topic> shows ≤50-line topic detail |
 | 93 | v0.2.0d: /dtd help <unknown> searches and shows top 3 matches |
-| 94 | v0.2.3: .dtd/reference/ scaffold has index + 13 topic stubs + budget OK |
+| 94 | v0.2.3: .dtd/reference/ catalog has index + 13 topics + budget OK |
 | 95 | v0.2.3: /dtd help <topic> --full drills into reference file (lazy-load) |
 | 96 | v0.2.3 lazy-load profile: resolves correctly across state transitions |
 | 97 | v0.2.3 lazy-load profile: reduces controller cognitive load (perf savings) |
