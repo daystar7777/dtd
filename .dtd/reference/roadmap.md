@@ -8,8 +8,10 @@
 
 v0.1 / v0.1.1 / v0.2.0a tagged; rest of v0.2 line release-ready
 or R0+R1 complete pending user tag authorization.
-v0.3 line at mixed R0 / R1 across 5 sub-releases (R0: all 5;
-R1: 3 of 5; pending Codex review).
+v0.3 line **complete at R0 + R1 across all 5 sub-releases**.
+Codex review GO accepted (handoff
+`handoff_dtd-v030-r0-r1-batch-codex-review.gpt-5-codex.md`)
+for R0 c/d + R1 e/b/a; c R1 + d R1 pending final review.
 
 Released:
 - **v0.1** — first lock; 18/18 acceptance smoke (2026-05-05).
@@ -34,29 +36,29 @@ R0 + R1 complete (Codex GO accepted; tag pending user auth):
 
 v0.3 line — Path A (e → b → a → c → d) execution status:
 - **v0.3.0e** — Time-limited permissions UX. R0 GO (`19bf3f1`);
-  R1 (`ea5fd09`) pending review.
+  R1 (`ea5fd09`) review-passed (Codex `1ab11f3`).
 - **v0.3.0b** — Token-rate-aware scheduling. R0 GO (`19bf3f1`);
-  R1 (`d431c57`) pending review.
+  R1 (`d431c57`) review-passed (Codex `1ab11f3`).
 - **v0.3.0a** — Cross-run loop guard. R0 with P1.1 + P1.7 inline
-  (`0681088`); R1 (`e67b10b`) pending review.
+  (`0681088`); R1 (`e67b10b`) review-passed (Codex `1ab11f3`).
 - **v0.3.0c** — Multi-worker consensus dispatch. R0 with P1.4 +
-  P1.5 inline (`be948b5`); R1 pending Codex GO on R0.
+  P1.5 inline (`be948b5`) review-passed (Codex `1ab11f3`);
+  R1 (`257210a`) pending final review.
 - **v0.3.0d** — Cross-machine session affinity. R0 with P1.6 + P1.7
-  inline (`6013ac2`); R1 pending Codex GO on R0.
+  inline (`6013ac2`) review-passed (Codex `1ab11f3`);
+  R1 (`0aacd5a`) pending final review.
 
 Per-sub-release reference topic pattern (Codex's recommendation):
 catalog grew from 13 → 18 across v0.3 line:
 - `v030a-cross-run-loop-guard.md` (R0 + R1)
-- `v030c-consensus.md` (R0 only)
-- `v030d-cross-machine-session-sync.md` (R0 only)
+- `v030c-consensus.md` (R0 + R1)
+- `v030d-cross-machine-session-sync.md` (R0 + R1)
 - `v030e-time-limited-permissions.md` (R1 dedicated)
 - `v030b-quota-scheduling.md` (R1 dedicated)
 
-5 commits awaiting Codex review across 2 review-request handoffs:
-- `handoff_dtd-v030c-v030d-r0-review-request.claude-opus-4-7.md`
-  (c+d R0 — session 7)
-- `handoff_dtd-v030-r1-trio-review-request.claude-opus-4-7.md`
-  (e+b+a R1 — session 8)
+2 commits awaiting Codex final review (c R1 + d R1):
+- `handoff_dtd-v030c-v030d-r1-review-request.claude-opus-4-7.md`
+  (c+d R1 — session 9)
 
 ## v0.1.1
 
