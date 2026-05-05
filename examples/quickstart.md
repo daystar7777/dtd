@@ -177,6 +177,8 @@ You can now:
 - `/dtd workers add` — register more workers (different models / tiers)
 - `/dtd status` — see where you are anytime
 - `/dtd doctor` — health check
+- `/dtd help [topic]` — layered help; try `/dtd help start`, `/dtd help stuck`
+- `/dtd update check` — see latest DTD version (v0.2.0d Self-Update)
 - `/dtd uninstall --soft` — turn off cleanly (preserves all `.dtd/` content)
 
 ---

@@ -1,6 +1,6 @@
 # DTD v0.1 Test Scenarios
 
-> 69 acceptance scenarios (60 single-feature + 9 cross-sub-release integration) for v0.1 + v0.1.1 + v0.2.0a (TAGGED) + v0.2.0d/0f/0e/0b/0c/0.2.1/0.2.2/0.2.3 (planned). Not auto-runnable — these are
+> 77 acceptance scenarios (68 single-feature + 9 cross-sub-release integration) for v0.1 + v0.1.1 + v0.2.0a (TAGGED) + v0.2.0d (R0 implementation) + v0.2.0f/0e/0b/0c/0.2.1/0.2.2/0.2.3 (planned). Not auto-runnable — these are
 > (a) QA checklist for releases, (b) Codex review criteria, (c) user
 > usage examples. Each scenario has Setup / Steps / Expected / Pass.
 
@@ -1078,6 +1078,164 @@ follow normal confidence rules; no silent run termination via NL.
 
 ---
 
+## v0.2.0d — Self-Update + /dtd help
+
+### 86. /dtd update check no-op when on latest
+
+**Setup**: install at v0.2.0d (or whatever current tagged version).
+`state.md.installed_version: <current>`.
+
+**Steps**: `/dtd update check`.
+
+**Expected**:
+- HTTP GET to GitHub manifest of latest tagged release.
+- Compare `manifest.version` vs `state.md.installed_version`.
+- If equal: print `✓ already on latest (v0.2.0d). last checked: <ts>`.
+- `state.md.update_check_at: <now>` updated (the only state mutation).
+- `state.md.update_available: null` confirmed.
+- No file writes; no backup; observational beyond update_check_at.
+
+**Pass**: no-op message printed; `update_available` null; no files modified.
+
+### 87. /dtd update --dry-run shows full delta + asks confirm
+
+**Setup**: install at v0.2.0a (pre-v0.2.0d). User invokes update flow.
+
+**Steps**: `/dtd update --dry-run`.
+
+**Expected**:
+- Pre-update gates: state.md.update_in_progress: false ✓, no plan_status:
+  RUNNING with pending_patch ✓, host.mode != plan-only ✓.
+- HTTP GET MANIFEST.json from `<repo>/<latest-tag>`.
+- Verify version: from v0.2.0a → to v0.2.0d.
+- Print delta:
+  ```
+  + DTD update preview: v0.2.0a → v0.2.0d
+  + new files: 12 (.dtd/help/×10, MANIFEST.json, scripts/build-manifest.ps1)
+  + modified files: 6 (dtd.md, instructions.md, state.md, config.md, README*, prompt.md)
+  + state schema migration: +6 fields (Self-Update state section)
+  + config schema migration: +6 keys (update section)
+  + estimated total token reduction: minimal (v0.2.0d is additive)
+  + Apply? (y/n/edit)
+  ```
+- NO file writes.
+- NO state.md mutation beyond `update_check_at`.
+
+**Pass**: full delta visible without applying; user can review before confirm.
+
+### 88. /dtd update applies; manifest verification passes; doctor PASS
+
+**Setup**: install at v0.2.0a. User has reviewed --dry-run output and confirmed.
+
+**Steps**: `/dtd update` → confirm `y`.
+
+**Expected** (B1-B7 update flow per dtd.md §/dtd update):
+- B1: `state.md.update_in_progress: true` atomically.
+- B2: MANIFEST.json fetched from GitHub.
+- B2.5: version delta v0.2.0a → v0.2.0d confirmed.
+- B3: backup at `.dtd.backup-v020a-to-v020d-<ts>/`.
+- B3.5: state schema migration adds 6 Self-Update state fields with defaults.
+- B4: 12 files added + 6 modified. Each verified against manifest sha256.
+  Atomic temp+rename per file.
+- B5: `/dtd doctor` post-migration; all NEW v0.2.0d checks PASS.
+- B6: `state.md.installed_version: v0.2.0d`, `last_update_from: v0.2.0a`,
+  `last_update_at: <now>`, `update_in_progress: false`.
+- B7: AIMemory NOTE: `dtd_updated, from=v020a to=v020d`.
+
+**Pass**: all B-steps execute in order; doctor PASSes; backup directory
+exists for rollback safety; AIMemory event recorded.
+
+### 89. /dtd update rolls back on manifest mismatch
+
+**Setup**: install at v0.2.0a. Tampered MANIFEST.json (file sha mismatch
+on at least one entry).
+
+**Steps**: `/dtd update` → confirm `y`.
+
+**Expected**:
+- B1-B3 succeed.
+- B4: file sha256 mismatch detected on first failing file.
+- B5.5 rollback triggered:
+  - Restore from `.dtd.backup-v020a-to-v020d-<ts>/`.
+  - `state.md.update_in_progress: false`.
+  - Append rollback note to update log.
+  - Print failure: `✗ manifest mismatch on .dtd/instructions.md
+    (expected sha256: abc... actual: def...). Rolled back to v0.2.0a.`
+- No partial-update state remains; `.dtd/` byte-identical to pre-update.
+
+**Pass**: rollback restores fully; no partial state; user sees clear error.
+
+### 90. /dtd update preserves user data (workers.md / state.md customizations)
+
+**Setup**: v0.2.0a install with customized `workers.md` (3 workers added
+manually) and `state.md` (custom `host_mode: full`).
+
+**Steps**: `/dtd update` to v0.2.0d.
+
+**Expected**:
+- `workers.md` byte-identical post-update (gitignored user file; never
+  in manifest).
+- `state.md` post-update: existing fields preserved (host_mode: full,
+  workers, etc.); new Self-Update state fields added with defaults.
+- `config.md` post-update: existing user customizations preserved; new
+  update section added with defaults.
+- No prompt to re-add workers; no prompt to re-set host_mode.
+
+**Pass**: user customizations unchanged; only spec-shaped additions land.
+
+### 91. /dtd help shows default 25-line overview
+
+**Setup**: post-v0.2.0d install with `.dtd/help/` directory populated.
+
+**Steps**: `/dtd help`.
+
+**Expected**:
+- Render `.dtd/help/index.md` content.
+- Output ≤ 25 lines.
+- Lists all 9 canonical topics (start/observe/recover/workers/stuck/update/
+  plan/run/steer) with one-line description each.
+- Footer: `Try: /dtd help start  or  /dtd help stuck`.
+- Observational read: no state.md mutation, no notepad write, no log append.
+
+**Pass**: output within 25-line budget; covers all canonical topics;
+truly observational.
+
+### 92. /dtd help <topic> shows ≤50-line topic detail
+
+**Setup**: post-v0.2.0d install.
+
+**Steps**: `/dtd help workers`.
+
+**Expected**:
+- Render `.dtd/help/workers.md` Summary + Quick examples sections.
+- Output ≤ 50 lines (default; --full prints full file).
+- Includes worker registry fields and naming resolution precedence.
+- Footer: `Next topics: /dtd help start, /dtd help update`.
+- Observational read.
+
+**Pass**: topic file content rendered concisely; under budget; observational.
+
+### 93. /dtd help <unknown> searches and shows top 3 matches
+
+**Setup**: post-v0.2.0d install.
+
+**Steps**: `/dtd help foo`.
+
+**Expected**:
+- `.dtd/help/foo.md` does not exist.
+- Search across `.dtd/help/*.md` for keyword `foo` (case-insensitive).
+- If matches: show top 3 candidates:
+  ```
+  No topic 'foo'. Did you mean:
+  | <topic>    <one-line description>
+  ```
+- If no matches: show full topic list (same as `/dtd help` no-arg).
+- Observational read.
+
+**Pass**: graceful "did you mean" UX; never errors out; observational.
+
+---
+
 ## Cross-sub-release integration scenarios (v0.2 line)
 
 These scenarios verify interactions between features that ship in DIFFERENT
@@ -1369,6 +1527,14 @@ help output stays under 50 lines; user can drill via `/dtd help <other-topic>`.
 | 28 | v0.2.0a: doctor cross-link integrity check |
 | 29 | v0.2.0a: finalize_run clears incident state on terminal exit (P1-4 R1 fix) |
 | 30 | v0.2.0a: destructive incident option requires explicit confirmation (R2 P1 fix) |
+| 86 | v0.2.0d: /dtd update check no-op when on latest |
+| 87 | v0.2.0d: /dtd update --dry-run shows full delta + asks confirm |
+| 88 | v0.2.0d: /dtd update applies; manifest verification PASSes; doctor PASS |
+| 89 | v0.2.0d: /dtd update rolls back on manifest mismatch |
+| 90 | v0.2.0d: /dtd update preserves user data (workers.md customizations) |
+| 91 | v0.2.0d: /dtd help shows default 25-line overview |
+| 92 | v0.2.0d: /dtd help <topic> shows ≤50-line topic detail |
+| 93 | v0.2.0d: /dtd help <unknown> searches and shows top 3 matches |
 | 100 | cross v0.2.0f+0b: silent + permission deny — auto-deny is final, never deferred |
 | 101 | cross v0.2.0f+0b: silent + ask permission defers; allow_always adds ledger rule |
 | 102 | cross v0.2.0c+0b: snapshot + revert + permission audit |
@@ -1398,19 +1564,19 @@ and a corresponding row appears in the Coverage Map above.
 
 | # | Journey | Lands in |
 |---|---------|----------|
-| 31 | Fresh project from docs only | v0.2.0d (after Self-Update lands; tests update journey too) |
-| 32 | Existing project adoption | v0.2.0d |
+| 31 | Fresh project from docs only | **landed in v0.2.0d** |
+| 32 | Existing project adoption | **landed in v0.2.0d** |
 | 33 | Worker check success path | v0.2.1 (worker health check) |
 | 34 | Worker check pinpoints setup failure | v0.2.1 |
 | 35 | Worker check separates endpoint/auth/protocol failures | v0.2.1 |
-| 36 | Run to a boundary for human review | v0.2.0d (uses existing `/dtd run --until`) |
-| 37 | Steering mid-run from natural language | v0.2.0d (uses existing steering) |
-| 38 | Incident recovery from help only | v0.2.0d (v0.2.0a feature; verifiable now via help/journey docs) |
-| 39 | Observational reads do not pollute context (status/plan/doctor/incident/help) | v0.2.0d |
+| 36 | Run to a boundary for human review | **landed in v0.2.0d** (uses existing `/dtd run --until`) |
+| 37 | Steering mid-run from natural language | **landed in v0.2.0d** (uses existing steering) |
+| 38 | Incident recovery from help only | **landed in v0.2.0d** (v0.2.0a feature; help system enables) |
+| 39 | Observational reads do not pollute context (status/plan/doctor/incident/help) | **landed in v0.2.0d** |
 | 39b | Worker health diagnostics do not pollute context | v0.2.1 |
-| 40 | Update journey after v0.2.0d | v0.2.0d (THIS sub-release introduces `/dtd update`) |
+| 40 | Update journey after v0.2.0d | **landed in v0.2.0d** (introduces `/dtd update`) |
 | 41 | Korean/mixed-language primary path | v0.2.0e (after Locale Pack split) |
-| 42 | Help-only discoverability | v0.2.0d (introduces `/dtd help` topic system) |
+| 42 | Help-only discoverability | **landed in v0.2.0d** (introduces `/dtd help` topic system) |
 | 43 | Sleep-friendly autonomous overnight run | v0.2.0f (Autonomy & Attention) |
 
 Each journey expects a fixed input doc (README / quickstart / specific help

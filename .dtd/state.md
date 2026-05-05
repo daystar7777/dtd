@@ -9,6 +9,17 @@
 - mode: off                       # off | dtd
 - last_mode_change: 2026-05-04 23:00
 
+## Self-Update state (v0.2.0d)
+
+# /dtd update flow tracking. See dtd.md §/dtd update.
+
+- installed_version: null         # e.g. "v0.2.0d"; null pre-update / pre-tag
+- update_check_at: null            # last time `/dtd update check` ran
+- update_available: null           # null | "<version>" if newer release detected
+- update_in_progress: false        # true blocks dispatch + concurrent /dtd update
+- last_update_from: null           # version migrated from
+- last_update_at: null             # timestamp of last successful update
+
 ## Attention mode (v0.2.0f)
 
 # Autonomy & Attention surface — see dtd.md §Autonomy & Attention Modes.

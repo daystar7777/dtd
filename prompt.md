@@ -321,6 +321,21 @@ Add-Content -Path AIMemory\work.log -Value $entry
 This is the only AIMemory write during install. Per DTD spec §8, runs
 themselves emit only WORK_START/WORK_END to AIMemory.
 
+### Task 10.5 — Record installed version (v0.2.0d)
+
+Set `state.md.installed_version` to the current DTD version (e.g.
+`v0.2.0d`). This enables `/dtd update check` and rollback flow.
+
+If `MANIFEST.json` exists at the repo root of the install source, copy
+it to the project root for offline doctor verification. If absent,
+`state.md.installed_version` is recorded but `MANIFEST.json` is fetched
+later by `/dtd update check`.
+
+Create `.dtd/help/` directory with the 10 topic files
+(`index.md`, `start.md`, `observe.md`, `recover.md`, `workers.md`,
+`stuck.md`, `update.md`, `plan.md`, `run.md`, `steer.md`) from the
+release manifest. These enable `/dtd help [topic]`.
+
 ### Task 11 — Welcome + next steps
 
 Print to user:
@@ -328,11 +343,13 @@ Print to user:
 ```
 ✓ DTD installed.
 
-  host_mode:      <chosen — plan-only|assisted|full>
-  DTD mode:       off (toggle on via /dtd mode on)
-  Files written:  15 templates + dtd.md (host slash + project root)
-  Host pointer:   appended to <host-file>
-  AIMemory:       <integrated | absent>
+  host_mode:        <chosen — plan-only|assisted|full>
+  DTD mode:         off (toggle on via /dtd mode on)
+  installed_version: <e.g. v0.2.0d>
+  Files written:    15 templates + 10 help topics + dtd.md
+  Host pointer:     appended to <host-file>
+  MANIFEST.json:    <copied | will fetch on first /dtd update check>
+  AIMemory:         <integrated | absent>
 
 Next:
 
@@ -341,6 +358,8 @@ Next:
   /dtd plan <goal>        → start planning
   /dtd status             → see current state
   /dtd doctor             → re-verify install anytime
+  /dtd help [topic]       → layered help (try /dtd help start)
+  /dtd update check       → see latest available version
   /dtd uninstall          → safe removal (preserves AIMemory)
 
 Or talk naturally:

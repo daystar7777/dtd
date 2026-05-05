@@ -70,6 +70,8 @@ github の daystar7777/dtd から prompt.md を取得してこのプロジェク
 /dtd plan show                   現在のプラン詳細
 /dtd doctor                      ヘルスチェック
 /dtd workers list                登録済みワーカー一覧
+/dtd help [topic]                階層型ヘルプ (≤25行概要、≤50行トピック)
+/dtd update check                最新 DTD バージョン確認 (v0.2.0d)
 ```
 
 復旧 (Recover, v0.2.0a Incident Tracking):

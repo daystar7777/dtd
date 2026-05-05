@@ -8,7 +8,8 @@
 # Local-only user config (committed example: workers.example.md)
 # Your actual worker registry stays local — endpoints, model choices, aliases
 # don't leak when project is pushed to git.
-workers.md
+# Root-anchored so .dtd/help/workers.md (v0.2.0d help topic file) is NOT ignored.
+/workers.md
 
 # Runtime scratch + per-run history
 tmp/

@@ -15,7 +15,7 @@ Every journey lists Setup / Steps / Expected / Pass — same shape as
 
 ---
 
-## 31. Fresh project from docs only — *planned for v0.2.0d*
+## 31. Fresh project from docs only — *landed in v0.2.0d*
 
 **Setup**: empty project; tester reads only `README.md` and
 `examples/quickstart.md`. No access to `dtd.md` or `AIMemory/`.
@@ -41,7 +41,7 @@ no surprise about command names, flags, or destination paths.
 
 ---
 
-## 32. Existing project adoption — *planned for v0.2.0d*
+## 32. Existing project adoption — *landed in v0.2.0d*
 
 **Setup**: project already has source files, open issues/TODOs, no `.dtd/`.
 
@@ -119,7 +119,7 @@ in docs.
 
 ---
 
-## 36. Run to a boundary for human review — *planned for v0.2.0d*
+## 36. Run to a boundary for human review — *landed in v0.2.0d*
 
 **Setup**: approved multi-phase plan.
 
@@ -138,7 +138,7 @@ in scenario 22n; user can verify from status alone.
 
 ---
 
-## 37. Steering mid-run from natural language — *planned for v0.2.0d*
+## 37. Steering mid-run from natural language — *landed in v0.2.0d*
 
 **Setup**: running plan.
 
@@ -157,7 +157,7 @@ status communicates state without dumping raw patch into chat.
 
 ---
 
-## 38. Incident recovery from help only — *planned for v0.2.0d*
+## 38. Incident recovery from help only — *landed in v0.2.0d*
 
 **Setup**: active blocking incident caused by network failure (scenario 24
 state, but reached without internal context).
@@ -179,7 +179,7 @@ exposed in README "Recover" group + status hint.
 
 ---
 
-## 39. Observational reads do not pollute context — *planned for v0.2.0d*
+## 39. Observational reads do not pollute context — *landed in v0.2.0d*
 
 **Setup**: running or paused plan with notepad populated.
 
@@ -219,7 +219,7 @@ run memory. This sub-journey lands with v0.2.1 Worker Health Check.
 
 ---
 
-## 40. Update journey after v0.2.0d — *planned for v0.2.0d (this release)*
+## 40. Update journey after v0.2.0d — *landed in v0.2.0d*
 
 **Setup**: project on older DTD version, with local `.dtd/workers.md`,
 `.dtd/state.md`, run logs, incidents.
@@ -265,7 +265,7 @@ transition; locale pack split is invisible to users with `locale: ko` set.
 
 ---
 
-## 42. Help-only discoverability — *planned for v0.2.0d*
+## 42. Help-only discoverability — *landed in v0.2.0d*
 
 **Setup**: user knows only `/dtd help`.
 

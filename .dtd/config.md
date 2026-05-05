@@ -14,6 +14,17 @@
 - mode_set_by: install        # install | doctor | user
 - assisted_confirm_each_call: false
 
+## update (v0.2.0d)
+
+# Self-Update settings. See dtd.md §/dtd update.
+
+- check_on_install: true              # run `/dtd update check` at install completion
+- check_interval_days: 7              # /dtd doctor reminds if check is stale
+- github_repo: daystar7777/dtd        # upstream repo for /dtd update
+- github_token_env: GITHUB_TOKEN      # env var name for private repo auth; NEVER literal
+- manifest_required: true             # ERROR if MANIFEST.json missing in fetched release
+- backup_retention_days: 7            # auto-cleanup .dtd.backup-* after this many days
+
 ## decision-policy (v0.2.0f)
 
 # How often DTD asks the user. Separate from host.mode (apply authority) and

@@ -95,6 +95,8 @@ classification, confidence, and any assumptions in your turn output (briefly).
 | `decision_mode` | `/dtd mode decision <plan|permission|auto>` or `/dtd run --decision <mode>` | how often DTD asks before non-destructive choices |
 | `history` | `/dtd status --history` or `phase-history.md` read | informational |
 | `incident` | `/dtd incident [list\|show\|resolve]` (v0.2.0a) | list/show are observational reads; resolve is a mutating decision action — see below |
+| `update` | `/dtd update [check\|--dry-run\|<version>\|--rollback]` (v0.2.0d) | check/--dry-run are observational; apply/rollback ALWAYS confirms (mutating) |
+| `help` | `/dtd help [topic]` (v0.2.0d) | observational; reads `.dtd/help/<topic>.md`; never mutates state |
 | `explain` | answer in chat using `dtd.md` / `instructions.md` | meta — explain DTD itself |
 
 ### Classification rules
@@ -147,6 +149,13 @@ while still giving them a clear audit of what was inferred.
 | "DTD 켜", "협업모드" | "DTD on" | `mode on` | any |
 | "건강 체크", "검사" | "doctor", "check" | `doctor` | any |
 | "지워", "삭제", "uninstall" | "uninstall" | `uninstall` | any (off first if running) |
+| "도움말", "help", "어떻게 써?" | "help" | `help` (no arg = overview) | any |
+| "워커 도움말", "help workers" | "help workers" | `help workers` | any |
+| "막혔을 때", "help stuck" | "help stuck" | `help stuck` | any |
+| "업데이트 해줘", "최신으로 업데이트", "/dtd update latest" | "update", "update to latest" | `update` (mutating — confirm always) | any (host_mode != plan-only) |
+| "업데이트 미리보기", "update dry-run" | "update --dry-run" | `update --dry-run` (observational) | any |
+| "버전 확인", "최신 버전 뭐야" | "update check" | `update check` (observational) | any |
+| "롤백", "이전 버전으로", "rollback" | "rollback" | `update --rollback` (destructive — confirm always) | post-update only |
 | "지금 막힌 거 뭐야", "어디서 막혔어?", "어떤 에러야" | "what's blocking?", "what's wrong" | `incident show <active_blocking_incident_id>` (or `incident list` if none active) | any |
 | "incident 목록", "에러 목록", "사고 보여줘" | "list incidents" | `incident list` | any |
 | "incident <id> 보여줘", "그 사고 자세히" | "show incident" | `incident show <id>` | any |
@@ -292,7 +301,7 @@ Same phrase, different action based on `plan_status` + `pending_patch`.
 - Confidence ≥ 0.95: act, just print "→ <action>" status line
 - Confidence 0.8-0.95: act, print "→ <action> (interpreted as: <NL phrase>). 되돌리려면 `<undo>`"
 - Confidence < 0.8: confirm in one line. Wait.
-- Destructive actions (`stop`, `mode off`, `workers rm`, `uninstall --purge`, `incident resolve <id> <destructive_option>`): ALWAYS confirm with explicit phrase, regardless of confidence. Destructive incident options are defined in `dtd.md` §`/dtd incident resolve` (set: `stop` / `purge` / `delete` / `force_overwrite` / `revert_partial` / `terminal_finalize`).
+- Destructive actions (`stop`, `mode off`, `workers rm`, `uninstall --purge`, `incident resolve <id> <destructive_option>`, `update [latest|--pin]`, `update --rollback`): ALWAYS confirm with explicit phrase, regardless of confidence. Destructive incident options are defined in `dtd.md` §`/dtd incident resolve` (set: `stop` / `purge` / `delete` / `force_overwrite` / `revert_partial` / `terminal_finalize`). `/dtd update` apply and rollback both modify `.dtd/` extensively and require explicit confirm regardless of confidence.
 
 Sample confirms (keep short):
 
@@ -500,7 +509,10 @@ Classify these as `observational_read`:
 - `/dtd perf` (v0.2.0f) — any flag
 - `/dtd silent` (v0.2.0f) — bare form (no args) shows current attention mode
 - `/dtd mode decision` (v0.2.0f) — bare form (no args) shows current decision mode
-- NL: "지금 어디까지 됐어?", "상태 보여줘", "그 에러 다시 보여줘", "처음 계획 보여줘", "어디서 막혔어?", "지금 막힌 거 뭐야", "incident 보여줘", "토큰 사용량 보여줘", "지금 어떤 모드야?"
+- `/dtd help [topic]` (v0.2.0d) — reads `.dtd/help/<topic>.md`; never mutates
+- `/dtd update check` (v0.2.0d) — queries upstream; no local writes
+- `/dtd update --dry-run` (v0.2.0d) — previews delta; no local writes
+- NL: "지금 어디까지 됐어?", "상태 보여줘", "그 에러 다시 보여줘", "처음 계획 보여줘", "어디서 막혔어?", "지금 막힌 거 뭐야", "incident 보여줘", "토큰 사용량 보여줘", "지금 어떤 모드야?", "도움말", "버전 확인", "업데이트 미리보기"
 - (Korean alias forms route to same set — `/ㄷㅌㄷ 상태`, `/ㄷㅌㄷ incident 목록` etc.)
 
 Note: `/dtd incident resolve <id> <option>` is NOT observational — it is a

@@ -81,6 +81,8 @@ Observe:
 /dtd plan show                   inspect the active plan
 /dtd doctor                      health check
 /dtd workers list                show registered workers
+/dtd help [topic]                layered help (≤25-line overview, ≤50-line topic)
+/dtd update check                see latest available DTD version (v0.2.0d)
 ```
 
 Recover (v0.2.0a Incident Tracking):
