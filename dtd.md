@@ -63,7 +63,8 @@ Sections:
 - Locale state (v0.2.0e) — locale pack existence, required sections,
   bootstrap-alias presence, ≤ 12 KB pack budget
 - Spec modularization (v0.2.3 R1) — reference dir, 13 canonical topics,
-  Summary + Anchor sections, ≤ 24 KB
+  Summary + Anchor sections, ≤ 24 KB (doctor-checks + run-loop
+  ≤ 32 KB cross-cutting exception)
 - Path policy (BLOCK patterns, `..` paths, relative/absolute)
 - `.gitignore` + secret leak (regex scan for known key patterns)
 

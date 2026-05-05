@@ -247,6 +247,63 @@ Add-Result "v021.scenarios.worker_test_observational_no_capsule" "scenario 70 sa
 Add-Result "v021.scenarios.mock_probe" "scenario 71 expects mock-output protocol probe" `
     ($scenariosMd -match "healthcheck-sentinel\.txt")
 
+# ─── R1 wiring: run-loop.md + state.md + doctor-checks.md ────────────────────
+
+$runLoopRef = Read-Text ".dtd/reference/run-loop.md"
+
+Add-Result "v021.r1.run_loop_section" "run-loop.md has Worker test runtime + session resume + loop guard (v0.2.1 R1)" `
+    ($runLoopRef -match "## Worker test runtime \+ session resume \+ loop guard \(v0\.2\.1 R1\)")
+Add-Result "v021.r1.run_loop_test_observational" "run-loop.md says standalone test creates NO incident, NO capsule" `
+    (($runLoopRef -match "Standalone test.*never creates capsule") -or `
+     ($runLoopRef -match "creates NO incident, NO decision capsule"))
+Add-Result "v021.r1.run_loop_stage_halts_1_5" "run-loop.md says stages 1-5 FAIL halts remaining" `
+    ($runLoopRef -match "(?s)Stages 1-5.*?FAIL\s+blocks remaining")
+Add-Result "v021.r1.run_loop_redaction_filter" "run-loop.md documents redaction filter between probe and log write" `
+    ($runLoopRef -match "Redaction filter")
+Add-Result "v021.r1.run_loop_log_retention" "run-loop.md documents log retention rotation" `
+    ($runLoopRef -match "Log retention")
+Add-Result "v021.r1.run_loop_resume_resolver" "run-loop.md has Session resume strategy resolver" `
+    ($runLoopRef -match "### Session resume strategy resolver")
+Add-Result "v021.r1.run_loop_resume_failure_class" "run-loop.md resume resolver branches on failure class" `
+    (($runLoopRef -match "AUTH_FAILED.*MALFORMED_RESPONSE.*WORKER_PROTOCOL_VIOLATION") -and `
+     ($runLoopRef -match "TIMEOUT_BLOCKED.*NETWORK_UNREACHABLE.*RATE_LIMIT_BLOCKED"))
+Add-Result "v021.r1.run_loop_resume_safety" "run-loop.md says same-worker resume never appends raw prior output" `
+    ($runLoopRef -match "(?s)never appends\s+raw prior worker output")
+Add-Result "v021.r1.run_loop_loop_signature" "run-loop.md has Loop guard signature computation section" `
+    ($runLoopRef -match "### Loop guard signature computation")
+Add-Result "v021.r1.run_loop_loop_window" "run-loop.md documents window staleness check" `
+    ($runLoopRef -match "Window staleness check")
+Add-Result "v021.r1.run_loop_loop_auto_explicit" "run-loop.md says decision_mode auto does NOT imply loop auto-action" `
+    ($runLoopRef -match "decision_mode: auto.*does NOT imply\s+loop")
+
+$stateMd = Read-Text ".dtd/state.md"
+Add-Result "v021.r1.state.first_seen_at" "state.md has loop_guard_signature_first_seen_at" `
+    ($stateMd -match "(?m)^- loop_guard_signature_first_seen_at:")
+
+$doctorRefText = Read-Text ".dtd/reference/doctor-checks.md"
+Add-Result "v021.r1.doctor_section" "doctor-checks ref has v0.2.1 R1 wiring checks" `
+    ($doctorRefText -match "v0\.2\.1 R1 wiring checks")
+$r1DoctorCodes = @(
+    "worker_check_redaction_violated",
+    "worker_check_stage_sequence_drift",
+    "worker_check_mock_artifact_orphan",
+    "attempt_resume_strategy_invalid",
+    "attempt_resume_lineage_broken",
+    "same_worker_resume_raw_output_leak",
+    "loop_guard_window_stale_unreset",
+    "loop_auto_action_config_documented"
+)
+foreach ($code in $r1DoctorCodes) {
+    Add-Result "v021.r1.doctor.code.$code" "doctor-checks ref defines R1 code $code" `
+        ($doctorRefText -match [regex]::Escape($code))
+}
+
+# R1 scenarios
+foreach ($letter in @("e", "f", "g", "h")) {
+    Add-Result "v021.r1.scenario.79$letter" "test-scenarios.md has scenario 79$letter (R1 wiring)" `
+        ($scenariosMd -match "### 79$letter\.")
+}
+
 # ─── build-manifest.ps1 ───────────────────────────────────────────────────────
 
 $builderText = Read-Text "scripts/build-manifest.ps1"

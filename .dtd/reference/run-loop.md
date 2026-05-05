@@ -205,6 +205,156 @@ Audit row fields:
 - The only auto-action gate that bypasses `ask` is when the user
   has explicitly written an `allow` rule for that scope.
 
+## Worker test runtime + session resume + loop guard (v0.2.1 R1)
+
+Wiring for the three v0.2.1 sub-features into the run loop and the
+`/dtd workers test` command.
+
+### Worker test diagnostic runner
+
+`/dtd workers test [<id|alias>] [--quick|--full|--connectivity|...]`
+runs a sequence of probe stages per `reference/workers.md`
+§"Worker Health Check (v0.2.1)". Runtime contract:
+
+- **Observational discipline**: writes ONLY to
+  `.dtd/log/worker-checks/<ts>.md`. Never mutates `state.md`,
+  `notepad.md`, `attempts/run-NNN.md`. Standalone test (not
+  preflight) creates NO incident, NO decision capsule, even on
+  full failure.
+- **Stage runner sequence**: stages 1-17 per workers.md table. On
+  first FAIL, controller decides per-stage:
+  - Stages 1-5 (registry/schema/secret/endpoint/network): FAIL
+    blocks remaining stages (no point checking TLS if network
+    failed).
+  - Stages 6-13 (TLS/auth/protocol): FAIL records and continues
+    (later stages may surface independent issues).
+  - Stages 14-17 (tool relay / native sandbox / log write /
+    diagnostic_summary): always run if reached.
+- **Redaction filter** (between probe and log write): scrub env
+  values, auth headers, full request body, full response body for
+  failed auth/forbidden, any string ≥ 20 chars matching key
+  patterns. Per `reference/workers.md` §"Redaction model".
+- **Log retention**: rotate
+  `.dtd/log/worker-checks/<ts>.md` files; keep most recent
+  `config.worker-test.worker_test_history_retention` (default
+  20). Older files purged on next test run.
+- **Mock probe artifact**: stage 10 protocol probe writes to
+  `.dtd/tmp/healthcheck-sentinel.txt` (parsed but NEVER applied).
+  Cleanup after probe.
+- **Preflight integration** at run-loop step 5.5 (BEFORE 5.5
+  permission gate): if
+  `config.worker-test.worker_test_auto_before_run: assigned_only`
+  (default), run `--quick` on the assigned worker. On FAIL: fill
+  `awaiting_user_reason: WORKER_HEALTH_FAILED` capsule (THIS is
+  the only path that creates a capsule from worker test).
+- **Standalone test** never creates capsule (per Codex
+  observational-boundary patch).
+
+### Session resume strategy resolver
+
+Triggered when controller chooses to retry an attempt after
+interruption. Algorithm:
+
+1. **Fetch prior attempt** from `attempts/run-NNN.md` for the
+   same task.
+2. **Read prior status**: `failed | superseded | done | blocked |
+   timeout | network-cut`.
+3. **Read prior failure class** (from incident or attempts row):
+   - `AUTH_FAILED | MALFORMED_RESPONSE | WORKER_PROTOCOL_VIOLATION`
+     → strategy = `fresh` (no point reusing tainted session).
+   - `TIMEOUT_BLOCKED | NETWORK_UNREACHABLE | RATE_LIMIT_BLOCKED |
+     WORKER_5XX_BLOCKED` → continue to step 4.
+4. **Check provider session support**: read
+   `worker.supports_session_resume` field from registry. False
+   (or unknown) → strategy = `fresh`.
+5. **Check resume failure history**: count consecutive prior
+   attempts on same task with
+   `resume_strategy: same-worker AND status: failed`. If count
+   ≥ 2 → strategy = `new-worker`.
+6. **Check fallback chain exhaustion**: if `new-worker` would
+   advance past last entry in `current_fallback_chain` → strategy
+   = `controller-takeover`.
+7. **All workers exhausted AND controller already attempted** →
+   capsule `awaiting_user_reason: RESUME_STRATEGY_REQUIRED` with
+   options `[user_pick_worker, controller_takeover, stop]`.
+
+**Same-worker resume safety** (per Codex review): never appends
+raw prior worker output, partial stream content, or private
+reasoning. Only sanitized durable controller artifacts (state.md,
+plan task spec, current handoff, retry hint) replay. If provider
+requires replay instead of session id: replay only those
+artifacts, not the previous worker transcript.
+
+**State updates** on each retry:
+- `state.md.last_worker_session_id` (provider-issued; may be null).
+- `state.md.last_worker_session_provider` (provider name).
+- `state.md.last_resume_strategy` (resolved value).
+- `state.md.last_resume_at: <ts>`.
+- `attempts/run-NNN.md` row: `resume_of: <prior att-id>`,
+  `resume_strategy: <strategy>`, `worker_session_id: <or null>`.
+
+### Loop guard signature computation
+
+Triggered after EACH failed attempt (step 6.e or 6.f.0 fail
+path). Algorithm:
+
+1. **Compute loop_signature**:
+   ```
+   loop_signature = sha256(
+     worker_id +
+     task_id +
+     prompt_hash +     # SHA of assembled worker prompt at step 6.a
+     failure_hash      # SHA of redacted failure reason + first error line
+   )
+   ```
+   Where `prompt_hash` includes the controller's prompt
+   assembly (system prompt + handoff + task spec); failure_hash
+   includes the failure type + first non-empty error line
+   (redacted per Worker Health Check redaction model).
+2. **Compare** to `state.md.loop_guard_signature`:
+   - **Match**: increment `loop_guard_signature_count`.
+   - **No match**: set `loop_guard_signature: <new>`,
+     `loop_guard_signature_count: 1`,
+     `loop_guard_signature_first_seen_at: <ts>`.
+3. **Window staleness check**: if
+   `loop_guard_signature_first_seen_at < now -
+   config.loop-guard.loop_guard_signature_window_min` (default
+   30 min): reset to `loop_guard_signature_count: 1` (ignore
+   match across window).
+4. **Threshold trigger**: if
+   `loop_guard_signature_count >= config.loop-guard.loop_guard_threshold`
+   (default 3):
+   - Set `state.md.loop_guard_status: hit`.
+   - Branch on `config.loop-guard.loop_guard_threshold_action`:
+     - `ask` (default): fill capsule
+       `awaiting_user_reason: LOOP_GUARD_HIT` with options
+       `[ask_user, worker_swap, controller, stop]`.
+     - `worker_swap`: advance `current_fallback_index`;
+       dispatch next worker; reset signature to idle.
+     - `controller`: invoke controller-takeover path
+       (REVIEW_REQUIRED gate); reset signature to idle.
+5. **Auto-action gate**: `decision_mode: auto` does NOT imply
+   loop auto-action. Only explicit
+   `loop_guard_threshold_action: worker_swap | controller`
+   triggers it. `decision_mode: auto` + `threshold_action: ask` →
+   capsule still fires.
+6. **After resolve** (user picked option, OR auto-action ran):
+   - `loop_guard_signature: null`,
+   - `loop_guard_signature_count: 0`,
+   - `loop_guard_status: idle`,
+   - `loop_guard_last_check_at: <ts>`.
+
+**Per-run scope**: loop guard signatures are scoped to the active
+run; `finalize_run` resets to idle. Cross-run loop detection
+deferred to v0.3.
+
+### State.md addition
+
+```yaml
+## Loop guard (v0.2.1) — R1 addition
+- loop_guard_signature_first_seen_at: null   # ts when current signature first matched; used for window staleness check
+```
+
 ## Snapshot mode resolution (v0.2.0c R1)
 
 Per-file mode chosen at run-loop step 6.g.0 BEFORE temp-write.

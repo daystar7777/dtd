@@ -337,6 +337,31 @@ Sections:
   attempts in `attempts/run-NNN.md`; ELSE WARN
   `loop_guard_count_drift`.
 
+### v0.2.1 R1 wiring checks
+
+- Worker-check log redaction: no env values, no auth headers, no
+  20+ char key-pattern matches; ELSE ERROR
+  `worker_check_redaction_violated`.
+- Stage sequence: stages 1-5 FAIL ⇒ no stages 6+ logged; ELSE
+  INFO `worker_check_stage_sequence_drift`.
+- Mock probe cleanup: `.dtd/tmp/healthcheck-sentinel.txt` should
+  not persist post-test; ELSE INFO
+  `worker_check_mock_artifact_orphan`.
+- `resume_strategy` ∈ `fresh | same-worker | new-worker |
+  controller-takeover`; ELSE ERROR
+  `attempt_resume_strategy_invalid`.
+- `resume_of` references existing attempt row; ELSE WARN
+  `attempt_resume_lineage_broken`.
+- `resume_strategy: same-worker` rows must not include raw
+  prior worker output inline; ELSE ERROR
+  `same_worker_resume_raw_output_leak`.
+- `loop_guard_signature_first_seen_at` older than window when
+  `signature_count > 1`: WARN `loop_guard_window_stale_unreset`.
+- Auto-action explicit-config consistency: INFO
+  `loop_auto_action_config_documented` verifying
+  `decision_mode: auto` does NOT auto-resolve `threshold_action:
+  ask` capsule.
+
 ## Notepad schema (v0.2.2)
 
 - `.dtd/notepad.md` parses (markdown well-formed); ELSE WARN
@@ -472,10 +497,11 @@ Sections:
   workers, plan-schema, status-dashboard, self-update, help-system,
   run-loop, doctor-checks, roadmap, load-profile); ELSE INFO
   `reference_stub_missing: <topic>` (graceful).
-- Reference files ≤ 24 KB each (R1 full-extraction reference files may grow
-  to ~6-20 KB carrying
-  canonical content; workers.md is the thickest at ~19 KB); ELSE
-  WARN `reference_oversized: <topic>`.
+- Reference files ≤ 24 KB each (R1 full-extraction files grow to
+  ~6-23 KB; workers.md ~23 KB). Exception: cross-cutting
+  consolidation refs (`doctor-checks.md`, `run-loop.md`) cap is
+  32 KB — they absorb per-sub-release R1 wiring (run-loop step
+  hooks, doctor checks). ELSE WARN `reference_oversized: <topic>`.
 - `.dtd/reference/index.md` marks every topic as `canonical`; ELSE INFO
   `reference_status_missing`.
 - Each reference file has an "Anchor" section saying the reference file is

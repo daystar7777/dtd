@@ -1484,6 +1484,95 @@ configs cannot silently use unsafe modes.
 
 ## v0.2.0c — Snapshot / Revert
 
+### 79e. Worker test stage runner halts on stages 1-5 FAIL (v0.2.1 R1)
+
+**Setup**: worker `test-fixture` with intentionally bad
+`api_key_env` (env var unset).
+
+**Steps**: `/dtd workers test test-fixture --full`.
+
+**Expected**:
+- Stages 1-3 PASS (registry/schema/secret-name).
+- Stage 3 FAIL? No — secret-NAME is ok; stage 4 (endpoint URL)
+  PASS; stage 5 (network reachability) PASS *or* the auth header
+  is missing → stage 7 (auth_handshake) FAIL with
+  `WORKER_AUTH_FAILED`.
+- Per the runtime contract (run-loop.md §"Worker test diagnostic
+  runner"), stages 1-5 FAIL halts further stages; stages 6-13
+  FAIL records but continues; stages 14-17 always run if reached.
+- For an env-missing scenario where stage 3 itself FAILs: log
+  shows stages 1-3 with stage 3 FAIL; no stages 4+ logged.
+- Doctor INFO `worker_check_stage_sequence_drift` if drift seen.
+
+**Pass**: stage runner sequence is contract-enforced; redaction
+applied to log; standalone test creates no incident/capsule.
+
+### 79f. Resume strategy resolution per failure class (v0.2.1 R1)
+
+**Setup**: task 4.1 retry. Three sub-scenarios:
+
+| Prior failure | worker.supports_session_resume | Expected strategy |
+|---|---|---|
+| TIMEOUT_BLOCKED | true | `same-worker` |
+| WORKER_PROTOCOL_VIOLATION | true | `fresh` (tainted session) |
+| TIMEOUT_BLOCKED, prior 2× same-worker failed | true | `new-worker` |
+
+**Steps**: trigger each retry; observe controller's resume
+strategy resolver.
+
+**Expected**:
+- Sub-scenario 1: `state.md.last_resume_strategy: same-worker`;
+  prior `worker_session_id` reused.
+- Sub-scenario 2: `last_resume_strategy: fresh`; no session_id
+  passed.
+- Sub-scenario 3: `last_resume_strategy: new-worker`; fallback
+  chain advanced.
+- Same-worker resume row in `attempts/run-NNN.md` does NOT
+  inline raw prior worker output (per Codex safety guardrail).
+
+**Pass**: strategy resolver matches the documented algorithm
+(failure-class-aware + provider-aware + failure-count-aware).
+
+### 79g. Loop guard signature window resets (v0.2.1 R1)
+
+**Setup**: `loop_guard_threshold: 3`,
+`loop_guard_signature_window_min: 30`.
+Two attempts at T-35min hit signature S1 (count=2). Now T+0 a
+new attempt also has signature S1.
+
+**Steps**: observe controller after the new failed attempt.
+
+**Expected**:
+- `loop_guard_signature_first_seen_at` is older than 30 min →
+  reset count to 1 (despite signature match).
+- `loop_guard_status` stays `idle` (count=1 < threshold=3).
+- No `LOOP_GUARD_HIT` capsule fires.
+
+**Pass**: window-based staleness prevents old patterns from
+triggering false positives.
+
+### 79h. Loop guard auto-action ignores decision_mode auto (v0.2.1 R1)
+
+**Setup**:
+- Sub-A: `loop_guard_threshold_action: ask`,
+  `decision_mode: auto`. 3× same signature.
+- Sub-B: `loop_guard_threshold_action: worker_swap`,
+  `decision_mode: permission`. 3× same signature.
+
+**Expected**:
+- Sub-A: `LOOP_GUARD_HIT` capsule fires (decision_mode auto does
+  NOT skip permission-class capsule).
+- Sub-B: capsule does NOT fire; controller advances
+  `current_fallback_index` and dispatches next worker (auto-action
+  triggered by explicit config, not decision_mode).
+
+**Pass**: auto-action is gated by `loop_guard_threshold_action`
+config explicitly, not by decision_mode auto.
+
+---
+
+## v0.2.0c — Snapshot / Revert
+
 ### 60. Snapshot created at apply for each output file with mode-per-policy
 
 **Setup**: APPROVED plan, task 2.1 writes 3 files: `src/api/users.ts`

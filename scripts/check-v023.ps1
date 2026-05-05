@@ -86,7 +86,13 @@ foreach ($topic in $referenceTopics) {
         $text = Get-Content -LiteralPath $path -Raw
         $size = (Get-Item -LiteralPath $path).Length
         Add-Result "v023.reference.$topic.exists" "reference/$topic.md exists" $true "size=$size"
-        Add-Result "v023.reference.$topic.budget" "reference/$topic.md <= 24 KB" ($size -le 24576) "size=$size"
+        # Cross-cutting consolidation refs (doctor-checks, run-loop) absorb
+        # per-sub-release R1 wiring for every v0.2.x sub-release; they get a
+        # higher 32 KB cap. Topic-specific refs keep the typical 24 KB.
+        $crossCutting = @("doctor-checks", "run-loop")
+        $cap = if ($crossCutting -contains $topic) { 32768 } else { 24576 }
+        $capLabel = if ($crossCutting -contains $topic) { "32 KB" } else { "24 KB" }
+        Add-Result "v023.reference.$topic.budget" "reference/$topic.md <= $capLabel" ($size -le $cap) "size=$size"
         Add-Result "v023.reference.$topic.summary" "reference/$topic.md has Summary" ($text -match "## Summary")
         Add-Result "v023.reference.$topic.anchor" "reference/$topic.md has Anchor" ($text -match "## Anchor")
     } else {

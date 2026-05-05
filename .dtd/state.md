@@ -44,6 +44,7 @@
 - loop_guard_status: idle              # idle | watching | hit
 - loop_guard_signature: null           # sha256 of recent attempt
 - loop_guard_signature_count: 0        # consecutive matches
+- loop_guard_signature_first_seen_at: null   # v0.2.1 R1: ts when current signature first matched (window staleness check)
 - loop_guard_threshold: 3              # mirrors config.loop_guard_threshold
 - loop_guard_last_check_at: null
 
