@@ -61,7 +61,7 @@ Sections:
   presence, per-heading budget, Reasoning Notes content
   discipline (no chain-of-thought leak)
 - Locale state (v0.2.0e) — locale pack existence, required sections,
-  bootstrap-alias presence, ≤ 8 KB pack budget
+  bootstrap-alias presence, ≤ 12 KB pack budget
 - Spec modularization (v0.2.3 R1) — reference dir, 13 canonical topics,
   Summary + Anchor sections, ≤ 24 KB
 - Path policy (BLOCK patterns, `..` paths, relative/absolute)

@@ -105,7 +105,7 @@
 - language: null                  # null | ko | ja  (matches .dtd/locales/<lang>.md)
 - auto_probe: false               # if true, installer probes user's first message language
 - pack_path: .dtd/locales         # directory containing <lang>.md packs
-- pack_size_budget_kb: 8          # WARN reference_oversized above this
+- pack_size_budget_kb: 12         # WARN locale_pack_oversized above this (was 8 in v0.2.0e R0; bumped at v0.2.0b/c R1 to accommodate per-sub-release NL row growth)
 - merge_policy: pack_wins_on_conflict   # pack_wins_on_conflict | core_wins_on_conflict
 
 ## worker-test (v0.2.1)

@@ -400,6 +400,33 @@ Sections:
   `revert: deny` rule covers most paths (revert flow effectively
   disabled).
 
+### v0.2.0c R1 wiring checks
+
+- Manifest required fields (`run`, `task`, `attempt`, `worker`,
+  `applied_at`, `mode_default`); ELSE WARN
+  `snapshot_manifest_field_missing: <field>`.
+- `## Files` row format
+  `<path> | mode: <m> | size_pre: <n> | sha256_pre: <h> | revertable: yes|no`;
+  ELSE WARN `snapshot_file_row_invalid`.
+- `mode` ∈ `preimage | patch | metadata-only`; ELSE ERROR
+  `snapshot_mode_invalid`.
+- `mode: patch` files have `forward.patch` + `reverse.patch`
+  artifacts; ELSE ERROR `snapshot_patch_artifacts_missing`.
+- `patch_format_version` MUST be `1`; ELSE WARN
+  `snapshot_patch_format_unsupported`.
+- `whitespace_handling` ∈ `preserve_lf | normalize_crlf`; ELSE
+  WARN `snapshot_patch_whitespace_unknown`.
+- `index.md` row format
+  `<ts> | snap-* | <int> | <mode> | <int> | <int> | <status>`;
+  ELSE WARN `snapshot_index_row_invalid`.
+- `<status>` ∈ `active | rotated | purged | reverted`; ELSE
+  ERROR `snapshot_index_status_invalid`.
+- Tracked text worker output mode: SHOULD be `preimage` (per
+  Codex policy); INFO `snapshot_mode_policy_drift` if not.
+- Revert lineage: `## Active rules` revert entries match a
+  `reverted` snap-id in `index.md`; ELSE INFO
+  `revert_audit_lineage_drift`.
+
 ## Locale state (v0.2.0e)
 
 - `.dtd/locales/` directory exists; ELSE INFO `locale_dir_missing`
@@ -412,8 +439,8 @@ Sections:
 - `state.md locale_set_by` is one of `default | install | user |
   auto_probe`. ELSE WARN `locale_set_by_invalid`.
 - Each existing pack file `.dtd/locales/<lang>.md` is ≤
-  `config.md locale.pack_size_budget_kb` (default 8 KB). ELSE WARN
-  `locale_pack_oversized: <lang>`.
+  `config.md locale.pack_size_budget_kb` (default 12 KB; was 8 KB
+  in v0.2.0e R0). ELSE WARN `locale_pack_oversized: <lang>`.
 - Each existing pack file contains the required sections
   `## Slash aliases` AND `## NL routing additions`. ELSE ERROR
   `locale_pack_missing_required_section: <lang>`.

@@ -11,9 +11,9 @@
 
 - locale: ko
 - name: Korean
-- version: v0.2.0e
+- version: v0.2.0e (R1 NL additions for v0.2.0b + v0.2.0c)
 - merge_policy: pack_wins_on_conflict
-- size_budget_kb: 8
+- size_budget_kb: 12
 
 ## Slash aliases
 
@@ -99,12 +99,23 @@ Augments the Intent Gate. Pack-wins on conflict.
 
 | Korean phrase pattern | Canonical |
 |---|---|
-| "src/ 자유롭게 편집", "src 폴더는 알아서 해도 돼" | `/dtd permission allow edit scope: src/**` |
-| "npm test 자동으로", "테스트는 자동으로 돌려도 돼" | `/dtd permission allow bash scope: npm test` |
+| "src/ 자유롭게 편집" | `/dtd permission allow edit scope: src/**` |
+| "npm test 자동으로" | `/dtd permission allow bash scope: npm test` |
 | "rm -rf 절대 금지" | `/dtd permission deny bash scope: rm -rf` |
 | "데이터 폴더는 매번 물어봐" | `/dtd permission ask external_directory scope: ~/data/**` |
 | "권한 보여줘", "퍼미션 목록" | `/dtd permission list` |
 | "그 권한 빼", "권한 취소" | `/dtd permission revoke <key> scope: <expr>` |
+
+### Snapshot / revert (v0.2.0c)
+
+| Korean phrase pattern | Canonical |
+|---|---|
+| "되돌려", "취소하고 이전 상태로" | `/dtd revert last` |
+| "<task> 되돌려" | `/dtd revert task <id>` |
+| "방금 변경 되돌려" | `/dtd revert last` |
+| "되돌릴 수 있어?" | `/dtd snapshot list --task <current>` |
+| "스냅샷 보여줘" | `/dtd snapshot list` |
+| "오래된 스냅샷 정리" | `/dtd snapshot rotate` |
 
 ## State-aware Disambiguation phrase additions
 
@@ -140,7 +151,7 @@ logs / state / attempts.
 - MUST contain `## Slash aliases` and `## NL routing additions`
   (validated by `/dtd doctor` v0.2.0e
   `locale_pack_missing_required_section`).
-- MUST be ≤ 8 KB; over → WARN `locale_pack_oversized`.
+- MUST be ≤ 12 KB; over → WARN `locale_pack_oversized`.
 - MUST NOT redefine canonical commands.
 - All audit fields record CANONICAL English forms.
 

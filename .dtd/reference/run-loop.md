@@ -121,11 +121,20 @@ run loop, summarized:
      `edit` key against the most-specific output path. Resolve
      `external_directory` for any path outside project root. If
      either is `deny` → abort apply; if `ask` → fill capsule.
+   - **6.g.0** **Snapshot creation hook** (v0.2.0c R1): BEFORE
+     phase 1 temp-write. For each output path: compute SHA-256 +
+     git-tracked status; pick mode per policy (see "Snapshot mode
+     resolution" below); write artifact under
+     `.dtd/snapshots/snap-<run>-<task>-<att>/files/<encoded-path>.<mode>`;
+     append `manifest.md` + `index.md` rows. If snapshot phase
+     fails (DISK_FULL / FS_PERMISSION_DENIED), honor
+     `config.snapshot.on_snapshot_fail` policy (default
+     `refuse_apply`); if `proceed_unsafe`, mark attempt
+     `unrevertable: true` in attempts log.
    - **6.g** Apply phase 1 (write all temps) + phase 2 (rename all).
-     Pre-apply (between phase 1 and phase 2): resolve `snapshot`
-     key against snapshot policy (v0.2.0c). Snapshot writes go to
-     `.dtd/snapshots/`; bash invocations during apply (e.g.
-     post-apply hooks) resolve `bash` key.
+     Pre-apply: resolve `snapshot` key against ledger. Snapshot
+     writes go to `.dtd/snapshots/`; bash invocations during apply
+     (e.g. post-apply hooks) resolve `bash` key.
    - **6.h** Compute grade (controller-side; never worker self-grade).
    - **6.i** Append phase row to `phase-history.md`.
    - **6.j** Apply patches between tasks only.
@@ -195,6 +204,147 @@ Audit row fields:
   the standard ask flow.
 - The only auto-action gate that bypasses `ask` is when the user
   has explicitly written an `allow` rule for that scope.
+
+## Snapshot mode resolution (v0.2.0c R1)
+
+Per-file mode chosen at run-loop step 6.g.0 BEFORE temp-write.
+Resolution order (first match wins):
+
+1. **File does not exist yet (new file creation)** → `metadata-only`
+   (revert deletes the new file; no preimage needed since pre-state
+   was "absent").
+2. **Permission ledger has `revert: allow ... revert_required: true`**
+   → `preimage` (user explicitly forced revertability).
+3. **File extension matches
+   `config.snapshot.binary_extensions`** → `preimage`
+   (binary diff is unreliable).
+4. **File size > `config.snapshot.preimage_size_threshold`
+   (default 64 KB)** → `patch` (forward + reverse unified diff).
+5. **File size > `config.snapshot.patch_max_size`
+   (default 4 MB)** → `preimage` (patch overhead exceeds preimage
+   for huge files; fallback for safety).
+6. **File is git-tracked AND text** → `metadata-only` (audit-only;
+   user can `git restore` if needed; controller cannot
+   programmatically revert).
+   - **Override**: small tracked text outputs from a worker apply
+     SHOULD use `preimage` for revertability (per Codex v0.2.0e/b/c
+     review). The `metadata-only` mode is only for explicit
+     audit-only/non-output context files.
+7. **Untracked text file** → `preimage` (untracked = git can't
+   restore; preimage is the only restore path).
+8. **Default fallback** → `preimage` (safer default than
+   metadata-only).
+
+**Manifest format** (per `snap-*/manifest.md`):
+
+```markdown
+# Snapshot snap-<run>-<task>-<att>
+
+run: <run-id>
+task: "<task-id>"
+attempt: <int>
+worker: <worker-id>
+applied_at: <ISO 8601 UTC>
+mode_default: <preimage|patch|metadata-only>     # most-common per-file mode
+unrevertable: false                               # true if proceed_unsafe used
+
+## Files
+
+- <path>          | mode: <m> | size_pre: <bytes> | sha256_pre: <hash> | revertable: yes|no
+
+## Reason for mode choices
+
+- <path>: <one-line policy decision; e.g. "binary extension → preimage">
+
+## Patch artifacts (mode: patch only)
+
+- <path>: forward.patch + reverse.patch (both unified diff)
+- patch_format_version: 1
+- whitespace_handling: preserve_lf      # preserve_lf | normalize_crlf
+```
+
+**Index row format** (per `.dtd/snapshots/index.md`):
+
+```
+<applied_at> | snap-<run>-<task>-<att> | <files_count> | <mode_default> | <total_size_bytes> | <revertable_count> | <status>
+```
+
+Where `<status>` is one of `active | rotated | purged | reverted`.
+
+## Revert algorithm (v0.2.0c R1)
+
+Triggered by `/dtd revert <last|attempt <id>|task <id>>`. NOT part
+of the run loop; runs as a user-invoked command.
+
+**Pre-revert**:
+
+1. **Permission gate**: resolve `revert` key against
+   `.dtd/permissions.md`. `deny` → abort; `ask` → fill
+   `awaiting_user_reason: PERMISSION_REQUIRED` capsule first.
+2. **Confidence/destructive confirm**: `/dtd revert` is
+   destructive; ALWAYS confirms with explicit user phrase per
+   `instructions.md` §Confidence & Confirmation.
+3. **Lock acquisition**: acquire write locks per §Resource Locks
+   for every file in the target snapshot(s). Same lock set as a
+   fresh apply.
+
+**Algorithm**:
+
+1. **Find target snapshots** by scope:
+   - `last`: most recent `snap-*` for the active run (by
+     `applied_at` in `index.md`).
+   - `attempt <id>`: the single snapshot for that attempt.
+   - `task <id>`: all snapshots for attempts of that task,
+     where `attempts/run-NNN.md` row has `applied: true`.
+     Superseded attempts (no apply, only dispatch) skipped.
+2. **Validate every listed file** in target manifest(s):
+   - `preimage`: artifact file exists AND its SHA-256 matches
+     `manifest.md` `sha256_pre` for the path.
+   - `patch`: reverse patch dry-run applies cleanly to current
+     state (no conflict).
+   - `metadata-only`: NOT revertable; collect into
+     `revert_unavailable_metadata_only` list.
+3. **Decision branching**:
+   - All revertable + user confirmed → proceed to apply.
+   - Some non-revertable → fill capsule
+     `awaiting_user_reason: PARTIAL_REVERT` with options
+     `[revert_revertable_only, inspect, cancel]`. User chooses;
+     controller acts.
+4. **Apply phase 1**: write reverted content to temp files.
+   - `preimage`: copy artifact to `<path>.dtd-revert-tmp.<pid>`.
+   - `patch`: apply reverse patch in memory; write result to
+     temp.
+5. **Apply phase 2**: atomic rename over current files. Same
+   atomicity as a fresh apply.
+6. **For `task <id>` (multi-snapshot)**: revert applies in
+   REVERSE order (most recent attempt first). Files modified
+   across multiple attempts restore correctly because each
+   snapshot captured pre-apply state.
+7. **State updates**:
+   - `state.md.last_revert_id: snap-<run>-<task>-<att>` (most
+     recent if multi).
+   - `state.md.last_revert_at: <ts>`.
+   - `attempts/run-NNN.md` row appended:
+     `reverted: snap-<run>-<task>-<att>` for each touched
+     snapshot.
+   - `phase-history.md` row appended.
+   - `index.md` row updated: status `active` → `reverted` for
+     touched snapshots.
+8. **Audit-log**: one `revert` row per file restored:
+   ```
+   <ts> | dec-NNN | revert | <path> | rule_match: <ts of revert allow rule> | decision: user-allow
+   ```
+
+**Rollback within revert** (extreme edge case): if phase 2
+atomic rename fails partway (rare; e.g. disk full mid-rename):
+
+- Mark the run state as `partial_revert: <list of paths
+  successfully reverted>`.
+- Fill capsule
+  `awaiting_user_reason: PARTIAL_APPLY` (reuses existing v0.1.1
+  capsule reason; semantically a revert is also an apply).
+- User chooses: continue revert with retry, accept partial, or
+  manually restore.
 
 ## `finalize_run(terminal_status)` — shared terminal lifecycle
 

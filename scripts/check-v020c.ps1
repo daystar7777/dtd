@@ -161,6 +161,76 @@ Add-Result "v020c.scenarios.small_text_preimage" "scenario 60 expects src/api/us
     (($scenariosMd -match "files/src__api__users\.ts\.preimage") -and
      ($scenariosMd -notmatch "files/src__api__users\.ts\.metadata"))
 
+# ─── R1 wiring: run-loop.md + permissions.md + ko.md ─────────────────────────
+
+$runLoopRef = Read-Text ".dtd/reference/run-loop.md"
+
+Add-Result "v020c.r1.run_loop_step_6_g_0" "run-loop.md has step 6.g.0 Snapshot creation hook" `
+    ($runLoopRef -match "6\.g\.0\*\*\s*\*\*Snapshot creation hook\*\*")
+Add-Result "v020c.r1.run_loop_mode_resolution" "run-loop.md has Snapshot mode resolution (v0.2.0c R1)" `
+    ($runLoopRef -match "## Snapshot mode resolution \(v0\.2\.0c R1\)")
+Add-Result "v020c.r1.run_loop_revert_algorithm" "run-loop.md has Revert algorithm (v0.2.0c R1)" `
+    ($runLoopRef -match "## Revert algorithm \(v0\.2\.0c R1\)")
+Add-Result "v020c.r1.run_loop_8_resolution_rules" "run-loop.md mode resolution lists rules 1-8 in order" `
+    (($runLoopRef -match "1\. \*\*File does not exist") -and `
+     ($runLoopRef -match "2\. \*\*Permission ledger has") -and `
+     ($runLoopRef -match "3\. \*\*File extension matches") -and `
+     ($runLoopRef -match "4\. \*\*File size > .*preimage_size_threshold") -and `
+     ($runLoopRef -match "5\. \*\*File size > .*patch_max_size") -and `
+     ($runLoopRef -match "6\. \*\*File is git-tracked AND text") -and `
+     ($runLoopRef -match "7\. \*\*Untracked text") -and `
+     ($runLoopRef -match "8\. \*\*Default fallback"))
+Add-Result "v020c.r1.run_loop_manifest_format" "run-loop.md documents manifest format with patch_format_version" `
+    (($runLoopRef -match "patch_format_version") -and `
+     ($runLoopRef -match "whitespace_handling: preserve_lf") -and `
+     ($runLoopRef -match "## Patch artifacts"))
+Add-Result "v020c.r1.run_loop_index_format" "run-loop.md documents index.md row format" `
+    ($runLoopRef -match "active \| rotated \| purged \| reverted")
+Add-Result "v020c.r1.run_loop_revert_permission_gate" "run-loop.md revert algorithm has permission gate first" `
+    (($runLoopRef -match "Pre-revert") -and `
+     ($runLoopRef -match "Permission gate.*resolve.*revert.*key"))
+Add-Result "v020c.r1.run_loop_revert_lock" "run-loop.md revert acquires write locks" `
+    ($runLoopRef -match "Lock acquisition.*acquire write locks")
+Add-Result "v020c.r1.run_loop_partial_apply" "run-loop.md handles partial revert via PARTIAL_APPLY" `
+    (($runLoopRef -match "PARTIAL_APPLY") -and ($runLoopRef -match "partial_revert"))
+
+# Doctor R1 wiring checks
+$doctorRefText = Read-Text ".dtd/reference/doctor-checks.md"
+Add-Result "v020c.r1.doctor_section" "doctor-checks ref has v0.2.0c R1 wiring checks" `
+    ($doctorRefText -match "v0\.2\.0c R1 wiring checks")
+$r1DoctorCodes = @(
+    "snapshot_manifest_field_missing",
+    "snapshot_file_row_invalid",
+    "snapshot_mode_invalid",
+    "snapshot_patch_artifacts_missing",
+    "snapshot_patch_format_unsupported",
+    "snapshot_patch_whitespace_unknown",
+    "snapshot_index_row_invalid",
+    "snapshot_index_status_invalid",
+    "snapshot_mode_policy_drift",
+    "revert_audit_lineage_drift"
+)
+foreach ($code in $r1DoctorCodes) {
+    Add-Result "v020c.r1.doctor.code.$code" "doctor-checks ref defines R1 code $code" `
+        ($doctorRefText -match [regex]::Escape($code))
+}
+
+# Korean NL pack additions
+$koPack = Read-Text ".dtd/locales/ko.md"
+Add-Result "v020c.r1.ko_snapshot_section" "ko.md has Snapshot / revert (v0.2.0c) section" `
+    ($koPack -match "### Snapshot / revert \(v0\.2\.0c\)")
+Add-Result "v020c.r1.ko_revert_rows" "ko.md has Korean rows for /dtd revert + /dtd snapshot" `
+    (($koPack -match "/dtd revert last") -and `
+     ($koPack -match "/dtd revert task") -and `
+     ($koPack -match "/dtd snapshot list") -and `
+     ($koPack -match "/dtd snapshot rotate"))
+
+# R1 scenarios
+foreach ($letter in @("a", "b", "c", "d")) {
+    Add-Result "v020c.r1.scenario.69$letter" "test-scenarios.md has scenario 69$letter (R1 wiring)" `
+        ($scenariosMd -match "### 69$letter\.")
+}
+
 # ─── build-manifest.ps1 ───────────────────────────────────────────────────────
 
 $builderText = Read-Text "scripts/build-manifest.ps1"

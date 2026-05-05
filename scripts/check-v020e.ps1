@@ -61,7 +61,7 @@ foreach ($lang in $shippedPacks) {
         $size = (Get-Item -LiteralPath $path).Length
         $text = Get-Content -LiteralPath $path -Raw
         Add-Result "v020e.locale.$lang.exists" "locales/$lang.md exists" $true "size=$size"
-        Add-Result "v020e.locale.$lang.budget" "locales/$lang.md ≤ 8 KB" ($size -le 8192) "size=$size"
+        Add-Result "v020e.locale.$lang.budget" "locales/$lang.md ≤ 12 KB" ($size -le 12288) "size=$size"
         Add-Result "v020e.locale.$lang.slash_aliases" "locales/$lang.md has ## Slash aliases" `
             ($text -match "## Slash aliases")
         Add-Result "v020e.locale.$lang.nl_routing" "locales/$lang.md has ## NL routing additions" `

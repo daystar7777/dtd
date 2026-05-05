@@ -1661,6 +1661,104 @@ or accept partial revertability.
 
 ## v0.2.0b — Permission Ledger
 
+### 69a. Snapshot mode resolution at apply (v0.2.0c R1)
+
+**Setup**: APPROVED plan, task 2.1 writes 4 files at apply:
+- `src/api/users.ts` (text, 4 KB, git-tracked, NEW worker output)
+- `src/build/icon.png` (binary, 12 KB, git-tracked)
+- `tests/fixtures/big.json` (text, 200 KB, untracked)
+- `docs/notes.md` (text, 1 KB, git-tracked, context-only existing
+  file the worker reads but does not modify)
+
+**Steps**: `/dtd run --until task:2.1`.
+
+**Expected** (per run-loop.md §"Snapshot mode resolution"):
+- `src/api/users.ts` → **`preimage`** (small tracked text output;
+  per Codex policy "small tracked text outputs SHOULD use preimage").
+- `src/build/icon.png` → **`preimage`** (binary extension).
+- `tests/fixtures/big.json` → **`patch`** (untracked text >
+  preimage_size_threshold; falls under rule 4 of mode resolution).
+  Wait — actually rule 4 (size > 64 KB) fires before rule 7 (untracked
+  text default = preimage). Re-read: rule 4 is "size > 64 KB → patch".
+  This file is 200 KB > 64 KB so → patch. Confirm.
+- `docs/notes.md` is NOT in `<output-paths>` — no snapshot row at all
+  (snapshot only covers files actually being modified by the apply).
+
+**Pass**: per-file mode follows the resolution-order policy
+deterministically; reasoning recorded in `manifest.md` "Reason for
+mode choices" section.
+
+### 69b. Revert algorithm permission-gated + lock-acquired (v0.2.0c R1)
+
+**Setup**: scenario 69a's snapshot exists. `permissions.md` has no
+explicit revert rule (default `ask`).
+
+**Steps**: `/dtd revert last`.
+
+**Expected**:
+- BEFORE entering revert algorithm:
+  - Capsule `awaiting_user_reason: PERMISSION_REQUIRED` for
+    `revert` key (default ask) — user grants `allow_once`.
+  - Audit log row: `<ts> | dec-NNN | revert | last | rule_match: default | decision: asked` then `decision: user-allow`.
+  - Destructive confirm prompt (`/dtd revert` is destructive) —
+    user confirms.
+  - Write locks acquired for all 3 revertable files (per §Resource
+    Locks; same lock set as fresh apply).
+- Validation pass: preimage SHA matches manifest; patch dry-run
+  cleanly applies.
+- Phase 1 + 2 atomic restore.
+- `state.md.last_revert_id: snap-001-task-2.1-att-1`,
+  `last_revert_at: <ts>`.
+- `index.md` row updated: status `active` → `reverted`.
+- `attempts/run-NNN.md` row appended:
+  `reverted: snap-001-task-2.1-att-1`.
+
+**Pass**: revert is permission-gated, lock-acquired, atomic,
+audit-logged, and state-tracked end-to-end.
+
+### 69c. Patch artifacts + format spec validated (v0.2.0c R1)
+
+**Setup**: a snapshot with at least one `patch` mode file.
+
+**Steps**: read `snap-*/manifest.md` and `/dtd doctor`.
+
+**Expected**:
+- Manifest "Patch artifacts" section lists `forward.patch` +
+  `reverse.patch` paths.
+- `patch_format_version: 1` declared.
+- `whitespace_handling: preserve_lf` (or `normalize_crlf` for CRLF
+  files; chosen by controller per file's line-ending detection).
+- Doctor verifies both artifact files exist on disk.
+- Manually delete `reverse.patch` → doctor ERROR
+  `snapshot_patch_artifacts_missing`.
+
+**Pass**: patch format is spec'd; doctor catches missing artifacts.
+
+### 69d. /dtd revert task <id> reverse-order skip-superseded (v0.2.0c R1)
+
+**Setup**: task 3.1 has 3 attempts:
+- att-1 applied successfully → snap-001-task-3.1-att-1 exists.
+- att-2 superseded BEFORE apply (no snapshot — never applied).
+- att-3 applied successfully → snap-001-task-3.1-att-3 exists.
+
+**Steps**: `/dtd revert task 3.1`.
+
+**Expected**:
+- Revert applies in REVERSE order:
+  - First: revert att-3 (snap-001-task-3.1-att-3).
+  - Second: revert att-1 (snap-001-task-3.1-att-1).
+- att-2 is SKIPPED (no snapshot; `attempts/run-NNN.md` row
+  has no `applied: true`).
+- Files end up in pre-att-1 state (as expected for
+  `revert task <id>` semantics).
+
+**Pass**: superseded attempts skipped; reverse order is
+deterministic.
+
+---
+
+## v0.2.0b — Permission Ledger
+
 ### 50. Default rules allow todowrite, ask everything else
 
 **Setup**: fresh install at v0.2.0b. `.dtd/permissions.md` exists with empty
@@ -2019,7 +2117,7 @@ flip.
 1. `/dtd doctor` against valid packs → PASS.
 2. Edit `ko.md` to remove the `## NL routing additions` section. Run
    doctor.
-3. Inflate `ko.md` past 8 KB. Run doctor.
+3. Inflate `ko.md` past 12 KB (`pack_size_budget_kb` cap). Run doctor.
 
 **Expected**:
 - Step 1: no locale-related ERROR/WARN.
