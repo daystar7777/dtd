@@ -12,14 +12,16 @@
 > v0.3.0a / v0.3.0c / v0.3.0d expansion: catalog grew from 13 → 14 →
 > 15 → 16 topics. v0.3 R1 runtime: catalog 16 → 17 → 18 (v030e R1
 > + v030b R1). v0.3 R2 plan + R2-0 readiness checklist: catalog
-> 18 → 19 → 20. Per Codex v0.3 review, v0.3+ sub-release runtime
-> contracts use NEW lazy-loaded reference topics
+> 18 → 19 → 20. v0.3 real-use benchmark dev phase: catalog 20 → 21.
+> Per Codex v0.3 review, v0.3+ sub-release runtime contracts use
+> NEW lazy-loaded reference topics
 > (e.g. `v030a-cross-run-loop-guard.md`, `v030c-consensus.md`,
 > `v030d-cross-machine-session-sync.md`,
 > `v030e-time-limited-permissions.md`,
 > `v030b-quota-scheduling.md`,
 > `v030-r2-live-test-plan.md`,
-> `v030-r2-0-readiness-checklist.md`) rather than expanding
+> `v030-r2-0-readiness-checklist.md`,
+> `v030-realuse-benchmark.md`) rather than expanding
 > cross-cutting `run-loop.md` past its typical 32 KB cap.
 
 ## Topics
@@ -46,6 +48,7 @@
 | `v030b-quota-scheduling` | v0.3.0b R1 runtime: estimation algorithm, provider header parser, finalize_run cross-run aggregation, mid-run exhaust, capsule rendering | canonical | `.dtd/reference/v030b-quota-scheduling.md` |
 | `v030-r2-live-test-plan` | v0.3 line R2 live-test plan: per-sub-release coverage matrix (L-E/B/A/C/D/X), acceptance criteria, reporting format | canonical | `.dtd/reference/v030-r2-live-test-plan.md` |
 | `v030-r2-0-readiness-checklist` | R2-0 readiness checklist: static + doctor + worker prereqs + sync prereqs gates with STOP/GO/WARN decision | canonical | `.dtd/reference/v030-r2-0-readiness-checklist.md` |
+| `v030-realuse-benchmark` | Real-use benchmark development phase: capability inventory, JSONL row schemas, recommendation surface (quick/balanced/thorough/silent-overnight), formula-bound scorekeeping, hermetic dry-run | canonical | `.dtd/reference/v030-realuse-benchmark.md` |
 
 ## Extraction Rationale
 

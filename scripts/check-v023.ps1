@@ -55,7 +55,8 @@ $referenceTopics = @(
     "v030e-time-limited-permissions",
     "v030b-quota-scheduling",
     "v030-r2-live-test-plan",
-    "v030-r2-0-readiness-checklist"
+    "v030-r2-0-readiness-checklist",
+    "v030-realuse-benchmark"
 )
 $canonicalReferenceTopics = $referenceTopics
 
@@ -66,7 +67,7 @@ if (Test-Path -LiteralPath $referenceDir) {
 }
 
 Add-Result "v023.reference.dir" ".dtd/reference directory exists" (Test-Path -LiteralPath $referenceDir)
-Add-Result "v023.reference.count" ".dtd/reference has 21 markdown files (20 topics + index after R2-0 readiness checklist)" ($referenceFiles.Count -eq 21) "count=$($referenceFiles.Count)"
+Add-Result "v023.reference.count" ".dtd/reference has 22 markdown files (21 topics + index after realuse benchmark dev phase)" ($referenceFiles.Count -eq 22) "count=$($referenceFiles.Count)"
 
 $indexPath = Join-Path $referenceDir "index.md"
 Add-Result "v023.reference.index" "reference index.md exists" (Test-Path -LiteralPath $indexPath)
@@ -194,6 +195,59 @@ Add-Result "v023.realuse.benchmark_matrix" "real-use benchmark matrix captures p
      ($benchmarkMatrixText -match 'controller_tokens') -and
      ($benchmarkMatrixText -match 'test_worker_tokens') -and
      ($benchmarkMatrixText -match 'thinking/reasoning level only when the'))
+
+# v030-realuse-benchmark dev-phase reference (session #19 deliverable)
+$realuseRef = Read-Text ".dtd/reference/v030-realuse-benchmark.md"
+
+Add-Result "v023.realuse.ref_summary_anchor" "v030-realuse-benchmark has Summary + Anchor sections" `
+    (($realuseRef -match "(?m)^## Summary") -and ($realuseRef -match "(?m)^## Anchor"))
+Add-Result "v023.realuse.capability_inventory_schema" "realuse ref defines worker capability inventory schema" `
+    (($realuseRef -match "Worker capability inventory schema") -and `
+     ($realuseRef -match "worker-checks/<worker_id>-capabilities\.md") -and `
+     ($realuseRef -match "endpoint_hash") -and `
+     ($realuseRef -match "supported \| unsupported \| unprobed"))
+Add-Result "v023.realuse.jsonl_schema" "realuse ref defines plain + DTD JSONL row schemas" `
+    (($realuseRef -match 'schema_version') -and `
+     ($realuseRef -match '"row_type": "plain"') -and `
+     ($realuseRef -match '"row_type": "dtd"') -and `
+     ($realuseRef -match 'controller_prompt_tokens') -and `
+     ($realuseRef -match 'implementation_worker_tokens'))
+Add-Result "v023.realuse.recommendation_modes" "realuse ref defines 4 recommendation modes" `
+    (($realuseRef -match '`quick`') -and `
+     ($realuseRef -match '`balanced`') -and `
+     ($realuseRef -match '`thorough`') -and `
+     ($realuseRef -match '`silent-overnight`') -and `
+     ($realuseRef -match 'recommend_mode\(task'))
+Add-Result "v023.realuse.scorekeeping_formula_bound" "realuse ref formula-bound scorekeeping with 100-point rubric" `
+    (($realuseRef -match 'Formula-bound score \(100 points total\)') -and `
+     ($realuseRef -match 'Maintainability/readability \| 5') -and `
+     ($realuseRef -match 'realuse_score_inflation_violation') -and `
+     ($realuseRef -match 'same_model_judge'))
+Add-Result "v023.realuse.dryrun_hermetic" "realuse ref defines hermetic dry-run + user gate" `
+    (($realuseRef -match '\| `dry-run` \| NO \| NO \|') -and `
+     ($realuseRef -match '\| `full` \| YES \| YES \|') -and `
+     ($realuseRef -match 'realuse_full_run_no_user_gate') -and `
+     ($realuseRef -match 'dry_run: true'))
+$realuseDoctorCodes = @(
+    "realuse_capability_inventory_missing",
+    "realuse_jsonl_schema_invalid",
+    "realuse_score_inflation_violation",
+    "realuse_recommendation_unknown_mode",
+    "realuse_score_no_evidence_path",
+    "realuse_full_run_no_user_gate",
+    "realuse_same_model_judge_unflagged",
+    "realuse_dryrun_has_evidence"
+)
+foreach ($code in $realuseDoctorCodes) {
+    Add-Result "v023.realuse.doctor.$code" "realuse ref defines doctor code $code" `
+        ($realuseRef -match [regex]::Escape($code))
+}
+Add-Result "v023.realuse.r2_separation" "realuse ref maintains separation from v0.3 R2 live validation" `
+    (($realuseRef -match "separate evidence track") -and `
+     ($realuseRef -match "(?s)not be conflated with v0\.3 R2"))
+Add-Result "v023.realuse.boundary_no_execution" "realuse ref preserves no-execution boundary" `
+    (($realuseRef -match "Actual benchmark execution requires a fresh explicit") -or `
+     ($realuseRef -match "waits for explicit user start"))
 
 $roadmapRefText = Read-Text ".dtd/reference/roadmap.md"
 Add-Result "v023.roadmap.permission_keys_current" "roadmap includes current 10 permission keys" `

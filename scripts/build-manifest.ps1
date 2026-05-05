@@ -100,6 +100,7 @@ $IncludedPaths = @(
     ".dtd/reference/v030b-quota-scheduling.md",
     ".dtd/reference/v030-r2-live-test-plan.md",
     ".dtd/reference/v030-r2-0-readiness-checklist.md",
+    ".dtd/reference/v030-realuse-benchmark.md",
     ".dtd/locales/ko.md",
     ".dtd/locales/ja.md",
     ".dtd/permissions.md",
