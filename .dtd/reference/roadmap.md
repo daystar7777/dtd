@@ -8,7 +8,8 @@
 
 v0.1 / v0.1.1 / v0.2.0a tagged; rest of v0.2 line release-ready
 or R0+R1 complete pending user tag authorization.
-v0.3 line designed (5 sub-release proposals in AIMemory).
+v0.3 line at mixed R0 / R1 across 5 sub-releases (R0: all 5;
+R1: 3 of 5; pending Codex review).
 
 Released:
 - **v0.1** — first lock; 18/18 acceptance smoke (2026-05-05).
@@ -31,17 +32,31 @@ R0 + R1 complete (Codex GO accepted; tag pending user auth):
 - **v0.2.2** — Compaction UX (notepad v2 8-heading + Reasoning Notes
   + chain-of-thought leak filter).
 
-v0.3 line designed (R0 implementation pending; design proposals
-in `AIMemory/handoff_dtd-v030*-design.claude-opus-4-7.md`):
-- **v0.3.0a** — Cross-run loop guard (extends v0.2.1 within-run guard).
-- **v0.3.0b** — Token-rate-aware scheduling (predictive routing
-  before quota exhaustion).
-- **v0.3.0c** — Multi-worker consensus dispatch (`consensus="N"`
-  plan attribute; 4 selection strategies).
-- **v0.3.0d** — Cross-machine session affinity (filesystem /
-  git-branch backends + encrypted sync).
-- **v0.3.0e** — Time-limited permissions UX (`for 1h` /
-  `until eod` / `for session` natural duration syntax).
+v0.3 line — Path A (e → b → a → c → d) execution status:
+- **v0.3.0e** — Time-limited permissions UX. R0 GO (`19bf3f1`);
+  R1 (`ea5fd09`) pending review.
+- **v0.3.0b** — Token-rate-aware scheduling. R0 GO (`19bf3f1`);
+  R1 (`d431c57`) pending review.
+- **v0.3.0a** — Cross-run loop guard. R0 with P1.1 + P1.7 inline
+  (`0681088`); R1 (`e67b10b`) pending review.
+- **v0.3.0c** — Multi-worker consensus dispatch. R0 with P1.4 +
+  P1.5 inline (`be948b5`); R1 pending Codex GO on R0.
+- **v0.3.0d** — Cross-machine session affinity. R0 with P1.6 + P1.7
+  inline (`6013ac2`); R1 pending Codex GO on R0.
+
+Per-sub-release reference topic pattern (Codex's recommendation):
+catalog grew from 13 → 18 across v0.3 line:
+- `v030a-cross-run-loop-guard.md` (R0 + R1)
+- `v030c-consensus.md` (R0 only)
+- `v030d-cross-machine-session-sync.md` (R0 only)
+- `v030e-time-limited-permissions.md` (R1 dedicated)
+- `v030b-quota-scheduling.md` (R1 dedicated)
+
+5 commits awaiting Codex review across 2 review-request handoffs:
+- `handoff_dtd-v030c-v030d-r0-review-request.claude-opus-4-7.md`
+  (c+d R0 — session 7)
+- `handoff_dtd-v030-r1-trio-review-request.claude-opus-4-7.md`
+  (e+b+a R1 — session 8)
 
 ## v0.1.1
 
