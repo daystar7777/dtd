@@ -3049,6 +3049,10 @@ surfaces capsule.
 - User picks `accept_majority`: controller applies selection
   strategy on the 2 successful candidates (A + B).
 - Failed C is logged; not retried.
+- If user instead picks `retry_failed`, the existing consensus
+  group lock remains held while C is retried and merged with the
+  previously-successful staged candidates. The lock is not released
+  until final apply, `retry_all`, or stop.
 
 **Pass**: partial-failure handling explicit; user picks
 recovery path.
@@ -3228,6 +3232,9 @@ for human-tolerant byte-equality.
 - Capsule fires:
   `awaiting_user_reason: CONSENSUS_LOCK_TIMEOUT`
   with options `[wait_more, retry_lock, demote_single, stop]`.
+- Capsule includes full `decision_id`, `decision_prompt`,
+  `decision_default: wait_more`, `decision_resume_action`, and
+  legacy `user_decision_options`.
 - `state.md.last_consensus_lock_acquire_attempt_at: <ts>`.
 - `wait_more` → extends deadline by another 30s; retries.
 - `demote_single` → drops to single-worker dispatch with first
@@ -3458,6 +3465,9 @@ repo_identity_hash known.
 - Output structure: `nonce_b64u` (16 chars b64url, 12 bytes
   binary), `ciphertext_b64u`, `auth_tag_b64u` (~22 chars b64url,
   16 bytes binary).
+- AES-GCM associated data is reconstructed from
+  `repo_identity_hash`, `machine_id`, `provider`, and
+  `session_id_hash`; row metadata swaps fail authentication.
 - `decrypt_session_id()` returns `Decrypted(session_id =
   "sess_abc123")`.
 - Tampering ciphertext OR auth_tag OR nonce: AES-GCM auth
@@ -3467,7 +3477,7 @@ repo_identity_hash known.
 **Pass**: encryption round-trips; tampering fails closed
 (Codex P1.6).
 
-### 183. HKDF salt = repo_identity_hash[:16]
+### 183. HKDF salt = first 16 bytes of repo_identity_hash
 
 **Setup**: same project, same git remote URL on 2 machines.
 Both compute `repo_identity_hash` PRIMARY:
@@ -3477,7 +3487,7 @@ Both compute `repo_identity_hash` PRIMARY:
 
 **Expected**:
 - Both machines derive IDENTICAL key from
-  `HKDF_SHA256(ikm=key_env, salt=repo_id_hash[:16],
+  `HKDF_SHA256(ikm=key_env, salt=hex_to_bytes(repo_id_hash)[0:16],
    info="dtd-session-sync-v1", length=32)`.
 - A's encrypted_row decrypts on B (cross-machine resume works).
 
@@ -3580,7 +3590,10 @@ crash.
 
 **Expected**:
 - Encrypted_row for hash B decrypted using local key_env +
-  shared repo_id_hash.
+  shared repo_id_hash and metadata-bound AAD
+  `repo_identity_hash|machine_id|provider|session_id_hash`.
+- `state.md.pending_session_conflict` provides the durable
+  local/remote hash payload used by the resume action.
 - v0.2.1 R1 strategy resolver hinted to `same-worker` with
   decrypted session_id.
 - Local row marked `superseded` in local ledger.

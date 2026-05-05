@@ -383,6 +383,23 @@ NEW R1 capsule reason: `CONSENSUS_LOCK_TIMEOUT` (added to
 `awaiting_user_reason` enum). Options
 `[wait_more, retry_lock, demote_single, stop]`.
 
+Full decision capsule contract:
+
+```yaml
+awaiting_user_decision: true
+awaiting_user_reason: CONSENSUS_LOCK_TIMEOUT
+decision_id: dec-NNN
+decision_prompt: "Consensus task <task_id> could not acquire the output-path lock within <timeout>s. How should DTD proceed?"
+decision_options:
+  - {id: wait_more,     label: "wait again",             effect: "extend deadline by consensus_lock_acquire_timeout_sec and retry lock", risk: "may keep waiting"}
+  - {id: retry_lock,    label: "retry lock",             effect: "release partial lock state and retry step 6.consensus.b",              risk: "same conflict may recur"}
+  - {id: demote_single, label: "use one worker",         effect: "single-worker dispatch with first consensus worker",                  risk: "loses consensus confidence"}
+  - {id: stop,          label: "stop the run",           effect: "finalize_run(STOPPED)",                                               risk: "lose run progress"}
+decision_default: wait_more
+decision_resume_action: "controller acts on the chosen option; stop inherits the global destructive confirmation rule"
+user_decision_options: [wait_more, retry_lock, demote_single, stop]
+```
+
 ### R1.3 — Per-worker timeout & in-flight cancellation
 
 ```
@@ -413,8 +430,9 @@ output is marked `consensus_late_stale: true` in
 strategy_first_passing(futures):
   for future in await_first_completing(futures):
     if future.outcome == "::done::":
-      cancel_inflight(future for future in futures if future != winner)
-      return Winner(future)
+      winner = future
+      cancel_inflight(f for f in futures if f != winner)
+      return Winner(winner)
   return None  # no worker passed; fall back to CONSENSUS_PARTIAL_FAILURE
 ```
 
@@ -523,16 +541,20 @@ strategy_vote_unanimous(futures, normalize_whitespace):
 
 ```
 apply_consensus_winner(winner_future, group_lock):
+  target_paths = winner_future.output_paths
+
   # 1. Permission gate (existing v0.2.0b R1 step 6.f.0).
-  edit_decision = resolve_permission("edit", winner_future.staged_dir, ...)
+  validate_declared_output_paths(target_paths, task.output_paths)
+  validate_path_policy(target_paths)
+  edit_decision = resolve_permission("edit", target_paths, ...)
   if edit_decision != "allow": abort_consensus("permission_denied")
 
   # 2. Snapshot creation (existing v0.2.0c R1 step 6.g.0).
-  snapshot_create_for_outputs(winner_future.staged_dir, mode="preimage")
+  snapshot_create_for_outputs(target_paths, mode="preimage")
 
   # 3. Atomic apply: copy staged_dir -> real output_paths.
-  for path in winner_future.output_paths:
-    src = winner_future.staged_dir + path
+  for path in target_paths:
+    src = map_staged_output(winner_future.staged_dir, path)
     atomic_rename(src, path)
 
   # 4. Mark winner.
@@ -581,11 +603,20 @@ for consensus.
 | `controller_pick` | controller selects one (typically lowest line-count + sentinel-passing); marks `applied: true` with `applied_by: controller-takeover`; capsule REVIEW_REQUIRED on next /dtd status |
 | `retry_all` | release group lock; cancel staging; re-dispatch consensus_n workers fresh |
 | `accept_majority` (CONSENSUS_PARTIAL_FAILURE) | apply winner from successful candidates per active strategy; failed workers' staging cleaned up |
-| `retry_failed` | release group lock; re-dispatch ONLY failed workers; merge with previously-successful in next selection round |
+| `retry_failed` | keep the existing group lock; re-dispatch ONLY failed workers under the same lock; merge with previously-successful staged candidates in next selection round |
 | `wait_more` (CONSENSUS_LOCK_TIMEOUT) | extend deadline by `consensus_lock_acquire_timeout_sec` again; retry lock |
 | `retry_lock` | release any partial lock state; retry from step 6.consensus.b |
 | `demote_single` | drop to single-worker dispatch with first `<consensus-workers>` entry; consensus annotation removed for this attempt |
 | `stop` | finalize_run(STOPPED) |
+
+Lock invariant: options that apply or reuse existing successful
+staged candidates (`reviewer_pick`, `controller_pick`,
+`accept_majority`, `retry_failed`) MUST keep
+`active_consensus_group_lock` held until final apply or stop.
+`retry_all` releases because it discards all staged candidates and
+starts a fresh consensus group. `CONSENSUS_LOCK_TIMEOUT` options
+normally have no acquired lock; `retry_lock` only clears partial
+lock state.
 
 ## R1 doctor checks (additional)
 

@@ -92,6 +92,7 @@
 - session_sync_last_read_at: null
 - session_sync_last_write_at: null
 - session_sync_pending_conflicts: []   # list of {provider, machine_id, session_id_hash}
+- pending_session_conflict: null       # R1; durable SESSION_CONFLICT resume payload {provider, local_machine_id, local_session_id_hash, remote_machine_id, remote_session_id_hash}
 - machine_id: null                     # auto-generated UUID at install (Codex: UUID + optional display_name)
 - machine_display_name: null           # optional human label, e.g. "laptop-A"
 - session_sync_consecutive_unreachable_count: 0  # R1; counter for backend reachability

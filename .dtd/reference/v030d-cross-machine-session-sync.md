@@ -97,7 +97,7 @@ is active, the following are contract-mandatory:
      status, and human-readable notes.
    - The actual `session_id` lives in `session-sync.encrypted` —
      AES-256-GCM-encrypted with a key derived from the env-var
-     value via `HKDF-SHA256(salt = repo_identity_hash[:16])`.
+     value via `HKDF-SHA256(salt = first 16 bytes of repo_identity_hash)`.
    - Each row in the encrypted blob carries a per-row 96-bit nonce.
 
 3. **The encryption key value itself NEVER appears in any committed,
@@ -384,9 +384,16 @@ R1 ships the runtime algorithms:
 ### R1.1 — Encryption / decryption flow
 
 ```
-encrypt_session_id(session_id, key_env_value, repo_identity_hash):
+session_sync_aad(repo_identity_hash, public_row):
+  return "dtd-session-sync-v1|" +
+         repo_identity_hash + "|" +
+         public_row.machine_id + "|" +
+         public_row.provider + "|" +
+         public_row.session_id_hash
+
+encrypt_session_id(session_id, key_env_value, repo_identity_hash, public_row):
   # 1. Derive per-row encryption key via HKDF.
-  salt = repo_identity_hash[:16]                # first 16 chars (8 bytes binary)
+  salt = hex_to_bytes(repo_identity_hash)[0:16] # first 16 bytes (32 hex chars)
   ikm = utf8(key_env_value)
   derived_key = HKDF_SHA256(ikm=ikm, salt=salt, info=b"dtd-session-sync-v1", length=32)
 
@@ -395,7 +402,8 @@ encrypt_session_id(session_id, key_env_value, repo_identity_hash):
 
   # 3. AES-256-GCM encrypt.
   plaintext = utf8(session_id)
-  associated_data = utf8(session_id_hash)       # binds ciphertext to public hash row
+  session_id_hash = public_row.session_id_hash  # equals sha256(session_id)
+  associated_data = utf8(session_sync_aad(repo_identity_hash, public_row))
   ciphertext, auth_tag = AES_256_GCM_encrypt(
     key = derived_key,
     nonce = nonce,
@@ -408,28 +416,40 @@ encrypt_session_id(session_id, key_env_value, repo_identity_hash):
     nonce_b64u = base64url_no_pad(nonce),
     ciphertext_b64u = base64url_no_pad(ciphertext),
     auth_tag_b64u = base64url_no_pad(auth_tag),
-    associated_data_hash = session_id_hash,
+    session_id_hash = session_id_hash,
   )
 
-decrypt_session_id(row, key_env_value, repo_identity_hash):
+decrypt_session_id(encrypted_row, public_row, key_env_value, repo_identity_hash):
   # Same key derivation.
-  salt = repo_identity_hash[:16]
+  salt = hex_to_bytes(repo_identity_hash)[0:16]
   derived_key = HKDF_SHA256(ikm=utf8(key_env_value), salt=salt, info=b"dtd-session-sync-v1", length=32)
 
   try:
     plaintext = AES_256_GCM_decrypt(
       key = derived_key,
-      nonce = base64url_no_pad_decode(row.nonce_b64u),
-      ciphertext = base64url_no_pad_decode(row.ciphertext_b64u),
-      auth_tag = base64url_no_pad_decode(row.auth_tag_b64u),
-      associated_data = utf8(row.associated_data_hash),
+      nonce = base64url_no_pad_decode(encrypted_row.nonce_b64u),
+      ciphertext = base64url_no_pad_decode(encrypted_row.ciphertext_b64u),
+      auth_tag = base64url_no_pad_decode(encrypted_row.auth_tag_b64u),
+      associated_data = utf8(session_sync_aad(repo_identity_hash, public_row)),
     )
     return Decrypted(session_id = utf8_decode(plaintext))
   except AuthError:
     # Tampered or wrong key — fail closed (Codex P1.6).
-    log_warn("session_sync_decrypt_failed", row=row.associated_data_hash)
+    log_warn("session_sync_decrypt_failed", row=public_row.session_id_hash)
     return Corrupted
 ```
+
+Associated data is reconstructed from the public ledger row at
+encrypt/decrypt time:
+
+```text
+dtd-session-sync-v1|<repo_identity_hash>|<machine_id>|<provider>|<session_id_hash>
+```
+
+Mutable lifecycle fields such as `status`, `last_used`, and
+`expires_at` are intentionally not AAD-bound so conflict resolution
+can mark rows `superseded` / `expired` without re-encrypting the
+session id.
 
 Ciphertext format on disk (`.dtd/session-sync.encrypted`):
 
@@ -471,8 +491,13 @@ pre_dispatch_sync_read(state, config):
 
     elif remote_active and not local_active and within_expiry(remote_active):
       # Hint v0.2.1 R1 to use same-worker strategy.
+      encrypted_row = remote_ledger.encrypted_row(remote_active.session_id_hash)
+      if not encrypted_row:
+        log_error("session_sync_plaintext_violation")
+        continue  # remote public row has no encrypted backing; fail closed
       decrypted = decrypt_session_id(
-        remote_ledger.encrypted_row(remote_active.session_id_hash),
+        encrypted_row,
+        remote_active,
         key_env,
         repo_identity_hash(),
       )
@@ -557,6 +582,7 @@ finalize_run_step_9_session_sync(state, config):
     session_id = current_dispatch.session_id,
     key_env_value = key_env,
     repo_identity_hash = repo_identity_hash(),
+    public_row = local_row,
   )
   encrypted_blob.upsert(local_row.session_id_hash, encrypted_row)
 
@@ -629,18 +655,31 @@ When `pre_dispatch_sync_read()` returns `SessionConflict`:
 
 ```
 on_session_conflict(local, remote, config):
+  payload = {
+    provider: local.provider,
+    local_machine_id: local.machine_id,
+    local_session_id_hash: local.session_id_hash,
+    remote_machine_id: remote.machine_id,
+    remote_session_id_hash: remote.session_id_hash,
+  }
+
   fill_capsule(
+    awaiting_user_decision = true,
     awaiting_user_reason = "SESSION_CONFLICT",
-    pending_session_conflict = {
-      provider: local.provider,
-      local_machine_id: local.machine_id,
-      local_session_id_hash: local.session_id_hash,
-      remote_machine_id: remote.machine_id,
-      remote_session_id_hash: remote.session_id_hash,
-    },
-    decision_options = ["use_local", "use_remote", "fresh", "stop"],
+    decision_id = "dec-NNN",
+    decision_prompt = "Another machine has an active session for this worker/provider. Which session should DTD use?",
+    pending_session_conflict = payload,
+    decision_options = [
+      {id: "use_local",  label: "use this machine", effect: "local session wins; remote marked superseded", risk: "remote work may diverge"},
+      {id: "use_remote", label: "use remote session", effect: "decrypt remote session and resume same-worker", risk: "local session superseded"},
+      {id: "fresh",      label: "fresh session", effect: "both sessions superseded; start fresh", risk: "lose session continuation"},
+      {id: "stop",       label: "stop the run", effect: "finalize_run(STOPPED)", risk: "lose run progress"},
+    ],
     decision_default = "fresh",  # conservative
+    decision_resume_action = "controller applies selected conflict resolution; stop inherits the global destructive confirmation rule",
+    user_decision_options = ["use_local", "use_remote", "fresh", "stop"],
   )
+  state.pending_session_conflict = payload
   state.session_sync_pending_conflicts.append({
     provider: local.provider,
     machine_id: remote.machine_id,
@@ -653,12 +692,18 @@ on_session_conflict(local, remote, config):
 | Option | On `/dtd run` resume |
 |---|---|
 | `use_local` | local row stays `active`; remote row marked `superseded` in local ledger; sync write at finalize_run propagates supersession. |
-| `use_remote` | remote row's `session_id` decrypted; local row marked `superseded`; v0.2.1 R1 strategy resolver hinted to `same-worker` with remote session_id. |
+| `use_remote` | remote row's encrypted backing is required; remote row's `session_id` decrypted using metadata-bound AAD; local row marked `superseded`; v0.2.1 R1 strategy resolver hinted to `same-worker` with remote session_id. |
 | `fresh` | both rows marked `superseded`; v0.2.1 R1 falls back to fresh strategy. |
 | `stop` | finalize_run(STOPPED). |
 
 Loser row is marked `superseded` in the synced ledger; both rows
 persist for audit (no row deletion on conflict resolve).
+After any non-`stop` option is applied, clear
+`state.pending_session_conflict` and remove the matching conflict
+entry from `state.session_sync_pending_conflicts`. On `stop`,
+`finalize_run(STOPPED)` clears `pending_session_conflict` via the
+terminal state cleanup while preserving the audit trail in the
+session-sync ledger.
 
 ### R1.6 — Connectivity failure handling
 
@@ -739,9 +784,9 @@ preserves audit (tombstone, not physical removal).
     <hash>|<nonce>|<ciphertext>|<auth_tag> format.
 
 - session_sync_hkdf_salt_mismatch (ERROR — runtime)
-    HKDF salt = repo_identity_hash[:16] differs between local and
-    remote ledgers. Repository identity changed (rehash needed,
-    similar to v030a).
+    HKDF salt = first 16 bytes of repo_identity_hash differs between
+    local and remote ledgers. Repository identity changed (rehash
+    needed, similar to v030a).
 ```
 
 ## R1 acceptance scenarios
@@ -754,7 +799,7 @@ preserves audit (tombstone, not physical removal).
 182. AES-256-GCM encryption: encrypt_session_id() produces
      deterministic structure (nonce 12B, auth_tag 16B); decrypt
      succeeds; tampered ciphertext fails closed.
-183. HKDF salt = repo_identity_hash[:16]: same project on 2
+183. HKDF salt = first 16 bytes of repo_identity_hash: same project on 2
      machines with same git remote derives same key.
 184. Pre-dispatch read: filesystem backend reads
      <sync_path>/<repo_id_hash>/session-sync.md; missing encrypted
@@ -782,6 +827,7 @@ R1 is a runtime contract; it adds these state fields:
 state.md (additional R1):
 - session_sync_consecutive_unreachable_count: 0  # R1; counter for backend reachability
 - last_session_sync_decrypt_failure_at: null     # R1; ts of last decrypt failure
+- pending_session_conflict: null                 # R1; durable SESSION_CONFLICT resume payload
 ```
 
 No new permission keys (11-key invariant from v0.3.0c stable;

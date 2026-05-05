@@ -5,7 +5,7 @@
 #   - reference/index.md catalog has v030d-cross-machine-session-sync row
 #   - dtd.md has /dtd session-sync command body + Session sync doctor list
 #   - permissions.md unchanged (no new key — 11-key invariant from v0.3.0c stable)
-#   - state.md has ## Session sync (v0.3.0d) + 5 fields + SESSION_CONFLICT enum
+#   - state.md has ## Session sync (v0.3.0d) fields + SESSION_CONFLICT enum
 #   - config.md has ## session-sync (v0.3.0d) + 9 keys
 #   - reference/doctor-checks.md has v0.3.0d Cross-machine session sync checks
 #   - test-scenarios.md has scenarios 142-149
@@ -119,6 +119,8 @@ Add-Result "v030d.dtdmd.doctor_lists_session_sync" "dtd.md doctor lists Session 
 Add-Result "v030d.runloop.finalize_hook" "run-loop.md wires finalize_run step 9.session-sync terminal hook" `
     (($runLoopRef -match "9\.session-sync") -and `
      ($runLoopRef -match "v030d-cross-machine-session-sync"))
+Add-Result "v030d.runloop.clears_pending_session_conflict" "run-loop.md terminal cleanup clears pending_session_conflict" `
+    ($runLoopRef -match "pending_session_conflict")
 Add-Result "v030d.dtdmd.session_conflict_capsule" "dtd.md mentions SESSION_CONFLICT capsule" `
     ($dtdMd -match "SESSION_CONFLICT")
 
@@ -219,12 +221,16 @@ Add-Result "v030d.r1_ref.section" "v030d ref has ## R1 runtime contract section"
     ($v030dRef -match "(?m)^## R1 runtime contract")
 Add-Result "v030d.r1_ref.encrypt_function" "v030d R1 ref documents encrypt_session_id() function" `
     (($v030dRef -match "encrypt_session_id\(") -and ($v030dRef -match "decrypt_session_id\("))
-Add-Result "v030d.r1_ref.hkdf_salt" "v030d R1 ref defines HKDF salt = repo_identity_hash[:16]" `
-    ($v030dRef -match "salt = repo_identity_hash\[:16\]")
+Add-Result "v030d.r1_ref.hkdf_salt" "v030d R1 ref defines HKDF salt as first 16 bytes of repo_identity_hash" `
+    (($v030dRef -match "hex_to_bytes\(repo_identity_hash\)\[0:16\]") -and `
+     ($v030dRef -match "first 16 bytes"))
 Add-Result "v030d.r1_ref.hkdf_info_label" "v030d R1 ref defines HKDF info label" `
     ($v030dRef -match 'dtd-session-sync-v1')
-Add-Result "v030d.r1_ref.aes_gcm_associated_data" "v030d R1 ref binds AES-GCM via associated_data" `
-    (($v030dRef -match "associated_data") -and ($v030dRef -match "session_id_hash"))
+Add-Result "v030d.r1_ref.aes_gcm_associated_data" "v030d R1 ref binds AES-GCM via metadata-bound associated_data" `
+    (($v030dRef -match "session_sync_aad") -and `
+     ($v030dRef -match "machine_id") -and `
+     ($v030dRef -match "provider") -and `
+     ($v030dRef -match "session_id_hash"))
 Add-Result "v030d.r1_ref.encrypted_format" "v030d R1 ref documents encrypted blob row format" `
     ($v030dRef -match "<session_id_hash> \| <nonce_b64u> \| <ciphertext_b64u> \| <auth_tag_b64u>")
 Add-Result "v030d.r1_ref.pre_dispatch_read" "v030d R1 ref documents pre_dispatch_sync_read()" `
@@ -242,6 +248,17 @@ Add-Result "v030d.r1_ref.session_conflict_resume_action" "v030d R1 ref documents
      ($v030dRef -match "use_local") -and `
      ($v030dRef -match "use_remote") -and `
      ($v030dRef -match "fresh"))
+Add-Result "v030d.r1_ref.session_conflict_full_capsule" "v030d R1 SESSION_CONFLICT path uses full decision capsule + durable payload" `
+    (($v030dRef -match "awaiting_user_decision = true") -and `
+     ($v030dRef -match "decision_id = `"dec-NNN`"") -and `
+     ($v030dRef -match "pending_session_conflict") -and `
+     ($v030dRef -match "user_decision_options = \[`"use_local`", `"use_remote`", `"fresh`", `"stop`"\]"))
+Add-Result "v030d.r1_ref.remote_row_requires_encrypted_backing" "v030d R1 pre-dispatch refuses remote rows without encrypted backing" `
+    (($v030dRef -match "remote public row has no encrypted backing") -and `
+     ($v030dRef -match "session_sync_plaintext_violation"))
+Add-Result "v030d.r1_ref.session_conflict_cleanup" "v030d R1 clears pending_session_conflict after resolution" `
+    (($v030dRef -match 'clear\s+`?state\.pending_session_conflict') -and `
+     ($v030dRef -match "session_sync_pending_conflicts"))
 Add-Result "v030d.r1_ref.connectivity_not_conflict_r1" "v030d R1 ref reaffirms connectivity != conflict" `
     ($v030dRef -match "(?s)connectivity failure.*?WARN-only")
 Add-Result "v030d.r1_ref.r1_scenarios" "v030d R1 ref lists scenarios 182-189" `
@@ -264,7 +281,8 @@ Add-Result "v030d.doctor.r1_section" "doctor-checks ref has v0.3.0d R1 runtime c
 
 # v030d R1 state fields
 $v030dR1StateKeys = @("session_sync_consecutive_unreachable_count",
-                       "last_session_sync_decrypt_failure_at")
+                       "last_session_sync_decrypt_failure_at",
+                       "pending_session_conflict")
 foreach ($key in $v030dR1StateKeys) {
     Add-Result "v030d.state.r1_key.$key" "state.md Session sync section has R1 $key" `
         ($stateMd -match "(?m)^- $([regex]::Escape($key)):")

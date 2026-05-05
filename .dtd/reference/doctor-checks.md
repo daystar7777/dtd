@@ -412,8 +412,8 @@ Sections:
 - `.dtd/session-sync.encrypted` rows don't parse to
   `<hash>|<nonce>|<ciphertext>|<auth_tag>` format: ERROR
   `session_sync_encrypted_format_invalid`.
-- HKDF salt = `repo_identity_hash[:16]` differs between local and
-  remote ledgers: ERROR `session_sync_hkdf_salt_mismatch`
+- HKDF salt = first 16 bytes of `repo_identity_hash` differs
+  between local and remote ledgers: ERROR `session_sync_hkdf_salt_mismatch`
   (runtime; repository identity changed; rehash needed similar to
   v030a).
 

@@ -906,7 +906,10 @@ responding to user):
    `active_consensus_task`, `active_consensus_n`,
    `active_consensus_strategy`, `active_consensus_group_lock`, and
    `consensus_outcomes`, then clear `pending_quota_capsule` and
-   reset `mid_run_actual_exceeded_count: 0`.
+   reset `mid_run_actual_exceeded_count: 0`. Clear
+   `pending_session_conflict` on terminal exit; unresolved session
+   conflict queues remain auditable in
+   `session_sync_pending_conflicts`.
    Set `last_update`. Single atomic tmp-rename write.
 
 If any step fails partway, the controller logs an

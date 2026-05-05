@@ -209,6 +209,10 @@ Add-Result "v030c.r1_ref.lock_acquire" "v030c R1 ref documents lock acquisition 
     (($v030cRef -match "Lock acquisition") -and ($v030cRef -match "acquire_consensus_group_lock\("))
 Add-Result "v030c.r1_ref.lock_timeout_capsule" "v030c R1 ref defines CONSENSUS_LOCK_TIMEOUT capsule" `
     ($v030cRef -match "CONSENSUS_LOCK_TIMEOUT")
+Add-Result "v030c.r1_ref.lock_timeout_full_capsule" "v030c R1 lock-timeout path uses the full decision capsule" `
+    (($v030cRef -match "decision_id: dec-NNN") -and `
+     ($v030cRef -match "decision_default: wait_more") -and `
+     ($v030cRef -match "user_decision_options: \[wait_more, retry_lock, demote_single, stop\]"))
 Add-Result "v030c.r1_ref.cancellation" "v030c R1 ref documents cancellation algorithm" `
     (($v030cRef -match "cancel_inflight\(") -and ($v030cRef -match "cancellation_pending"))
 Add-Result "v030c.r1_ref.strategy_first_passing" "v030c R1 ref documents first_passing algorithm" `
@@ -223,6 +227,17 @@ Add-Result "v030c.r1_ref.reviewer_prompt_template" "v030c R1 ref provides review
     (($v030cRef -match "Consensus reviewer") -and ($v030cRef -match "::winner: <worker_id>::"))
 Add-Result "v030c.r1_ref.staging_cleanup" "v030c R1 ref documents staging cleanup" `
     ($v030cRef -match "cleanup_staging\(")
+Add-Result "v030c.r1_ref.apply_validates_real_targets" "v030c R1 apply validates real target paths before applying staged winner" `
+    (($v030cRef -match "validate_declared_output_paths\(target_paths") -and `
+     ($v030cRef -match "validate_path_policy\(target_paths") -and `
+     ($v030cRef -match "resolve_permission\(`"edit`", target_paths") -and `
+     ($v030cRef -match "snapshot_create_for_outputs\(target_paths") -and `
+     ($v030cRef -notmatch "resolve_permission\(`"edit`", winner_future\.staged_dir") -and `
+     ($v030cRef -notmatch "snapshot_create_for_outputs\(winner_future\.staged_dir"))
+Add-Result "v030c.r1_ref.retry_failed_keeps_lock" "v030c R1 retry_failed keeps group lock while reusing successful staged candidates" `
+    (($v030cRef -match "retry_failed.*keep the existing group lock") -and `
+     ($v030cRef -match "Lock invariant") -and `
+     ($v030cRef -match "retry_all.*releases"))
 Add-Result "v030c.r1_ref.r1_scenarios" "v030c R1 ref lists scenarios 174-181" `
     ($v030cRef -match "(?s)R1 acceptance scenarios.*?174.*?181")
 
