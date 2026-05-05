@@ -160,6 +160,25 @@ Add-Result "v023.roadmap.no_stale_notepad_v1" "roadmap no longer says notepad v2
 Add-Result "v023.roadmap.no_stale_snapshot_vcs_default" "roadmap no longer says metadata-only defaults for version control" `
     (-not ($roadmapRefText -match 'default\s+for\s+files\s+within\s+version\s+control'))
 
+$r2LivePlanText = Read-Text ".dtd/reference/v030-r2-live-test-plan.md"
+Add-Result "v023.r2_live_plan.rehash_scenario" "R2 live plan covers loop-guard rehash admin path" `
+    (($r2LivePlanText -match 'L-A-4') -and ($r2LivePlanText -match '/dtd loop-guard rehash') -and
+     ($r2LivePlanText -match 'rehash_admin'))
+Add-Result "v023.r2_live_plan.concurrent_finalize_code" "R2 live plan uses cross-run concurrent finalize doctor code" `
+    (($r2LivePlanText -match 'cross_run_concurrent_finalize_detected') -and
+     (-not ($r2LivePlanText -match 'consensus_concurrent_finalize_detected')))
+Add-Result "v023.r2_live_plan.session_sync_no_binary_blob" "R2 live plan describes encrypted base64url sync rows" `
+    (($r2LivePlanText -match 'encrypted base64url text rows') -and
+     (-not ($r2LivePlanText -match 'binary blob')))
+Add-Result "v023.r2_live_plan.negative_error_remediation" "R2 live plan permits expected negative ERROR then remediation" `
+    (($r2LivePlanText -match 'No unexpected `ERROR`-level doctor codes remain') -and
+     ($r2LivePlanText -match 'Negative scenarios such as L-D-3 MUST'))
+Add-Result "v023.r2_live_plan.lock_timeout_fixture" "R2 live plan forces lock hold beyond timeout for L-C-4" `
+    ($r2LivePlanText -match 'holds the group lock longer than')
+Add-Result "v023.r2_live_plan.reporting_evidence" "R2 live plan reporting table includes Evidence column" `
+    (($r2LivePlanText -match '\| Scenario \| Status \| Evidence \| Notes \|') -and
+     ($r2LivePlanText -match 'decision capsule id'))
+
 Add-Result "v023.instructions.effective_profile" "instructions compute effective_profile" `
     ($instructionsMd -match 'compute `effective_profile`')
 Add-Result "v023.instructions.observational_no_profile_write" "instructions prevent profile writes on observational reads" `

@@ -56,14 +56,40 @@ Minimum requirements:
 3. **A consensus task** — at least one task with `consensus="3"
    reviewer_consensus`.
 4. **Workers**:
+   - At least 3 configured worker slots for consensus scenarios.
    - At least 1 local worker (Ollama / vLLM / LM Studio).
    - At least 1 remote worker that returns `x-ratelimit-*`
      headers (any OpenAI-compat provider).
-   - Optionally a paid worker for the v0.3.0b paid-fallback test.
+   - The reviewer-consensus reviewer MUST be a distinct worker id
+     from the candidate set. Multiple worker ids may point at the
+     same provider only when they use separate model/session
+     configuration and the test report says so.
+   - Optionally a paid worker for stretch fallback coverage.
 5. **Sync target** (optional, only if testing v0.3.0d):
    - A shared filesystem path (e.g. `~/Dropbox/dtd-r2-test-sync/`
      or a tmpfs path simulated via 2 parallel project clones).
    - `DTD_SESSION_SYNC_KEY` env var set to a 32-byte secret.
+
+R2 safety guardrails:
+
+- Use a disposable test repo/worktree only. Do not run R2 against a
+  production project.
+- Use a dedicated sync path or branch that contains no real user data.
+- Use non-production worker credentials. Do not commit `.dtd/.env`,
+  `.dtd/session-sync*`, worker logs, or live provider tokens.
+- Cleanup commands, when used, must be scoped to
+  `test-projects/dtd-v03-live/` and the dedicated sync target.
+
+Suggested scaffold:
+
+```text
+test-projects/dtd-v03-live/
+  src/auth/
+  src/api/
+  src/core/
+  tests/
+  .dtd/
+```
 
 ## Per-sub-release coverage matrix
 
@@ -82,7 +108,7 @@ core contract:
 
 | Live scenario | Covers |
 |---|---|
-| **L-B-1**: Configure local worker with `daily_token_quota: 10000`; run plan that consumes ~9000 tokens; verify predictive check fires WORKER_QUOTA_EXHAUSTED_PREDICTED before next dispatch. | Step 5.5.0 predictive routing. |
+| **L-B-1**: Configure local worker with `daily_token_quota: 10000`; run one or more tasks that record about 9000 used tokens, then queue a next task whose estimate would cross the quota threshold; verify predictive check fires WORKER_QUOTA_EXHAUSTED_PREDICTED before dispatch. | Step 5.5.0 predictive routing. |
 | **L-B-2**: Provider returns `x-ratelimit-remaining: 50`; verify `worker-usage-run-NNN.md` row has `provider_remaining: 50` AND no raw header strings persisted. | Provider-header parser + redaction discipline. |
 | **L-B-3**: Trigger 429 mid-run; verify capsule fires with `mid_run_actual_exceeded: true`; verify `plan_status: PAUSED` + `awaiting_user_decision: true` (NOT terminal). | Mid-run quota exhaust as durable blocker. |
 
@@ -90,9 +116,10 @@ core contract:
 
 | Live scenario | Covers |
 |---|---|
-| **L-A-1**: Run a plan that produces 3 same-signature failures; finalize_run captures cross-run signature; on next run, same failure pattern fires LOOP_GUARD_CROSS_RUN_HIT capsule after threshold (2 by default). | Capture-before-clear at step 5d + cross-run match algorithm. |
-| **L-A-2**: User runs `/dtd loop-guard prune <signature>`; tombstone appended; subsequent same-signature failure does NOT fire (until user appends new non-tombstone row). | Tombstone precedence + revival semantics. |
-| **L-A-3**: 2 controllers running same project simultaneously both finalize_run within 60s; verify `consensus_concurrent_finalize_detected` INFO; ledger has 2 rows for same signature; match algorithm uses MAX run_count. | Concurrent run handling. |
+| **L-A-1**: Run two distinct terminal runs that produce the same failure signature; verify finalize_run captures both rows; on the following dispatch/watch, the same pattern fires LOOP_GUARD_CROSS_RUN_HIT after threshold (2 by default). | Capture-before-clear at step 5d + cross-run match algorithm. |
+| **L-A-2**: User runs `/dtd loop-guard prune <signature>`; tombstone appended; immediate lookup treats the older signature inactive. A later same-signature failure may create a fresh non-tombstone row at count=1, and only a subsequent recurrence can hit the threshold again. | Tombstone precedence + revival semantics. |
+| **L-A-3**: 2 controllers running same project simultaneously both finalize_run within 60s; verify `cross_run_concurrent_finalize_detected` INFO; ledger has 2 rows for same signature; match algorithm uses MAX run_count. | Concurrent run handling. |
+| **L-A-4**: Run `/dtd loop-guard rehash` in the disposable project after a deliberate project-identity change; verify old signature rows are tombstoned by `rehash_admin`, replacement rows use the new project identity, and no ledger history is physically deleted. | Rehash admin path + audit-preserving migration. |
 
 ### v0.3.0c — Multi-worker consensus dispatch
 
@@ -101,14 +128,14 @@ core contract:
 | **L-C-1**: Plan with `consensus="3" first_passing` against 3 different workers; verify all 3 dispatch in parallel into isolated staging dirs; first to return `::done::` wins; remaining cancelled or marked `consensus_late_stale`. | Parallel dispatch + staged isolation + late-result-never-apply. |
 | **L-C-2**: Plan with `consensus="3" reviewer_consensus consensus-reviewer="<id>"`; verify reviewer is DISTINCT from candidate set; reviewer returns `::winner: <id>::`; only winner applies. | Reviewer prompt + reviewer-distinct invariant. |
 | **L-C-3**: Plan with `consensus="3" vote_unanimous` against 3 workers that produce slightly different outputs; verify CONSENSUS_DISAGREEMENT capsule fires; user picks `retry_all` → fresh dispatch; verify staging cleaned up. | vote_unanimous + capsule resume actions. |
-| **L-C-4**: Two consensus tasks racing on same `output-paths`; verify single group lock blocks the second; CONSENSUS_LOCK_TIMEOUT capsule fires after `consensus_lock_acquire_timeout_sec` (30s). | Group lock semantics + timeout capsule. |
+| **L-C-4**: Two consensus tasks race on the same `output-paths`; the first task or fixture holds the group lock longer than `consensus_lock_acquire_timeout_sec` (30s); verify the second task blocks and then fires CONSENSUS_LOCK_TIMEOUT. | Group lock semantics + timeout capsule. |
 
 ### v0.3.0d — Cross-machine session sync
 
 | Live scenario | Covers |
 |---|---|
 | **L-D-1**: Backend `none` (default); verify v0.2.1 per-machine behavior unchanged (no sync read/write). | Backend `none` no-op. |
-| **L-D-2**: Backend `filesystem`, sync_path = shared folder, `DTD_SESSION_SYNC_KEY` set; finalize_run writes `<sync_path>/<repo_id_hash>/session-sync.encrypted`; verify file is binary blob + decrypts with same key on Machine B. | Encryption round-trip + cross-machine resume. |
+| **L-D-2**: Backend `filesystem`, sync_path = shared folder, `DTD_SESSION_SYNC_KEY` set; finalize_run writes `<sync_path>/<repo_id_hash>/session-sync.encrypted`; verify the file contains encrypted base64url text rows, contains no raw session id by grep, and decrypts with the same key on Machine B. | Encryption round-trip + cross-machine resume. |
 | **L-D-3**: Backend `filesystem` with NO encryption key set; verify ERROR `session_sync_no_encryption_key`; sync DISABLED for run; per-machine fallback. | Fail-closed without key (Codex P1.6). |
 | **L-D-4**: Backend `git_branch`, sync_branch = `dtd-session-sync`; verify isolated worktree at `.dtd/tmp/session-sync-worktree/`; commit happens only there; user's working branch git status NOT modified. | Branch isolation. |
 | **L-D-5**: 2 machines both have active session for `(worker_x, claude-api)` with different `session_id_hash`; verify SESSION_CONFLICT capsule fires with full decision capsule; user picks `use_remote`; verify decryption succeeds + same-worker hint. | Conflict detection + durable `pending_session_conflict` resume. |
@@ -120,19 +147,30 @@ core contract:
 | **L-X-1**: Run all 5 sub-releases interleaved within a single plan; verify finalize_run step 5e runs both `9.quota` AND `9.session-sync` hooks before WORK_END; verify step 7 clears all v0.3 per-run runtime fields. | Codex P1.10 dedicated-step discipline + step 7 cleanup. |
 | **L-X-2**: After R2 run, run `/dtd doctor`; verify zero ERRORs across all v0.3 doctor codes when contracts hold. | Doctor coverage. |
 
+Optional stretch coverage:
+
+| Live scenario | Covers |
+|---|---|
+| **L-X-S1**: With session sync enabled, exhaust a free/local worker quota and offer a paid fallback worker; verify paid fallback still requires the configured confirmation policy and sync artifacts contain no raw session ids. | Cross-cutting quota + fallback + sync safety. |
+
 ## Acceptance criteria
 
 R2 passes if:
 
-1. **All live scenarios above complete the documented "Pass"
-   condition** with at least 1 verified pass per scenario.
-2. **No `ERROR`-level doctor codes fire** at the end of any R2
-   run for the contracts under test (INFO/WARN are OK and
-   expected for some scenarios).
+1. **All required live scenarios in the coverage matrix above
+   complete the documented "Pass" condition** with at least 1
+   verified pass per scenario. The Optional stretch coverage section
+   does not block R2.
+2. **No unexpected `ERROR`-level doctor codes remain** after each
+   scenario is remediated. Negative scenarios such as L-D-3 MUST
+   first observe the expected ERROR, then restore configuration and
+   finish with a clean doctor pass for the contracts under test
+   (INFO/WARN are OK and expected for some scenarios).
 3. **No raw provider session ids appear** in any synced file
-   (filesystem OR git_branch backend) — verified via grep on
-   `.dtd/session-sync.md` + decrypt + comparison; AND no token
-   strings in `.dtd/log/worker-usage-run-NNN.md` (P1.6 + P1.2).
+   (filesystem OR git_branch backend), verified by grep over the
+   encrypted sync file, sync working tree, and DTD logs; decryption
+   is used only to verify round-trip correctness. No token strings
+   may appear in `.dtd/log/worker-usage-run-NNN.md` (P1.6 + P1.2).
 4. **Group locks behave correctly under contention** — no
    deadlocks; CONSENSUS_LOCK_TIMEOUT capsule fires when expected;
    retry_failed reuses lock; retry_all releases.
@@ -148,15 +186,16 @@ R2 results recorded in `test-projects/dtd-v03-live/run-r2-results.md`
 with one row per live scenario:
 
 ```markdown
-| Scenario | Status | Notes |
-|---|---|---|
-| L-E-1 | PASS | rule pruned at finalize_run; tombstone matches by:finalize_run_ttl_expired |
-| L-E-2 | PASS | for run sentinel cleared at COMPLETED |
-| ... | ... | ... |
+| Scenario | Status | Evidence | Notes |
+|---|---|---|---|
+| L-E-1 | PASS | `.dtd/permissions.md`, `.dtd/log/...` | rule pruned at finalize_run; tombstone matches by:finalize_run_ttl_expired |
+| L-E-2 | PASS | `.dtd/permissions.md` | for run sentinel cleared at COMPLETED |
+| ... | ... | ... | ... |
 ```
 
 A failed scenario MUST file a v0.2.0a incident; recovery options
-follow the standard DTD flow.
+follow the standard DTD flow. The incident id, decision capsule id,
+and recovery choice should be listed in the Evidence column.
 
 ## Out of scope for R2
 

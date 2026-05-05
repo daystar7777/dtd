@@ -52,7 +52,8 @@ v0.3 line — Path A (e → b → a → c → d) execution status —
   R1 (`0aacd5a`) review-passed (Codex `07fc465`).
 
 Per-sub-release reference topic pattern (Codex's recommendation):
-catalog grew from 13 → 18 across v0.3 line:
+catalog grew from 13 to 18 across v0.3 R0/R1, with R2 adding the
+19th runtime-validation topic:
 - `v030a-cross-run-loop-guard.md` (R0 + R1)
 - `v030c-consensus.md` (R0 + R1)
 - `v030d-cross-machine-session-sync.md` (R0 + R1)
@@ -61,9 +62,9 @@ catalog grew from 13 → 18 across v0.3 line:
 
 R2 (Codex's residual risk): live DTD run against a nontrivial test
 project to exercise consensus staging, worker cancellation,
-git-branch sync, and session conflict recovery end-to-end. Spec'd
-out in `.dtd/reference/v030-r2-live-test-plan.md` (planned —
-session #11).
+git-branch sync, and session conflict recovery end-to-end. Defined
+in `.dtd/reference/v030-r2-live-test-plan.md` and ready for
+user-driven execution (session #11).
 
 ## v0.1.1
 
