@@ -155,6 +155,10 @@ Add-Result "v020b.r1.autonomy_silent_transient" "autonomy.md has Silent transien
 Add-Result "v020b.r1.autonomy_destructive_set" "autonomy.md documents destructive_command_set patterns" `
     (($autonomyRef -match "rm -rf") -and ($autonomyRef -match "git push --force") -and `
      ($autonomyRef -match "wget \| bash"))
+Add-Result "v020b.r1.autonomy_windows_destructive_set" "autonomy.md covers Windows destructive delete commands" `
+    (($autonomyRef -match "Remove-Item -Recurse") -and `
+     ($autonomyRef -match "cmd /c rmdir /s") -and `
+     ($autonomyRef -match "del /s"))
 Add-Result "v020b.r1.autonomy_revocation" "autonomy.md documents revocation algorithm" `
     ($autonomyRef -match "Revocation algorithm")
 Add-Result "v020b.r1.permissions_audit_section" "permissions.md has Audit log (v0.2.0b R1) section" `

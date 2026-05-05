@@ -171,6 +171,10 @@ Add-Result "v022.r1.run_loop_reflexion_lesson" "run-loop.md says reflexion ALWAY
     ($runLoopRef -match "(?s)reflexion.*?ALWAYS append a 1-line lesson")
 Add-Result "v022.r1.run_loop_manual_trigger" "run-loop.md says /dtd notepad compact runs same algorithm" `
     ($runLoopRef -match "(?s)Manual trigger.*?/dtd notepad compact.*?runs the same\s+algorithm")
+Add-Result "v022.r1.run_loop_finalize_resets_v2_template" "run-loop.md finalizes by resetting notepad to schema-v2 template" `
+    (($runLoopRef -match "Reset notepad") -and `
+     ($runLoopRef -match "schema-v2 template state") -and `
+     ($runLoopRef -match "8 H3 headings"))
 
 $stateMd = Read-Text ".dtd/state.md"
 Add-Result "v022.r1.state.section" "state.md has ## Notepad compaction (v0.2.2 R1) section" `

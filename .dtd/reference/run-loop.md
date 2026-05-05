@@ -408,8 +408,9 @@ path). Algorithm:
 3. **Window staleness check**: if
    `loop_guard_signature_first_seen_at < now -
    config.loop-guard.loop_guard_signature_window_min` (default
-   30 min): reset to `loop_guard_signature_count: 1` (ignore
-   match across window).
+   30 min): reset to `loop_guard_signature_count: 1` AND set
+   `loop_guard_signature_first_seen_at: <now>` (ignore match
+   across the old window; the current failure starts a new window).
 4. **Threshold trigger**: if
    `loop_guard_signature_count >= config.loop-guard.loop_guard_threshold`
    (default 3):
@@ -430,6 +431,7 @@ path). Algorithm:
 6. **After resolve** (user picked option, OR auto-action ran):
    - `loop_guard_signature: null`,
    - `loop_guard_signature_count: 0`,
+   - `loop_guard_signature_first_seen_at: null`,
    - `loop_guard_status: idle`,
    - `loop_guard_last_check_at: <ts>`.
 
@@ -447,30 +449,28 @@ deferred to v0.3.
 ## Snapshot mode resolution (v0.2.0c R1)
 
 Per-file mode chosen at run-loop step 6.g.0 BEFORE temp-write.
-Resolution order (first match wins):
+Resolution order (first match wins). This is evaluated only for
+paths that are part of the validated worker output set unless noted:
 
-1. **File does not exist yet (new file creation)** → `metadata-only`
-   (revert deletes the new file; no preimage needed since pre-state
-   was "absent").
+1. **Explicit audit-only / non-output context file** → `metadata-only`.
+   This mode is allowed only when the file is NOT in the current
+   worker apply output set and revertability was not promised.
 2. **Permission ledger has `revert: allow ... revert_required: true`**
    → `preimage` (user explicitly forced revertability).
-3. **File extension matches
+3. **File does not exist yet (new worker output path)** → `preimage`
+   with an absent-prestate marker. Revert deletes the created file.
+4. **File extension matches
    `config.snapshot.binary_extensions`** → `preimage`
    (binary diff is unreliable).
-4. **File size > `config.snapshot.preimage_size_threshold`
-   (default 64 KB)** → `patch` (forward + reverse unified diff).
 5. **File size > `config.snapshot.patch_max_size`
-   (default 4 MB)** → `preimage` (patch overhead exceeds preimage
-   for huge files; fallback for safety).
-6. **File is git-tracked AND text** → `metadata-only` (audit-only;
-   user can `git restore` if needed; controller cannot
-   programmatically revert).
-   - **Override**: small tracked text outputs from a worker apply
-     SHOULD use `preimage` for revertability (per Codex v0.2.0e/b/c
-     review). The `metadata-only` mode is only for explicit
-     audit-only/non-output context files.
-7. **Untracked text file** → `preimage` (untracked = git can't
-   restore; preimage is the only restore path).
+   (default 4 MB)** → `preimage` (patch overhead/risk too high;
+   fallback for safety).
+6. **Text file size > `config.snapshot.preimage_size_threshold`
+   (default 64 KB)** → `patch` (forward + reverse unified diff).
+7. **Tracked or untracked text worker output <= threshold** →
+   `preimage`. Small tracked text outputs MUST NOT use
+   `metadata-only`; normal worker output files are revertable by
+   default.
 8. **Default fallback** → `preimage` (safer default than
    metadata-only).
 
@@ -489,7 +489,7 @@ unrevertable: false                               # true if proceed_unsafe used
 
 ## Files
 
-- <path>          | mode: <m> | size_pre: <bytes> | sha256_pre: <hash> | revertable: yes|no
+- <path>          | mode: <m> | size_pre: <bytes|absent> | sha256_pre: <hash|absent> | revertable: yes|no
 
 ## Reason for mode choices
 
@@ -501,6 +501,11 @@ unrevertable: false                               # true if proceed_unsafe used
 - patch_format_version: 1
 - whitespace_handling: preserve_lf      # preserve_lf | normalize_crlf
 ```
+
+For a new worker output path whose pre-apply state was absent, write
+`size_pre: absent` and `sha256_pre: absent` (or an equivalent explicit
+absent marker) and store a small preimage marker artifact. Revert treats
+that marker as "delete this created file".
 
 **Index row format** (per `.dtd/snapshots/index.md`):
 
@@ -599,7 +604,9 @@ responding to user):
 2. **Archive notepad**: copy `.dtd/notepad.md` →
    `.dtd/runs/run-NNN-notepad.md`. Create `.dtd/runs/` if missing.
 3. **Reset notepad**: replace `.dtd/notepad.md` content with the
-   template state (5 sections, all `(empty)`).
+   current schema-v2 template state (`## handoff` with 8 H3 headings,
+   plus controller-only `learnings`, `decisions`, `issues`, and
+   `verification` sections, all `(empty)`).
 4. **Write run summary**: `.dtd/log/run-NNN-summary.md` with phase
    grades / output paths / duration / final grade.
 5. **Clear incident state** (v0.2.0a):
@@ -660,8 +667,11 @@ responding to user):
    `plan_ended_at: <ts>`, clear `current_task`/`current_phase`/
    `pending_patch`/`pending_attempts` fields, plus the
    incident-state clears from step 5, plus the decision-capsule
-   clears from step 5 if applicable. Set `last_update`. Single
-   atomic tmp-rename write.
+   clears from step 5 if applicable. Also clear
+   `loop_guard_signature`, `loop_guard_signature_count`,
+   `loop_guard_signature_first_seen_at`, and reset
+   `loop_guard_status: idle` because loop signatures are per-run.
+   Set `last_update`. Single atomic tmp-rename write.
 
 If any step fails partway, the controller logs an
 `ORPHAN_RUN_NOTE` to `AIMemory/work.log` (if present) describing

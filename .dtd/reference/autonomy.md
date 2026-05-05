@@ -281,6 +281,12 @@ resolution algorithm:
 - `mkfs` (filesystem creation)
 - `chmod -R 777` / `chmod 0777`
 - `wget | bash` / `curl | sh` (pipe-to-shell patterns)
+- PowerShell destructive deletes: `Remove-Item -Recurse`,
+  `Remove-Item -Force -Recurse`, aliases such as `rm -r` / `del -r`
+  when resolved in PowerShell, and wrapper forms like
+  `powershell -Command "Remove-Item ..."` or `pwsh -c "rm -r ..."`
+- Windows cmd destructive deletes: `rmdir /s`, `rd /s`, `del /s`,
+  and wrapper forms like `cmd /c rmdir /s ...`
 
 The user's permanent `allow` rule for any of these scopes is
 **overridden** by the silent transient `deny` for the silent

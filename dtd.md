@@ -210,12 +210,14 @@ per file (chosen by policy at apply-time):
 | Mode | Contents | Revertable | When |
 |---|---|---|---|
 | `metadata-only` | SHA-256 + size + git diff metadata | NO (audit-only) | explicit audit-only files or non-output context where revertability is not promised |
-| `preimage` | byte-for-byte pre-apply copy | YES | default for changed files `<= preimage_size_threshold`, binaries, untracked files, or `revert_required: true` |
+| `preimage` | byte-for-byte pre-apply copy, or an absent-prestate marker for newly-created output paths | YES | default for normal worker output, binaries, untracked files, new output paths, or `revert_required: true` |
 | `patch` | forward + reverse unified diff | YES | text files larger than `preimage_size_threshold` and `<= patch_max_size` |
 
 Normal worker output files must be revertable by default. Small tracked text
-files therefore use `preimage`, not `metadata-only`; metadata-only is an
-explicit audit-only choice and cannot be the default for apply writes.
+files and newly-created output paths therefore use `preimage`, not
+`metadata-only`; new-path preimages record "absent before apply" so revert can
+delete the created file. `metadata-only` is an explicit audit-only choice and
+cannot be the default for apply writes.
 
 Forms:
 
@@ -632,13 +634,18 @@ Algorithm:
 1. Compute `loop_signature` for the just-failed attempt.
 2. If equal to `state.md.loop_guard_signature`: increment
    `loop_guard_signature_count`.
-3. Else: set new signature; reset count to 1.
-4. When count ≥ `loop_guard_threshold` (default 3): set
+3. Else: set new signature; reset count to 1 and set
+   `loop_guard_signature_first_seen_at: <ts>`.
+4. If the first-seen timestamp is older than
+   `loop_guard_signature_window_min` (default 30 min), treat the current
+   failure as a new window: keep the signature, reset count to 1, and set
+   `loop_guard_signature_first_seen_at: <now>`.
+5. When count ≥ `loop_guard_threshold` (default 3): set
    `loop_guard_status: hit`; fill capsule
    `awaiting_user_reason: LOOP_GUARD_HIT` with options
    `[ask_user, worker_swap, controller, stop]`
    (default `ask_user`).
-5. After resolve: reset signature/count/status.
+6. After resolve: reset signature/count/first_seen/status.
 
 Signature stales after `loop_guard_signature_window_min` (default
 30 min) — old patterns don't confuse new failures.
@@ -1353,8 +1360,9 @@ Three pattern surfaces:
   `debugger`, `reviewer`, `release_guard`. Compact stance ≤120 words;
   NEVER overrides security/permission/destructive rules.
 - **Reasoning utilities** (7): `direct`, `least_to_most`, `react`,
-  `tool_critic`, `self_refine`, `tree_search`, `reflexion`. Hidden CoT
-  allowed; persist ONLY decision/evidence_refs/risks/next_action +
+  `tool_critic`, `self_refine`, `tree_search`, `reflexion`. The model may
+  reason privately, but DTD never asks for, stores, or forwards raw
+  chain-of-thought; persist ONLY decision/evidence_refs/risks/next_action +
   ≤5 line summary.
 - **Tool runtime** (4 modes): `none`, `controller_relay` (default),
   `worker_native`, `hybrid`. controller_relay: worker emits
@@ -1637,7 +1645,7 @@ Update lifecycle:
 **Terminal lifecycle**: notepad archive/reset is one of the steps in `finalize_run(terminal_status)` (see `/dtd run` section). Called by ALL terminal exits — `COMPLETED`, `STOPPED`, `FAILED`. Steps:
 
 1. Copy `.dtd/notepad.md` → `.dtd/runs/run-NNN-notepad.md` (creates `.dtd/runs/` if missing).
-2. Reset `.dtd/notepad.md` to template state.
+2. Reset `.dtd/notepad.md` to the current schema-v2 template state.
 
 PAUSED is non-terminal — notepad is preserved across pause/resume.
 

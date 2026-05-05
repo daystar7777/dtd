@@ -273,6 +273,13 @@ Add-Result "v021.r1.run_loop_loop_signature" "run-loop.md has Loop guard signatu
     ($runLoopRef -match "### Loop guard signature computation")
 Add-Result "v021.r1.run_loop_loop_window" "run-loop.md documents window staleness check" `
     ($runLoopRef -match "Window staleness check")
+Add-Result "v021.r1.run_loop_loop_window_resets_first_seen" "run-loop.md resets first_seen_at when loop window stales" `
+    (($runLoopRef -match "Window staleness check") -and `
+     ($runLoopRef -match "loop_guard_signature_first_seen_at: <now>"))
+Add-Result "v021.r1.run_loop_loop_resolve_clears_first_seen" "run-loop.md clears first_seen_at after loop guard resolve/finalize" `
+    (($runLoopRef -match "After resolve") -and `
+     ($runLoopRef -match "loop_guard_signature_first_seen_at: null") -and `
+     ($runLoopRef -match "(?s)loop_guard_signature_first_seen_at.*loop signatures are per-run"))
 Add-Result "v021.r1.run_loop_loop_auto_explicit" "run-loop.md says decision_mode auto does NOT imply loop auto-action" `
     ($runLoopRef -match "decision_mode: auto.*does NOT imply\s+loop")
 

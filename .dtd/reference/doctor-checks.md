@@ -435,8 +435,9 @@ Sections:
   `purge --before <date>`.
 - Snapshots older than `retention_days * 2` and not in `archived/`:
   INFO `snapshot_rotation_overdue`.
-- Each `preimage` artifact's SHA-256 matches its manifest entry;
-  ELSE ERROR `snapshot_preimage_corrupted`.
+- Each `preimage` artifact's SHA-256 matches its manifest entry, OR the
+  manifest explicitly marks an absent-prestate marker for a newly-created
+  output path; ELSE ERROR `snapshot_preimage_corrupted`.
 - Each `patch` artifact applies cleanly to current working state via
   dry-run; ELSE WARN `snapshot_patch_drift` (means another process
   modified the file after apply; revert may not produce expected
@@ -457,7 +458,7 @@ Sections:
   `applied_at`, `mode_default`); ELSE WARN
   `snapshot_manifest_field_missing: <field>`.
 - `## Files` row format
-  `<path> | mode: <m> | size_pre: <n> | sha256_pre: <h> | revertable: yes|no`;
+  `<path> | mode: <m> | size_pre: <n|absent> | sha256_pre: <h|absent> | revertable: yes|no`;
   ELSE WARN `snapshot_file_row_invalid`.
 - `mode` ∈ `preimage | patch | metadata-only`; ELSE ERROR
   `snapshot_mode_invalid`.
@@ -472,8 +473,13 @@ Sections:
   ELSE WARN `snapshot_index_row_invalid`.
 - `<status>` ∈ `active | rotated | purged | reverted`; ELSE
   ERROR `snapshot_index_status_invalid`.
-- Tracked text worker output mode: SHOULD be `preimage` (per
-  Codex policy); INFO `snapshot_mode_policy_drift` if not.
+- Tracked text worker output mode: MUST be `preimage`; ELSE ERROR
+  `snapshot_tracked_text_unrevertable`. Legacy implementations may also
+  report INFO `snapshot_mode_policy_drift`, but normal apply output is
+  not allowed to depend on git restore.
+- Newly-created worker output paths MUST be `preimage` with an
+  absent-prestate marker, never `metadata-only`; ELSE ERROR
+  `snapshot_new_output_unrevertable`.
 - Revert lineage: `## Active rules` revert entries match a
   `reverted` snap-id in `index.md`; ELSE INFO
   `revert_audit_lineage_drift`.

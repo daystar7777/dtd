@@ -90,7 +90,7 @@ foreach ($form in $revertForms) {
 Add-Result "v020c.dtdmd.three_modes" "dtd.md documents 3 snapshot modes" `
     (($dtdMd -match "metadata-only") -and ($dtdMd -match "preimage") -and ($dtdMd -match "patch"))
 Add-Result "v020c.dtdmd.small_text_preimage" "dtd.md requires normal small text outputs to use preimage" `
-    (($dtdMd -match "Small tracked text") -and ($dtdMd -match "use .*preimage.*not .*metadata-only"))
+    ($dtdMd -match "(?s)Small tracked text.*use.*preimage.*not.*metadata-only")
 Add-Result "v020c.dtdmd.partial_revert" "dtd.md mentions PARTIAL_REVERT capsule" `
     ($dtdMd -match "PARTIAL_REVERT")
 Add-Result "v020c.dtdmd.proceed_unsafe" "dtd.md mentions proceed_unsafe option" `
@@ -171,15 +171,25 @@ Add-Result "v020c.r1.run_loop_mode_resolution" "run-loop.md has Snapshot mode re
     ($runLoopRef -match "## Snapshot mode resolution \(v0\.2\.0c R1\)")
 Add-Result "v020c.r1.run_loop_revert_algorithm" "run-loop.md has Revert algorithm (v0.2.0c R1)" `
     ($runLoopRef -match "## Revert algorithm \(v0\.2\.0c R1\)")
-Add-Result "v020c.r1.run_loop_8_resolution_rules" "run-loop.md mode resolution lists rules 1-8 in order" `
-    (($runLoopRef -match "1\. \*\*File does not exist") -and `
+Add-Result "v020c.r1.run_loop_8_resolution_rules" "run-loop.md mode resolution lists the revertable-first rules 1-8 in order" `
+    (($runLoopRef -match "1\. \*\*Explicit audit-only / non-output context file") -and `
      ($runLoopRef -match "2\. \*\*Permission ledger has") -and `
-     ($runLoopRef -match "3\. \*\*File extension matches") -and `
-     ($runLoopRef -match "4\. \*\*File size > .*preimage_size_threshold") -and `
+     ($runLoopRef -match "3\. \*\*File does not exist yet") -and `
+     ($runLoopRef -match "4\. \*\*File extension matches") -and `
      ($runLoopRef -match "5\. \*\*File size > .*patch_max_size") -and `
-     ($runLoopRef -match "6\. \*\*File is git-tracked AND text") -and `
-     ($runLoopRef -match "7\. \*\*Untracked text") -and `
+     ($runLoopRef -match "6\. \*\*Text file size > .*preimage_size_threshold") -and `
+     ($runLoopRef -match "7\. \*\*Tracked or untracked text worker output <= threshold") -and `
      ($runLoopRef -match "8\. \*\*Default fallback"))
+Add-Result "v020c.r1.run_loop_new_file_preimage" "run-loop.md requires new worker output paths to use preimage absent marker" `
+    (($runLoopRef -match "File does not exist yet.*new worker output path") -and `
+     ($runLoopRef -match "absent-prestate marker") -and `
+     ($runLoopRef -match "Revert deletes the created file"))
+Add-Result "v020c.r1.run_loop_manifest_absent_marker" "run-loop.md manifest format allows absent pre-state marker" `
+    (($runLoopRef -match "size_pre: <bytes\|absent>") -and `
+     ($runLoopRef -match "sha256_pre: <hash\|absent>"))
+Add-Result "v020c.r1.run_loop_metadata_only_audit_only" "run-loop.md keeps metadata-only out of normal worker apply outputs" `
+    (($runLoopRef -match "Explicit audit-only / non-output context file") -and `
+     ($runLoopRef -match "NOT in the current\s+worker apply output set"))
 Add-Result "v020c.r1.run_loop_manifest_format" "run-loop.md documents manifest format with patch_format_version" `
     (($runLoopRef -match "patch_format_version") -and `
      ($runLoopRef -match "whitespace_handling: preserve_lf") -and `
@@ -208,6 +218,8 @@ $r1DoctorCodes = @(
     "snapshot_index_row_invalid",
     "snapshot_index_status_invalid",
     "snapshot_mode_policy_drift",
+    "snapshot_tracked_text_unrevertable",
+    "snapshot_new_output_unrevertable",
     "revert_audit_lineage_drift"
 )
 foreach ($code in $r1DoctorCodes) {

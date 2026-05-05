@@ -1639,7 +1639,8 @@ new attempt also has signature S1.
 
 **Expected**:
 - `loop_guard_signature_first_seen_at` is older than 30 min →
-  reset count to 1 (despite signature match).
+  reset count to 1 and set `loop_guard_signature_first_seen_at: <now>`
+  (despite signature match).
 - `loop_guard_status` stays `idle` (count=1 < threshold=3).
 - No `LOOP_GUARD_HIT` capsule fires.
 
@@ -1659,7 +1660,8 @@ triggering false positives.
   NOT skip permission-class capsule).
 - Sub-B: capsule does NOT fire; controller advances
   `current_fallback_index` and dispatches next worker (auto-action
-  triggered by explicit config, not decision_mode).
+  triggered by explicit config, not decision_mode); loop signature,
+  count, and `loop_guard_signature_first_seen_at` reset to idle values.
 
 **Pass**: auto-action is gated by `loop_guard_threshold_action`
 config explicitly, not by decision_mode auto.
@@ -1851,6 +1853,7 @@ or accept partial revertability.
 - `src/api/users.ts` (text, 4 KB, git-tracked, NEW worker output)
 - `src/build/icon.png` (binary, 12 KB, git-tracked)
 - `tests/fixtures/big.json` (text, 200 KB, untracked)
+- `src/new-widget.ts` (text, 2 KB, path absent before apply)
 - `docs/notes.md` (text, 1 KB, git-tracked, context-only existing
   file the worker reads but does not modify)
 
@@ -1858,13 +1861,15 @@ or accept partial revertability.
 
 **Expected** (per run-loop.md §"Snapshot mode resolution"):
 - `src/api/users.ts` → **`preimage`** (small tracked text output;
-  per Codex policy "small tracked text outputs SHOULD use preimage").
+  per Codex policy small tracked text outputs MUST use preimage).
 - `src/build/icon.png` → **`preimage`** (binary extension).
 - `tests/fixtures/big.json` → **`patch`** (untracked text >
   preimage_size_threshold; falls under rule 4 of mode resolution).
   Wait — actually rule 4 (size > 64 KB) fires before rule 7 (untracked
   text default = preimage). Re-read: rule 4 is "size > 64 KB → patch".
   This file is 200 KB > 64 KB so → patch. Confirm.
+- `src/new-widget.ts` → **`preimage`** with absent-prestate marker;
+  revert deletes the created file.
 - `docs/notes.md` is NOT in `<output-paths>` — no snapshot row at all
   (snapshot only covers files actually being modified by the apply).
 
@@ -2165,8 +2170,10 @@ caught.
   - `<ts> | deny | bash | scope: destructive_command_set | until: <attention_until> | by: silent_window`
 - `state.md.silent_window_transient_rule_ids` populated with the
   2 timestamps.
-- During silent window: a worker's attempt to run `rm -rf X`
-  resolves to `deny` (transient rule beats permanent allow per
+- During silent window: a worker's attempt to run `rm -rf X`,
+  PowerShell `Remove-Item -Recurse X`, or `cmd /c rmdir /s X`
+  resolves to `deny` (transient rule covers POSIX and Windows
+  destructive-command forms, and beats permanent allow per
   specificity-first; transient rule is more specific because of
   `until` and `by`).
 
