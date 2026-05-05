@@ -342,8 +342,10 @@ extraction.
 
 ## v0.3 line — Multi-LLM advanced execution
 
-Spec-complete at R0 (design) + R1 (runtime), pending Codex final
-GO + tag. 5 sub-releases:
+R0 (design) + R1 (runtime) GO across all 5 sub-releases (Codex
+final review pass 2026-05-06; R2 plan + R2-0 entry gate also
+GO). Tag pending user authorization. R2 live execution starts
+with `/dtd r2 readiness`. 5 sub-releases:
 
 - **v0.3.0a Cross-run loop guard** — stable signature ledger
   catches long-term failure patterns the within-run guard misses.

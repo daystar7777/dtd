@@ -307,8 +307,10 @@ self-update, 모듈화된 spec 추출이 포함됩니다.
 
 ## v0.3 라인 — 멀티-LLM 고급 실행
 
-R0 (설계) + R1 (런타임)에서 스펙 완성; Codex 최종 GO + 태그 대기 중.
-5개 sub-release:
+R0 (설계) + R1 (런타임) 5개 sub-release 전부 GO (Codex 최종
+리뷰 통과 2026-05-06; R2 plan + R2-0 entry gate도 GO).
+태그는 사용자 권한 대기 중. R2 라이브 실행은
+`/dtd r2 readiness`로 시작. 5개 sub-release:
 
 - **v0.3.0a Cross-run loop guard** — 안정 시그니처 ledger가
   within-run guard가 놓치는 장기 실패 패턴을 잡습니다.

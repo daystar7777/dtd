@@ -312,8 +312,10 @@ self-update、モジュール化された spec 抽出が含まれます。
 
 ## v0.3 ライン — マルチ-LLM 高度実行
 
-R0 (設計) + R1 (ランタイム) で仕様完成; Codex 最終 GO + タグ待ち。
-5 sub-release:
+R0 (設計) + R1 (ランタイム) 5 sub-release 全部 GO (Codex 最終
+レビュー通過 2026-05-06; R2 plan + R2-0 entry gate も GO)。
+タグはユーザー認可待ち。R2 ライブ実行は
+`/dtd r2 readiness` から開始。5 sub-release:
 
 - **v0.3.0a Cross-run loop guard** — 安定シグネチャ ledger が
   within-run guard が見逃す長期失敗パターンを検出します。
