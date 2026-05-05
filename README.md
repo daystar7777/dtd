@@ -3,7 +3,7 @@
 > Cheap LLMs do the work. Expensive ones just steer.
 > Multi-LLM execution mode in markdown — works in any agent.
 
-[한국어 README](README.ko.md) · [日本語 README](README.ja.md)
+[Korean README](README.ko.md) · [Japanese README](README.ja.md)
 
 ---
 
@@ -156,7 +156,7 @@ After `/dtd plan "add user CRUD endpoints"`:
 
 You see exactly which worker handles each task and **why** (`Assigned via` column).
 The plan is DRAFT — nothing runs until `/dtd approve`. You can swap any task to
-any worker before approving (`/dtd plan worker 3.1 deepseek` or NL: "리뷰는 큐엔으로").
+any worker before approving (`/dtd plan worker 3.1 deepseek` or NL: "use qwen for review").
 
 ### Run dashboard (live)
 
@@ -177,7 +177,7 @@ After `/dtd run`:
 + queue
 | -> 3.1 code review               [codex]
 | -> 3.2 apply review fixes        [deepseek]
-+ pause: /dtd pause  or  "잠깐 멈춰"
++ pause: /dtd pause  or  "pause"
 ```
 
 The dashboard updates as the run progresses. You see grade, gate, context usage,

@@ -28,7 +28,7 @@ After `approve`, plan changes go through steering patches.
 ```xml
 <phase id="1" name="planning" target-grade="GOOD" max-iterations="5">
   <task id="1.1" parallel-group="A">
-    <goal>schema 작성</goal>
+    <goal>write the schema</goal>
     <worker>qwen-remote</worker>
     <capability>planning</capability>
     <work-paths>docs/, src/types/</work-paths>
@@ -50,8 +50,9 @@ Optional v0.2.0f attributes on `<phase>` or `<task>`:
 
 ## NL phrases
 
-- `"계획 짜줘"` / `"이 목표로 정리"` → `/dtd plan <goal>`
-- `"task N은 X로"` → DRAFT swap or steering patch (state-aware)
+- `"plan this"` / `"organize this goal"` → `/dtd plan <goal>`
+- `"task N to X"` → DRAFT swap or steering patch (state-aware)
+- Localized (Korean / Japanese / etc.) via locale packs (v0.2.0e).
 
 ## Next topics
 

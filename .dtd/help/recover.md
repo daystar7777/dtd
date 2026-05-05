@@ -30,8 +30,9 @@ These recovery options ALWAYS confirm regardless of intent confidence:
 - `stop` (terminates run via `finalize_run(STOPPED)`)
 - `purge`, `delete`, `force_overwrite`, `revert_partial`, `terminal_finalize`
 
-NL phrases like `"그 에러 멈춰"` or `"incident X stop"` route to
+NL phrases like `"stop that error"` or `"incident X stop"` route to
 `incident resolve <id> stop` and trigger the confirmation prompt.
+Localized phrases (Korean / Japanese / etc.) load via locale packs (v0.2.0e).
 
 ## Decision capsule recovery options
 

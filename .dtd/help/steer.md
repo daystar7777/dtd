@@ -42,9 +42,10 @@ Patch application only between tasks. Never mutate a worker call mid-flight.
 
 ## NL phrases
 
-- `"방향 바꾸자"` / `"이번엔 안정성 우선"` → `/dtd steer <text>`
-- `"task N 빼"` → high or medium impact depending on phase
-- `"camelCase로"` → low impact
+- `"change direction"` / `"prioritize stability this round"` → `/dtd steer <text>`
+- `"drop task N"` → high or medium impact depending on phase
+- `"use camelCase"` → low impact
+- Localized (Korean / Japanese / etc.) via locale packs (v0.2.0e).
 
 ## Pending patch state
 

@@ -10,7 +10,7 @@
 #   - dtd.md: Doctor §Autonomy & Attention state + §Context-pattern state checks
 #   - instructions.md: Intent Gate has perf/attention/context_pattern/decision_mode intents
 #   - instructions.md: NL routing for silent/interactive/mode-decision/perf phrases
-#   - test-scenarios.md: scenarios 22q, 23a-i (10 scenarios)
+#   - test-scenarios.md: scenarios 22q, 22r, 23a-i (11 scenarios)
 #   - workers.example.md: tool_runtime + native_tool_sandbox fields (Codex follow-up)
 #
 # Usage:
@@ -182,9 +182,12 @@ Add-Result -Id "v020f.instr.no_auto_flip" `
 
 $scenariosMd = Get-Content -LiteralPath (Join-Path $RepoRoot "test-scenarios.md") -Raw
 
-# Scenario 22q (context pattern + GSD reset)
+# Scenarios 22q and 22r (context pattern + persona/reasoning/tool runtime)
 Add-Result -Id "v020f.scenarios.22q" -Name "test-scenarios.md has scenario 22q" `
-    -Pass ($scenariosMd -match '### 22r\.|### 22q\.')
+    -Pass ($scenariosMd -match '### 22q\.')
+
+Add-Result -Id "v020f.scenarios.22r" -Name "test-scenarios.md has scenario 22r" `
+    -Pass ($scenariosMd -match '### 22r\.')
 
 # Scenarios 23a-i (9 scenarios)
 foreach ($letter in @("a", "b", "c", "d", "e", "f", "g", "h", "i")) {

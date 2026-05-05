@@ -66,14 +66,28 @@ $IncludedPaths = @(
     ".dtd/help/update.md",
     ".dtd/help/plan.md",
     ".dtd/help/run.md",
-    ".dtd/help/steer.md"
+    ".dtd/help/steer.md",
+    ".dtd/reference/index.md",
+    ".dtd/reference/autonomy.md",
+    ".dtd/reference/incidents.md",
+    ".dtd/reference/persona-reasoning-tools.md",
+    ".dtd/reference/perf.md",
+    ".dtd/reference/workers.md",
+    ".dtd/reference/plan-schema.md",
+    ".dtd/reference/status-dashboard.md",
+    ".dtd/reference/self-update.md",
+    ".dtd/reference/help-system.md",
+    ".dtd/reference/run-loop.md",
+    ".dtd/reference/doctor-checks.md",
+    ".dtd/reference/roadmap.md"
 )
 
 $files = @()
+$missing = @()
 foreach ($relPath in $IncludedPaths) {
     $absPath = Join-Path $RepoRoot $relPath
     if (-not (Test-Path $absPath)) {
-        Write-Warning "MISSING: $relPath"
+        $missing += $relPath
         continue
     }
     $bytes = [IO.File]::ReadAllBytes($absPath)
@@ -85,6 +99,11 @@ foreach ($relPath in $IncludedPaths) {
         sha256 = $sha256Hex
         size_bytes = $bytes.Length
     }
+}
+
+if ($missing.Count -gt 0) {
+    $missingList = $missing -join ", "
+    throw "Cannot build MANIFEST.json; missing IncludedPaths: $missingList"
 }
 
 $manifest = [ordered]@{

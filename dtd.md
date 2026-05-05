@@ -128,6 +128,13 @@ Health check. Output uses the same Unicode/ASCII style as `/dtd status`. Reports
 - Each topic file ≤ 2 KB; ELSE WARN `help_topic_oversized: <topic>`
 - Default help body (rendered from index.md Summary section) ≤ 25 lines; topic help ≤ 50 lines (line-budget INFO; not blocking)
 
+**Spec modularization** (v0.2.3 R0 scaffold):
+- `.dtd/reference/` directory exists; ELSE INFO `reference_dir_missing` (acceptable — full content remains in dtd.md until R1+ extraction)
+- All 13 canonical reference files have stubs (index, autonomy, incidents, persona-reasoning-tools, perf, workers, plan-schema, status-dashboard, self-update, help-system, run-loop, doctor-checks, roadmap); ELSE INFO `reference_stub_missing: <topic>` (graceful)
+- Reference files ≤ 8 KB each (larger budget than help topics since reference docs may carry full canonical content); ELSE WARN `reference_oversized: <topic>`
+- v0.2.3 R0 stub status: each reference file should anchor back to `dtd.md` via "Source-of-truth today" or "Anchor" section; INFO if missing
+- v0.2.3 R1+ full extraction: when reference files contain full content (not stubs), INFO that dtd.md sections may be safely compacted
+
 **Path policy**:
 - Scan plan files for `..` paths: WARN, recommend absolute form
 - BLOCK pattern hits in plans: ERROR with line ref

@@ -9,7 +9,7 @@
 #   - instructions.md Intent Gate has update + help intents
 #   - test-scenarios.md has scenarios 86-93
 #   - prompt.md install bootstrap records installed_version
-#   - scripts/build-manifest.ps1 generates valid manifest (38+ files)
+#   - scripts/build-manifest.ps1 generates valid manifest (40+ files)
 #   - /dtd update check observational contract: no state.md write claim
 #
 # Usage:
@@ -166,11 +166,20 @@ if (Test-Path -LiteralPath $builderPath) {
     Add-Result -Id "v020d.builder.self_included" -Name "build-manifest.ps1 includes itself in IncludedPaths" `
         -Pass ($builderText -match '"scripts/build-manifest\.ps1"')
 
+    Add-Result -Id "v020d.builder.includes_v020d_checker" -Name "build-manifest.ps1 includes check-v020d.ps1" `
+        -Pass ($builderText -match '"scripts/check-v020d\.ps1"')
+
+    Add-Result -Id "v020d.builder.includes_v020f_checker" -Name "build-manifest.ps1 includes check-v020f.ps1" `
+        -Pass ($builderText -match '"scripts/check-v020f\.ps1"')
+
     # Should NOT use $PSScriptRoot in parameter default (Codex fix #2)
     $hasParamPSRDefault = $builderText -match 'param\([^)]*\$RepoRoot\s*=\s*\(Resolve-Path\s*"\$PSScriptRoot'
     Add-Result -Id "v020d.builder.no_psroot_param_default" `
         -Name "build-manifest.ps1 does not use \`$PSScriptRoot in param default" `
         -Pass (-not $hasParamPSRDefault)
+
+    Add-Result -Id "v020d.builder.fails_on_missing" -Name "build-manifest.ps1 fails if IncludedPaths are missing" `
+        -Pass (($builderText -match '\$missing\s*=\s*@\(\)') -and ($builderText -match 'Cannot build MANIFEST\.json') -and ($builderText -match 'missing IncludedPaths'))
 }
 
 # ─── Summary ──────────────────────────────────────────────────────────────────

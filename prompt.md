@@ -364,13 +364,16 @@ Next:
 
 Or talk naturally:
 
-  "딥시크 워커 추가해줘"
-  "API 만드는 계획 짜줘"
-  "지금 어디까지 됐어?"
-  "잠깐 멈춰"
+  "register deepseek as a worker"
+  "plan an API"
+  "where are we?"
+  "pause"
+
+  Localized NL routing (Korean / Japanese / etc.) ships via optional
+  locale packs in v0.2.0e — see /dtd help update.
 
 Repo:           https://github.com/daystar7777/dtd
-README:         <repo>/README.md  (한국어: <repo>/README.ko.md)
+README:         <repo>/README.md  (Korean: <repo>/README.ko.md, Japanese: <repo>/README.ja.md)
 Test scenarios: <repo>/test-scenarios.md (acceptance + user journeys)
 ```
 

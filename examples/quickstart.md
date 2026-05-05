@@ -2,7 +2,7 @@
 
 The minimal end-to-end walkthrough. One worker, one task, one file written.
 
-언어 선택: [한국어](quickstart.ko.md) · [日本語](quickstart.ja.md)
+Language: [Korean](quickstart.ko.md) · [Japanese](quickstart.ja.md)
 
 ---
 
@@ -70,7 +70,7 @@ escalate_to (worker | user): user
 Or just say it in natural language:
 
 ```text
-"deepseek 워커 추가해줘. localhost:11434, code-write."
+"add deepseek as a worker on localhost:11434 with code-write capability"
 ```
 
 Set the env var:
@@ -152,7 +152,7 @@ Watch the dashboard:
 | writing   src/hello.js (live)
 | locks     write files:project:src/hello.js
 | elapsed   total 5s | phase 5s | task 5s
-+ pause: /dtd pause  or  "잠깐 멈춰"
++ pause: /dtd pause  or  "pause"
 ```
 
 A few seconds later:
@@ -199,7 +199,7 @@ No orchestration server. No SDK. No SaaS. Just markdown files in `.dtd/` and one
 
 - **Add a reviewer worker** for cross-LLM pipelines (writer → reviewer → fixer):
   `/dtd workers add` with `capabilities: review` and a different model.
-- **Steer mid-run**: `"이번엔 안정성 우선"` becomes a patch you approve.
+- **Steer mid-run**: `"prioritize stability this round"` becomes a patch you approve.
 - **Multi-phase plans**: see [plan-001.md example](plan-001.md) for a 5-phase plan with parallel groups and cross-vendor pipelines.
 - **Full spec**: [dtd.md](../dtd.md) (~22 KB, all canonical actions).
 - **Behavior rules for the controller**: [.dtd/instructions.md](../.dtd/instructions.md).
