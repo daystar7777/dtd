@@ -50,8 +50,8 @@ Sections:
 - Self-Update state (v0.2.0d) — `installed_version`, `update_in_progress`
   staleness, MANIFEST.json validity
 - Help system (v0.2.0d) — 9 canonical topics, size budgets
-- Spec modularization (v0.2.3 R0/R1) — reference dir, 13 topics,
-  canonical/stub status, ≤ 24 KB
+- Spec modularization (v0.2.3 R1) — reference dir, 13 canonical topics,
+  Summary + Anchor sections, ≤ 24 KB
 - Path policy (BLOCK patterns, `..` paths, relative/absolute)
 - `.gitignore` + secret leak (regex scan for known key patterns)
 
@@ -1623,6 +1623,8 @@ Per `/dtd doctor`:
 - `config.load-profile.profile_sections` has all 4 keys
   (minimal/planning/running/recovery); ELSE ERROR
   `profile_sections_incomplete`.
+- Each profile has `active_sections` and `reference_drilldown_topics`;
+  ELSE ERROR `profile_sections_shape_invalid`.
 - `aggressive_unload: true` when host doesn't support dynamic eviction
   (heuristic: host_mode == plan-only); ELSE INFO
   `aggressive_unload_unsupported`.

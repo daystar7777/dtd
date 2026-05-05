@@ -1,13 +1,13 @@
-# DTD Reference Index (v0.2.3 R1 progress)
+# DTD Reference Index (v0.2.3 R1 complete)
 
 > Lazy-load topic catalog. Each file in this directory expands a `dtd.md`
 > section into a deeper reference doc. `/dtd help <topic> --full` (or
 > natural-language drill-down requests) loads exactly one matching
 > `.dtd/reference/<topic>.md` file.
 >
-> v0.2.3 R1 status: mixed canonical references and stubs. Extracted
-> topics are canonical here; remaining stubs still point back to `dtd.md`
-> until their R1 extraction lands.
+> v0.2.3 R1 status: all 13 reference topics are canonical here.
+> `dtd.md` keeps compact summaries and action routing; full topic detail
+> lives in this directory.
 
 ## Topics
 
@@ -33,10 +33,10 @@ v0.2.3 avoids moving all long-form spec text out of `dtd.md` in one
 high-risk commit.
 
 - R0 landed the reference directory, index, and 13 reference topics.
-- R1 extracts one topic at a time, leaving a compact `dtd.md` summary and
+- R1 extracted one topic at a time, leaving a compact `dtd.md` summary and
   moving full canonical detail to the matching reference file.
-- Each extracted topic keeps an `Anchor` section so doctor/help/reviewers can
-  tell whether the reference file is canonical or still a stub.
+- Each reference topic keeps an `Anchor` section that states the reference
+  file is canonical for that topic.
 
 ## Lazy-load Policy
 

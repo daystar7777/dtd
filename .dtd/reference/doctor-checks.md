@@ -221,29 +221,25 @@ Sections:
 - Default help body (rendered from index.md Summary section) ≤ 25
   lines; topic help ≤ 50 lines (line-budget INFO; not blocking).
 
-## Spec modularization (v0.2.3 R0/R1)
+## Spec modularization (v0.2.3 R1)
 
 - `.dtd/reference/` directory exists; ELSE INFO
-  `reference_dir_missing` (acceptable — full content remains in
-  dtd.md until R1+ extraction).
+  `reference_dir_missing`.
 - `.dtd/reference/index.md` plus all 13 canonical reference topics
   exist (autonomy, incidents, persona-reasoning-tools, perf,
   workers, plan-schema, status-dashboard, self-update, help-system,
   run-loop, doctor-checks, roadmap, load-profile); ELSE INFO
   `reference_stub_missing: <topic>` (graceful).
-- Reference files ≤ 24 KB each (R0 stubs are typically ≤ 2 KB; R1
-  full-extraction reference files may grow to ~6-20 KB carrying
+- Reference files ≤ 24 KB each (R1 full-extraction reference files may grow
+  to ~6-20 KB carrying
   canonical content; workers.md is the thickest at ~19 KB); ELSE
   WARN `reference_oversized: <topic>`.
-- `.dtd/reference/index.md` marks each topic as `canonical` or
-  `stub`; ELSE INFO `reference_status_missing`.
-- Each reference file has an "Anchor" section. For canonical
-  topics, the anchor says the reference file is the source. For
-  stubs, the anchor points back to `dtd.md`; ELSE INFO
-  `reference_anchor_missing`.
-- v0.2.3 R1+ full extraction: when reference files contain full
-  content (not stubs), INFO that dtd.md sections may be safely
-  compacted.
+- `.dtd/reference/index.md` marks every topic as `canonical`; ELSE INFO
+  `reference_status_missing`.
+- Each reference file has an "Anchor" section saying the reference file is
+  canonical for that topic; ELSE INFO `reference_anchor_missing`.
+- v0.2.3 R1 full extraction complete: dtd.md sections may stay compact as
+  summaries and pointers.
 
 ## Path policy
 

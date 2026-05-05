@@ -1,6 +1,6 @@
 # DTD v0.2.3 release-contract checks
 #
-# Validates the v0.2.3 R0 scaffold + Lazy-Load Profile contract.
+# Validates the v0.2.3 R1 reference extraction + Lazy-Load Profile contract.
 #
 # Usage:
 #   pwsh ./scripts/check-v023.ps1
@@ -50,9 +50,7 @@ $referenceTopics = @(
     "plan-schema", "status-dashboard", "self-update", "help-system",
     "run-loop", "doctor-checks", "roadmap", "load-profile"
 )
-$canonicalReferenceTopics = @(
-    "autonomy", "incidents", "persona-reasoning-tools", "perf", "load-profile"
-)
+$canonicalReferenceTopics = $referenceTopics
 
 $referenceDir = Join-Path $RepoRoot ".dtd/reference"
 $referenceFiles = @()
@@ -78,6 +76,8 @@ if (Test-Path -LiteralPath $indexPath) {
         Add-Result "v023.reference.index.canonical.$topic" "index marks $topic canonical" `
             (($topicLine.Count -gt 0) -and ($topicLine[0] -match "canonical"))
     }
+    Add-Result "v023.reference.index.all_canonical" "index says all 13 topics are canonical" `
+        ($indexText -match "all 13 reference topics are canonical")
 }
 
 foreach ($topic in $referenceTopics) {
@@ -105,7 +105,7 @@ $builderText = Read-Text "scripts/build-manifest.ps1"
 # full enumeration lives in .dtd/reference/doctor-checks.md.
 $doctorRefText = Read-Text ".dtd/reference/doctor-checks.md"
 Add-Result "v023.dtd.reference_count" "dtd.md + doctor-checks ref document index + 13 reference topics" `
-    (($dtdMd -match "13 topics") -and ($doctorRefText -match "all 13 canonical reference topics"))
+    (($dtdMd -match "13 canonical topics") -and ($doctorRefText -match "all 13 canonical reference topics"))
 # v0.2.3 R1: full text moved to .dtd/reference/help-system.md
 $helpSystemRefText = Read-Text ".dtd/reference/help-system.md"
 Add-Result "v023.dtd.help_full_reference" "dtd.md + help-system ref say --full loads one reference file" `
@@ -129,6 +129,16 @@ Add-Result "v023.config.transition_default_false" "config default profile_transi
     ($configMd -match "profile_transition_logging:\s*false")
 Add-Result "v023.config.transition_log_path" "config has profile_transition_log_path" `
     ($configMd -match "profile_transition_log_path:\s*\.dtd/log/profile-transitions\.md")
+foreach ($profile in @("minimal", "planning", "running", "recovery")) {
+    Add-Result "v023.config.profile_sections.$profile.shape" "config profile_sections.$profile has active_sections + reference_drilldown_topics" `
+        ($configMd -match "(?s)$([regex]::Escape($profile)):\s*.*?active_sections:\s*.*?reference_drilldown_topics:")
+}
+Add-Result "v023.config.profile_sections.drilldown_topics" "config lists expected R1 reference drill-down topics" `
+    (($configMd -match 'reference_drilldown_topics:') -and
+     ($configMd -match '"run-loop"') -and
+     ($configMd -match '"workers"') -and
+     ($configMd -match '"incidents"') -and
+     ($configMd -match '"doctor-checks"'))
 
 Add-Result "v023.state.observational_comment" "state comments say observational reads do not persist profile" `
     ($stateMd -match "Observational reads do not persist profile")
@@ -141,8 +151,8 @@ Add-Result "v023.scenarios.reference_count" "scenario 94 expects 14 markdown fil
     ($scenariosMd -match "14 markdown files exist")
 Add-Result "v023.scenarios.reference_budget" "scenario 94 expects reference budget" `
     ($scenariosMd -match "Each is <= (16|24) KB")
-Add-Result "v023.scenarios.reference_status" "scenario 94 expects canonical/stub status" `
-    ($scenariosMd -match "canonical.*stub")
+Add-Result "v023.scenarios.reference_status" "scenario 94 expects all topics canonical" `
+    ($scenariosMd -match 'every topic `canonical`')
 Add-Result "v023.scenarios.no_steering_profile" "scenario 96 does not log profile transitions to steering" `
     (($scenariosMd -match "steering\.md") -and ($scenariosMd -match "not appended") -and ($scenariosMd -match "profile-transitions\.md"))
 Add-Result "v023.scenarios.token_caveat" "scenario 97 allows unchanged prompt tokens" `

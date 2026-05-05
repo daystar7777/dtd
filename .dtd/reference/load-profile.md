@@ -45,7 +45,8 @@ Per-turn protocol step 1.5 (after read state.md, before Intent Gate):
 `config.md.load-profile`:
 - `profile_resolution_mode: state_driven | manual | auto_probe`
 - `default_profile: minimal`
-- `profile_sections: {minimal: [...], planning: [...], running: [...], recovery: [...]}`
+- `profile_sections.<profile>.active_sections: [...]`
+- `profile_sections.<profile>.reference_drilldown_topics: [...]`
 - `profile_transition_logging: false`
 - `profile_transition_log_path: .dtd/log/profile-transitions.md`
 - `aggressive_unload: false`  (advanced; off by default)

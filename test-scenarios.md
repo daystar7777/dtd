@@ -1,6 +1,6 @@
 # DTD v0.1 Test Scenarios
 
-> 81 acceptance scenarios (72 single-feature + 9 cross-sub-release integration) for v0.1 + v0.1.1 + v0.2.0a (TAGGED) + v0.2.0d (R0 implementation) + v0.2.3 R0 scaffold + Lazy-Load Profile + v0.2.0f/0e/0b/0c/0.2.1/0.2.2 (planned). Not auto-runnable — these are
+> 81 acceptance scenarios (72 single-feature + 9 cross-sub-release integration) for v0.1 + v0.1.1 + v0.2.0a (TAGGED) + v0.2.0d (R0 implementation) + v0.2.3 R1 reference extraction + Lazy-Load Profile + v0.2.0f/0e/0b/0c/0.2.1/0.2.2 (planned). Not auto-runnable — these are
 > (a) QA checklist for releases, (b) Codex review criteria, (c) user
 > usage examples. Each scenario has Setup / Steps / Expected / Pass.
 
@@ -1240,8 +1240,8 @@ truly observational.
 
 ### 94. .dtd/reference/ catalog exists with index + 13 topics
 
-**Setup**: post-v0.2.3 install. R0 topics may be stubs; R1+ topics may be
-canonical full extractions.
+**Setup**: post-v0.2.3 R1 install where all reference topics are canonical
+full extractions.
 
 **Steps**: inspect `.dtd/reference/` directory.
 
@@ -1252,8 +1252,8 @@ canonical full extractions.
   doctor-checks, roadmap, load-profile.
 - Each is <= 24 KB.
 - Each topic has Summary + Anchor section.
-- index.md lists all 13 reference topics with one-line description and a
-  `canonical` or `stub` status.
+- index.md lists all 13 reference topics with one-line description and marks
+  every topic `canonical`.
 
 **Pass**: reference catalog present; lazy-load architecture verified at file
 level.
@@ -1261,8 +1261,7 @@ level.
 ### 95. /dtd help <topic> --full drills into reference (when ready)
 
 **Setup**: post-v0.2.3 R1+ install where reference files have full
-content (not just stubs). For R0 scaffold, this is a contract test
-against the design.
+canonical content.
 
 **Steps**:
 1. `/dtd help autonomy` — shows compact summary generated from
