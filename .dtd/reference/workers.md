@@ -98,7 +98,7 @@ Body (JSON):
   // Defaults applied if worker doesn't set them:
   "temperature": <worker.temperature ?? 0.0>,
   "top_p":       <worker.top_p ?? 1.0>,
-  "stream":      <worker.stream ?? false>,         // v0.1 enforces false; v0.2 will allow true
+  "stream":      <worker.stream ?? false>,         // controller forces false; streaming deferred to a future release
   // optional, only included if set in worker config:
   "seed":              <worker.seed>,
   "stop":              <worker.stop as array>,
@@ -347,7 +347,7 @@ request body per the rules above:
 | `frequency_penalty` | `0.0` | Rare; usually leave default. |
 | `presence_penalty` | `0.0` | Rare; usually leave default. |
 | `reasoning_effort` | (omitted) | OpenAI o1/o3/gpt-5 reasoning only; ignored by others. |
-| `stream` | `false` | **v0.1 always false.** Workers with `stream: true` configured: controller forces false anyway, logs WARN. |
+| `stream` | `false` | **Always false through v0.2 / v0.3 lines.** Workers with `stream: true` configured: controller forces false anyway, logs WARN. Streaming deferred to a future release. |
 | `extra_body` | `{}` | JSON object shallow-merged into request body for provider-specific params (e.g. `top_k`, `min_p`). Use sparingly. |
 
 The controller does NOT pass through unknown worker fields — only
@@ -374,11 +374,12 @@ For workers using reasoning models:
 In all cases the controller's parsing logic is identical — extract
 `content`, parse markers. The reasoning content is informational only.
 
-### Streaming (v0.2)
+### Streaming (deferred)
 
-v0.1 enforces `stream: false`. Streaming (`stream: true`, SSE
-response) is deferred to v0.2 for partial file application during
-long generation. Until then: full response or nothing.
+v0.1 / v0.2 / v0.3 lines enforce `stream: false`. Streaming
+(`stream: true`, SSE response) is deferred to a future release for
+partial file application during long generation. Until then: full
+response or nothing.
 
 ### Provider-specific notes
 
@@ -393,9 +394,9 @@ Native APIs that do **not** match this shape need a shim:
 - **Anthropic Messages API** — uses `anthropic-version` header,
   system as separate field, different message types. Use `litellm`
   proxy, `openai-anthropic-shim`, or vLLM router. Direct adapter
-  planned v0.2.
+  deferred to a future release.
 - **Gemini API** — uses `generationConfig` block, content parts.
-  Same: shim. Direct adapter planned v0.2.
+  Same: shim. Direct adapter deferred to a future release.
 
 `/dtd workers test <id>` performs a probe POST with a minimal
 `"hello"` prompt and reports back: 2xx + parseable response = healthy.
