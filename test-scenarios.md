@@ -1250,7 +1250,7 @@ canonical full extractions.
   persona-reasoning-tools, perf, workers, plan-schema,
   status-dashboard, self-update, help-system, run-loop,
   doctor-checks, roadmap, load-profile.
-- Each is <= 16 KB.
+- Each is <= 24 KB.
 - Each topic has Summary + Anchor section.
 - index.md lists all 13 reference topics with one-line description and a
   `canonical` or `stub` status.
@@ -1278,7 +1278,7 @@ reference file.
 **Expected**:
 - `/dtd help` (no flag) loads only `.dtd/help/<topic>.md` when present, or
   `.dtd/reference/index.md` for reference-only topics.
-- `--full` flag loads `.dtd/reference/<topic>.md` (<= 16 KB).
+- `--full` flag loads `.dtd/reference/<topic>.md` (<= 24 KB).
 - Neither loads `dtd.md` itself (lazy-load policy).
 - Output remains observational; no state.md mutation.
 

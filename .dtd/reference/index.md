@@ -18,7 +18,7 @@
 | `autonomy` | v0.2.0f decision_mode + attention_mode + silent algorithm | canonical | `.dtd/reference/autonomy.md` |
 | `persona-reasoning-tools` | v0.2.0f personas + reasoning utilities + tool runtime | canonical | `.dtd/reference/persona-reasoning-tools.md` |
 | `perf` | v0.2.0f /dtd perf + ctx file format + controller usage ledger | canonical | `.dtd/reference/perf.md` |
-| `workers` | Worker registry + dispatch + health check | stub | `dtd.md` Worker Registry & Routing |
+| `workers` | Worker registry + dispatch + health check | canonical | `.dtd/reference/workers.md` |
 | `plan-schema` | Plan XML schema + size budget | stub | `dtd.md` Plan Schema (XML) |
 | `status-dashboard` | Status rendering rules + glyph reference | canonical | `.dtd/reference/status-dashboard.md` |
 | `self-update` | v0.2.0d /dtd update + B1-B7 flow | stub | `dtd.md` `/dtd update` |

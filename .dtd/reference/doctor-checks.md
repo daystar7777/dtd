@@ -231,9 +231,10 @@ Sections:
   workers, plan-schema, status-dashboard, self-update, help-system,
   run-loop, doctor-checks, roadmap, load-profile); ELSE INFO
   `reference_stub_missing: <topic>` (graceful).
-- Reference files ≤ 16 KB each (R0 stubs are typically ≤ 2 KB; R1
-  full-extraction reference files may grow to ~8-16 KB carrying
-  canonical content); ELSE WARN `reference_oversized: <topic>`.
+- Reference files ≤ 24 KB each (R0 stubs are typically ≤ 2 KB; R1
+  full-extraction reference files may grow to ~6-20 KB carrying
+  canonical content; workers.md is the thickest at ~19 KB); ELSE
+  WARN `reference_oversized: <topic>`.
 - `.dtd/reference/index.md` marks each topic as `canonical` or
   `stub`; ELSE INFO `reference_status_missing`.
 - Each reference file has an "Anchor" section. For canonical

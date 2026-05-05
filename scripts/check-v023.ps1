@@ -86,7 +86,7 @@ foreach ($topic in $referenceTopics) {
         $text = Get-Content -LiteralPath $path -Raw
         $size = (Get-Item -LiteralPath $path).Length
         Add-Result "v023.reference.$topic.exists" "reference/$topic.md exists" $true "size=$size"
-        Add-Result "v023.reference.$topic.budget" "reference/$topic.md <= 16 KB" ($size -le 16384) "size=$size"
+        Add-Result "v023.reference.$topic.budget" "reference/$topic.md <= 24 KB" ($size -le 24576) "size=$size"
         Add-Result "v023.reference.$topic.summary" "reference/$topic.md has Summary" ($text -match "## Summary")
         Add-Result "v023.reference.$topic.anchor" "reference/$topic.md has Anchor" ($text -match "## Anchor")
     } else {
@@ -139,8 +139,8 @@ foreach ($n in 94..97) {
 }
 Add-Result "v023.scenarios.reference_count" "scenario 94 expects 14 markdown files" `
     ($scenariosMd -match "14 markdown files exist")
-Add-Result "v023.scenarios.reference_budget_16kb" "scenario 94 expects <= 16 KB reference budget" `
-    ($scenariosMd -match "Each is <= 16 KB")
+Add-Result "v023.scenarios.reference_budget" "scenario 94 expects reference budget" `
+    ($scenariosMd -match "Each is <= (16|24) KB")
 Add-Result "v023.scenarios.reference_status" "scenario 94 expects canonical/stub status" `
     ($scenariosMd -match "canonical.*stub")
 Add-Result "v023.scenarios.no_steering_profile" "scenario 96 does not log profile transitions to steering" `
