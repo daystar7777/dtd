@@ -221,6 +221,39 @@ Sections:
 - Default help body (rendered from index.md Summary section) ≤ 25
   lines; topic help ≤ 50 lines (line-budget INFO; not blocking).
 
+## Permission ledger (v0.2.0b)
+
+- `.dtd/permissions.md` exists and parses; ELSE INFO
+  `permission_ledger_missing` (default rules from spec apply until
+  the file is created).
+- All `## Active rules` entries have valid
+  `<ts> | <decision> | <key> | scope: <expr> [...] | by: <who>` format;
+  ELSE ERROR `permission_rule_invalid` with line ref.
+- Permission keys MUST be one of
+  `edit | bash | external_directory | task | snapshot | revert |
+  todowrite | question`; ELSE ERROR `permission_key_unknown`.
+- Decisions MUST be one of `allow | deny | ask`; ELSE ERROR
+  `permission_decision_invalid`.
+- No active rule allows `bash` with overly-broad scope (`*`, `/**`,
+  empty, or single token like `bash`); ELSE WARN
+  `permission_bash_too_broad`. Recommend narrowing to specific
+  command(s).
+- No active rule allows `external_directory` with `*` scope; ELSE
+  WARN `permission_external_directory_too_broad`.
+- Overlapping deny+allow rules with deny narrower than allow: WARN
+  `permission_rule_overlap` (semantics ok but can confuse users).
+- Active rules referencing non-existent workers: WARN
+  `permission_rule_unknown_worker`.
+- `until` timestamps in past: INFO `permission_rule_expired` (rule
+  is effectively absent; recommend explicit revoke for clarity).
+- File size > 32 KB: WARN `permission_ledger_too_large` (recommend
+  purge expired rules; also signals possibly-noisy permission flow).
+- `state.md.pending_permission_request` non-null but no matching
+  `awaiting_user_decision: true` capsule with reason
+  `PERMISSION_REQUIRED`: WARN `permission_pending_orphan`.
+- `.dtd/log/permissions.md` (audit log) exists when any active rule
+  exists; ELSE INFO (audit log lazy-created on first decision).
+
 ## Locale state (v0.2.0e)
 
 - `.dtd/locales/` directory exists; ELSE INFO `locale_dir_missing`

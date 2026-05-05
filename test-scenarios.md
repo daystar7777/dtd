@@ -1078,6 +1078,167 @@ follow normal confidence rules; no silent run termination via NL.
 
 ---
 
+## v0.2.0b — Permission Ledger
+
+### 50. Default rules allow todowrite, ask everything else
+
+**Setup**: fresh install at v0.2.0b. `.dtd/permissions.md` exists with empty
+`## Active rules` and the canonical `## Default rules`.
+
+**Steps**: `/dtd permission list`.
+
+**Expected**:
+- Active rules: empty.
+- Default rules show `allow | todowrite | scope: *` and `ask | <key>` for
+  the other 7 permission keys (edit, bash, external_directory, task,
+  snapshot, revert, question).
+- `state.md.pending_permission_request: null`.
+
+**Pass**: install ships safe defaults; nothing auto-allowed except `todowrite`.
+
+### 51. /dtd permission allow persists across sessions
+
+**Setup**: per scenario 50.
+
+**Steps**:
+1. `/dtd permission allow edit scope: src/**`.
+2. End session; reopen.
+3. `/dtd permission list`.
+
+**Expected**:
+- Step 1 appends one row to `.dtd/permissions.md` `## Active rules` with
+  `<ts> | allow | edit | scope: src/** | by: user`.
+- Step 3 (after session reopen) shows the rule still active.
+
+**Pass**: rules durable across sessions; ledger is the single source of truth.
+
+### 52. Auto-allow during run does not surface PERMISSION_REQUIRED capsule
+
+**Setup**: `/dtd permission allow edit scope: src/**` set; APPROVED plan
+where task 2.1 writes to `src/api/users.ts`.
+
+**Steps**: `/dtd run`.
+
+**Expected**:
+- Task 2.1 dispatches without filling `awaiting_user_decision`.
+- `.dtd/log/permissions.md` accumulates a row:
+  `<ts> | dec-NNN | edit | src/api/users.ts | rule_match: <ts of allow row> | decision: auto-allow`.
+- `state.md.pending_permission_request` remains `null`.
+
+**Pass**: matching `allow` rule short-circuits the capsule; controller proceeds.
+
+### 53. /dtd permission deny blocks immediately, no defer
+
+**Setup**: any plan state. `/dtd permission deny bash scope: rm -rf` set.
+
+**Steps**: trigger an action whose bash scope matches `rm -rf` (e.g., a
+worker dispatch that would attempt it).
+
+**Expected**:
+- Action aborted before dispatch; `.dtd/log/permissions.md` records
+  `decision: auto-deny`.
+- Even with `attention_mode: silent`, the deny is NOT deferred —
+  `deferred_decision_count` is unchanged.
+- Optional incident `info` row recorded; no blocking incident.
+
+**Pass**: deny rules are final and silent-mode-safe.
+
+### 54. Silent mode + ask rule defers; allow auto-handles
+
+**Setup**: `attention_mode: silent`, `attention_until` 4h future. Active
+rules: `allow edit scope: src/**`, `ask edit scope: tests/**`.
+
+**Steps**: silent run dispatches two tasks — one editing `src/api/users.ts`,
+one editing `tests/integration/foo.test.ts`.
+
+**Expected**:
+- First task: auto-allow per `src/**` rule; runs without capsule.
+- Second task: ask rule fires PERMISSION_REQUIRED capsule; capsule
+  added to `deferred_decision_refs`; controller skips the task and
+  continues with next ready work per silent algorithm.
+- Morning summary on `/dtd interactive` lists the deferred capsule
+  as item 1.
+
+**Pass**: silent mode honors per-key ledger; ask defers, allow auto-runs.
+
+### 55. Doctor flags overly-broad bash allow
+
+**Setup**: `/dtd permission allow bash scope: *` (or `/**`).
+
+**Steps**: `/dtd doctor`.
+
+**Expected**: WARN `permission_bash_too_broad` with line ref + remediation
+hint. Exit code remains 0 (WARN does not block).
+
+**Pass**: doctor catches dangerously-broad allow rules.
+
+### 56. Permission audit log accumulates per-decision rows
+
+**Setup**: a few permission resolutions across a run (auto-allow,
+auto-deny, asked-then-allowed by user).
+
+**Steps**: read `.dtd/log/permissions.md` after the run.
+
+**Expected**:
+- One row per resolution.
+- Each row has `<ts> | <dec_id> | <key> | <scope> | rule_match: ... | decision: ...`.
+- Audit log is gitignored (`.dtd/.gitignore` covers `log/`).
+
+**Pass**: audit log durable + private; one row per resolution; no rule
+mutations are silently dropped.
+
+### 57. Rule expiry: `until` timestamp in past makes rule inactive
+
+**Setup**: `allow edit scope: src/** until: 2026-05-04 00:00` (past).
+
+**Steps**:
+1. `/dtd permission show edit scope: src/api/users.ts`.
+2. Trigger an edit action.
+3. `/dtd doctor`.
+
+**Expected**:
+- Step 1: resolution falls through to default `ask`.
+- Step 2: PERMISSION_REQUIRED capsule fires (rule treated as inactive).
+- Step 3: INFO `permission_rule_expired` listing the expired row.
+
+**Pass**: time-of-check expiry; doctor surfaces cleanup recommendation.
+
+### 58. /dtd permission revoke removes rule; audit retained
+
+**Setup**: `allow edit scope: src/**` exists.
+
+**Steps**: `/dtd permission revoke edit scope: src/**`.
+
+**Expected**:
+- A tombstone row appended:
+  `<ts> | revoke | edit | scope: src/** | by: user (revokes 2026-05-05 14:00 row)`.
+- The original allow row remains in the file (history preserved).
+- Resolution after revoke: falls through to default `ask` (most-recent
+  matching rule for that scope is the `revoke`, which neutralizes
+  prior allow).
+
+**Pass**: revoke is a tombstone, not a destructive deletion.
+
+### 59. Silent transient rules expire on /dtd interactive
+
+**Setup**: `silent_allow_destructive: false` (config default). Run
+`/dtd silent on --for 4h`.
+
+**Steps**:
+1. After silent_on, inspect `.dtd/permissions.md` `## Active rules`.
+2. Run `/dtd interactive` before window expires.
+3. Inspect `## Active rules` again.
+
+**Expected**:
+- Step 1: a transient row exists with
+  `by: silent_window` and `until: <attention_until>`.
+- Step 3: the transient row is no longer the resolved rule (revoked or
+  expired by interactive). User's permanent rules apply again.
+
+**Pass**: silent-mode safety nets are per-window only, never permanent.
+
+---
+
 ## v0.2.0e — Locale Packs
 
 ### 44. Locale pack disabled by default; only bootstrap aliases route

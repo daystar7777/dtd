@@ -40,6 +40,7 @@ $IncludedPaths = @(
     "examples/plan-001.md",
     "examples/run-001-summary.md",
     "scripts/build-manifest.ps1",
+    "scripts/check-v020b.ps1",
     "scripts/check-v020d.ps1",
     "scripts/check-v020e.ps1",
     "scripts/check-v020f.ps1",
@@ -84,7 +85,8 @@ $IncludedPaths = @(
     ".dtd/reference/roadmap.md",
     ".dtd/reference/load-profile.md",
     ".dtd/locales/ko.md",
-    ".dtd/locales/ja.md"
+    ".dtd/locales/ja.md",
+    ".dtd/permissions.md"
 )
 
 $files = @()

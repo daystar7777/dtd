@@ -50,6 +50,8 @@ Sections:
 - Self-Update state (v0.2.0d) — `installed_version`, `update_in_progress`
   staleness, MANIFEST.json validity
 - Help system (v0.2.0d) — 9 canonical topics, size budgets
+- Permission ledger (v0.2.0b) — `.dtd/permissions.md` parses, no
+  overly-broad bash allow, expired `until` rules, ledger size cap
 - Locale state (v0.2.0e) — locale pack existence, required sections,
   bootstrap-alias presence, ≤ 8 KB pack budget
 - Spec modularization (v0.2.3 R1) — reference dir, 13 canonical topics,
@@ -113,6 +115,78 @@ Output is `observational_read`: never writes `state.md`, `notepad.md`,
 > (resolution algorithm, topic file structure, NL routing table,
 > v0.2.3 reference-topic extension, output discipline).
 > Lazy-load via `/dtd help help-system --full`.
+
+### `/dtd permission [list|show|allow|deny|ask|revoke|rules]` (v0.2.0b)
+
+Persistent permission rules at `.dtd/permissions.md`. Per-key
+decisions: `ask | allow | deny`. Auto-handled in `decision_mode: auto`
+or `attention_mode: silent` per resolution algorithm.
+
+Forms:
+
+```text
+/dtd permission list                              # observational; show active + defaults
+/dtd permission show <key> [scope: <expr>]        # observational; resolved decision
+/dtd permission allow <key> [scope: <expr>] [until: <duration>]
+/dtd permission deny  <key> [scope: <expr>]
+/dtd permission ask   <key> [scope: <expr>]       # revert to ask
+/dtd permission revoke <key> [scope: <expr>]      # remove (audit retained)
+/dtd permission rules                             # observational; show config defaults
+```
+
+Permission keys (canonical 8-key set per V011-1):
+
+| Key | Covers |
+|---|---|
+| `edit` | worker writes to project files (project-level switch) |
+| `bash` | shell exec by worker or controller |
+| `external_directory` | path outside project root (absolute or `~/`) |
+| `task` | dispatching worker tasks (master switch) |
+| `snapshot` | `.dtd/snapshots/` writes (v0.2.0c dependency) |
+| `revert` | `/dtd revert` (v0.2.0c dependency) |
+| `todowrite` | controller TodoWrite/state-tracking (always-safe; default `allow`) |
+| `question` | controller asking user via decision capsule |
+
+Scope expressions:
+- Path glob: `scope: src/**`, `scope: ~/data/**`
+- Worker id: `worker: deepseek-local`
+- Capability: `capability: code-write`
+- Bash command (exact match by default; `regex:` prefix for regex):
+  `scope: npm test`, `scope: regex:^npm (test|run)`
+
+Resolution: latest active rule wins for the same (key, scope) tuple
+(default-rules fallback when nothing matches). `until` past current
+time deactivates the rule. See `.dtd/permissions.md` for the full
+algorithm.
+
+Decision capsule integration (v0.1 `awaiting_user_reason:
+PERMISSION_REQUIRED`):
+
+```yaml
+awaiting_user_reason: PERMISSION_REQUIRED
+decision_options:
+  - {id: allow_once,   label: "allow once",        effect: "proceed; no rule",            risk: "next time will ask again"}
+  - {id: allow_always, label: "allow always",      effect: "add allow rule; proceed",     risk: "broadens permission scope"}
+  - {id: deny_once,    label: "deny once",         effect: "abort; no rule",              risk: "may need retry later"}
+  - {id: deny_always,  label: "deny always",       effect: "add deny rule; abort",        risk: "may need /dtd permission revoke later"}
+decision_default: allow_once
+```
+
+NL routing (English):
+
+| Phrase | Canonical |
+|---|---|
+| "edit src freely" | `/dtd permission allow edit scope: src/**` |
+| "auto-run npm test" | `/dtd permission allow bash scope: npm test` |
+| "always ask for ~/data" | `/dtd permission ask external_directory scope: ~/data/**` |
+| "never run rm -rf" | `/dtd permission deny bash scope: rm -rf` |
+| "show permissions" | `/dtd permission list` |
+
+Korean / Japanese NL routing in the respective locale pack.
+
+`list/show/rules` are observational reads. `allow/deny/ask/revoke`
+are mutating; they append to `.dtd/permissions.md` `## Active rules`.
+`revoke` adds a tombstone entry rather than truncating history.
 
 ### `/dtd locale [enable|disable|list|show] [<lang>]` (v0.2.0e)
 

@@ -26,6 +26,14 @@
 - loaded_profile_set_at: null      # timestamp; debug aid for profile transitions
 - loaded_profile_reason: null      # null | mode_off | no_plan | draft_or_approved | running_or_paused | active_blocker | pending_patch
 
+## Permission ledger (v0.2.0b)
+
+# Active permission request capsule (denormalized from awaiting_user_decision
+# for /dtd status display). Cleared when capsule resolves. See dtd.md
+# §/dtd permission and .dtd/permissions.md.
+
+- pending_permission_request: null   # null | {key, scope, worker, dec_id, asked_at}
+
 ## Locale (v0.2.0e)
 
 # Optional locale-pack activation. Core prompts stay English-only;
