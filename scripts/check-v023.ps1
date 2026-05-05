@@ -170,6 +170,17 @@ Add-Result "v023.roadmap.anchor_current_v03" "roadmap anchor includes v0.3 and R
     (($roadmapRefText -match 'v0\.1\.1 / v0\.2 / v0\.3') -and
      ($roadmapRefText -match 'R2 live-test status') -and
      ($roadmapRefText -match 'v030-r2-live-test-plan'))
+Add-Result "v023.roadmap.v02_partial_tag_status" "roadmap/README/dtd reflect partial v0.2 tag state" `
+    (($roadmapRefText -match 'v0\.2\.0a / v0\.2\.0d / v0\.2\.0f / v0\.2\.3 tagged') -and
+     ($roadmapRefText -match 'Remaining v0\.2 sub-releases are R0\+R1 complete') -and
+     ($roadmapRefText -match 'v0\.2\.0d[\s\S]*?TAGGED 2026-05-06[\s\S]*?44567c8') -and
+     ($roadmapRefText -match 'v0\.2\.0f[\s\S]*?TAGGED 2026-05-06[\s\S]*?f7341b9') -and
+     ($roadmapRefText -match 'v0\.2\.3[\s\S]*?TAGGED 2026-05-06[\s\S]*?a29d083') -and
+     ($roadmapRefText -match 'v0\.2\.0e.*Codex GO; tag pending') -and
+     ($dtdMd -match 'v0\.2\.0d / v0\.2\.0f / v0\.2\.3 \(TAGGED 2026-05-06\)') -and
+     ($readmeText -match '4 of 9 sub-releases tagged') -and
+     (($readmeText + $readmeKoText + $readmeJaText) -match 'v0\.2\.0a / v0\.2\.0d / v0\.2\.0f / v0\.2\.3') -and
+     (($roadmapRefText + $dtdMd + $readmeText) -notmatch 'Release-ready \(release-contract-passing; tag pending user auth\)'))
 
 $r2LivePlanText = Read-Text ".dtd/reference/v030-r2-live-test-plan.md"
 Add-Result "v023.r2_live_plan.rehash_scenario" "R2 live plan covers loop-guard rehash admin path" `

@@ -286,7 +286,7 @@ command set using only `/dtd help` + topic drilling.
 
 ---
 
-## 43. Sleep-friendly autonomous overnight run — *planned for v0.2.0f*
+## 43. Sleep-friendly autonomous overnight run — *landed in v0.2.0f*
 
 **Setup**: APPROVED multi-phase plan. User wants to sleep 8 hours and let DTD
 make safe progress. Workers configured with tier escalation. `host.mode: full`.

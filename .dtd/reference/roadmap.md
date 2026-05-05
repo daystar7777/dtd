@@ -6,8 +6,9 @@
 
 ## Summary
 
-v0.1 / v0.1.1 / v0.2.0a tagged; rest of v0.2 line release-ready
-or R0+R1 complete pending user tag authorization.
+v0.1 / v0.1.1 / v0.2.0a / v0.2.0d / v0.2.0f / v0.2.3 tagged.
+Remaining v0.2 sub-releases are R0+R1 complete pending user tag
+authorization.
 v0.3 line **GO at R0 + R1 across all 5 sub-releases**.
 Codex final review pass accepted (handoff
 `handoff_dtd-v030c-v030d-r1-codex-review.gpt-5-codex.md` 2026-05-06
@@ -217,15 +218,15 @@ placeholders); v0.2 implements the full systems.
 
 ## Historical v0.2 implementation order (per dependency graph)
 
-1. v0.2.0a — TAGGED ✓
-2. v0.2.0d — Self-Update (migration runway for v0.2.0e+) — TAGGED ✓
-3. v0.2.0f — Autonomy & Attention (uses v0.2.0d migration) — TAGGED ✓
+1. v0.2.0a — TAGGED
+2. v0.2.0d — Self-Update (migration runway for v0.2.0e+) — TAGGED
+3. v0.2.0f — Autonomy & Attention (uses v0.2.0d migration) — TAGGED
 4. v0.2.0e — Locale Packs (after v0.2.0d) — Codex GO; tag pending
 5. v0.2.0b — Permission Ledger (foundation for v0.2.0c) — Codex GO; tag pending
 6. v0.2.0c — Snapshot/Revert (uses v0.2.0b permission gating) — Codex GO; tag pending
 7. v0.2.1 — Runtime Resilience — Codex GO; tag pending
 8. v0.2.2 — Compaction UX — Codex GO; tag pending
-9. v0.2.3 — Spec modularization (parallelizable with v0.2.2) — TAGGED ✓
+9. v0.2.3 — Spec modularization (parallelizable with v0.2.2) — TAGGED
 
 ## Anchor
 

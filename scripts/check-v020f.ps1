@@ -212,6 +212,13 @@ foreach ($letter in @("a", "b", "c", "d", "e", "f", "g", "h", "i")) {
 
 # ─── workers.example.md (Codex follow-up tool_runtime fields) ────────────────
 
+$userJourneysMd = Get-Content -LiteralPath (Join-Path $RepoRoot "examples/user-journeys.md") -Raw
+Add-Result -Id "v020f.user_journey.43_landed" `
+    -Name "user journey 43 marks sleep-friendly autonomous run landed in v0.2.0f" `
+    -Pass (($userJourneysMd -match '## 43\. Sleep-friendly autonomous overnight run') -and
+           ($userJourneysMd -match 'landed in v0\.2\.0f') -and
+           (-not ($userJourneysMd -match 'planned for v0\.2\.0f')))
+
 $workersExampleMd = Get-Content -LiteralPath (Join-Path $RepoRoot ".dtd/workers.example.md") -Raw
 
 Add-Result -Id "v020f.workers.tool_runtime" -Name "workers.example.md has tool_runtime field" `
