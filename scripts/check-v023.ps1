@@ -132,6 +132,8 @@ $readmeText = Read-Text "README.md"
 $readmeKoText = Read-Text "README.ko.md"
 $readmeJaText = Read-Text "README.ja.md"
 $helpIndexText = Read-Text ".dtd/help/index.md"
+$helpObserveText = Read-Text ".dtd/help/observe.md"
+$helpObserveLineCount = ($helpObserveText -split "\r?\n").Count
 
 # v0.2.3 R1: doctor-checks extracted; dtd.md stub mentions "13 topics",
 # full enumeration lives in .dtd/reference/doctor-checks.md.
@@ -204,6 +206,13 @@ Add-Result "v023.r2_0.localized_readme_discovery" "localized READMEs expose /dtd
      ($readmeJaText -match '/dtd r2 readiness') -and
      ($readmeKoText -match 'v0\.2\.1\+') -and
      ($readmeJaText -match 'v0\.2\.1\+'))
+Add-Result "v023.r2_0.help_observe_v03_discovery" "observe help exposes v0.3 observational commands within line budget" `
+    (($helpObserveText -match '/dtd consensus show <task_id\|--active>') -and
+     ($helpObserveText -match '/dtd session-sync show') -and
+     ($helpObserveText -match '/dtd loop-guard show') -and
+     ($helpObserveText -match '/dtd loop-guard rehash --dry-run') -and
+     ($helpObserveText -match '/dtd r2 readiness') -and
+     ($helpObserveLineCount -le 50))
 Add-Result "v023.r2_0.reference_command_surface" "R2-0 readiness ref documents command and aliases" `
     (($r2ReadinessText -match '/dtd r2 readiness \[--full\|--json\]') -and
      ($r2ReadinessText -match '/dtd r2 status') -and
