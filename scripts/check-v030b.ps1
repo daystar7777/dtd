@@ -105,13 +105,17 @@ Add-Result "v030b.runloop.controller_only_preserved" "run-loop.md says controlle
 Add-Result "v030b.runloop.worker_usage_separate" "run-loop.md adds separate worker-usage-run-NNN.md ledger" `
     ($runLoopRef -match "worker-usage-run-NNN\.md.*?NEW")
 Add-Result "v030b.runloop.paid_fallback_contract" "run-loop.md says paid fallback is permission-gated" `
-    ($runLoopRef -match "(?s)Paid-fallback contract.*?permission/cost transition")
+    ($runLoopRef -match "(?s)Paid-fallback contract.*?permission/cost\s+transition")
+Add-Result "v030b.runloop.quota_blocker_durable_state" "run-loop.md says quota blockers create durable resume state" `
+    (($runLoopRef -match 'pending_quota_capsule') -and
+     ($runLoopRef -match 'awaiting_user_decision') -and
+     ($runLoopRef -notmatch 'does NOT mutate state\.md'))
 Add-Result "v030b.runloop.tz_aware_pause_overnight" "run-loop.md says pause_overnight shows tz-aware reset time" `
     ($runLoopRef -match "(?s)pause_overnight.*?exact local reset time \+ timezone")
 Add-Result "v030b.runloop.estimation_priority" "run-loop.md documents estimation source priority" `
     ($runLoopRef -match "(?s)Estimation source priority.*?exec-\*-ctx\.md")
 Add-Result "v030b.runloop.advisory_redaction" "run-loop.md says provider headers are advisory + redacted" `
-    ($runLoopRef -match "(?s)Provider-header capture.*?advisory.*?NEVER capture or log raw token values")
+    ($runLoopRef -match "(?s)Provider-header capture.*?advisory.*?NEVER capture or log raw header strings")
 Add-Result "v030b.runloop.capsule_schema" "run-loop.md has WORKER_QUOTA_EXHAUSTED_PREDICTED capsule schema" `
     ($runLoopRef -match "awaiting_user_reason: WORKER_QUOTA_EXHAUSTED_PREDICTED")
 

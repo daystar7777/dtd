@@ -119,10 +119,16 @@ run loop, summarized:
      capsule `WORKER_QUOTA_EXHAUSTED_PREDICTED` with
      `pause_overnight` option showing exact local reset time
      + timezone (e.g. "until 2026-05-06 00:00 KST [Asia/Seoul]").
-   - This step is observational for run state — quota check
-     does NOT mutate state.md or attempts/run-NNN.md; only
-     `.dtd/log/worker-usage-run-NNN.md` may be appended (per
-     dispatch).
+   - Quota reads/estimates are observational. If the check only
+     computes quota health, do not mutate `state.md`, notepad, or
+     attempts. If it selects a fallback or fills
+     `WORKER_QUOTA_EXHAUSTED_PREDICTED`, record the durable routing
+     state/capsule exactly like other dispatch blockers:
+     `awaiting_user_decision`, `decision_*`, and
+     `state.md.pending_quota_capsule` are authoritative resume state.
+     Append `.dtd/log/worker-usage-run-NNN.md` only after a dispatch
+     response or an explicit estimate row, not during read-only
+     prediction.
 5.5. **Permission ledger gate** (v0.2.0b R1): for the next task,
    resolve `task` key against `.dtd/permissions.md`. If `deny` →
    abort task (auto-deny audit row); if `ask` → fill
@@ -558,9 +564,10 @@ amendments):
    `context-budget.default_failure_threshold` for this).
 
 **Paid-fallback contract** (per Codex P1.3):
-- Predictive routing is observational for state; routing
-  to a paid fallback IS a permission/cost transition gated
-  by the v0.2.0b ledger.
+- Quota estimation is observational for state. A routing decision
+  that changes fallback selection or fills a quota capsule is durable
+  run state, and routing to a paid fallback IS a permission/cost
+  transition gated by the v0.2.0b ledger.
 - In silent mode + no explicit `allow` rule on paid worker:
   defer (per `quota_paid_fallback_silent_defer: true`
   default); continue independent non-paid work.
@@ -579,13 +586,16 @@ additional):
   - Treat as ADVISORY: provider header is more accurate
     than client-side estimate, but request-time round-trip
     delay means it's a snapshot, not real-time.
-- NEVER capture or log raw token values, auth headers, or
-  any provider-specific secret material from these headers.
+- NEVER capture or log raw header strings, auth headers, request ids
+  that can identify accounts, or any provider-specific secret material
+  from these headers. Persist only normalized counts and reset times.
 
 ### 4. Decision capsule schema
 
 ```yaml
 awaiting_user_reason: WORKER_QUOTA_EXHAUSTED_PREDICTED
+pending_quota_capsule:
+  workers: [{id: worker_a, used_pct: 95, reset_at_local: "2026-05-06 00:00", reset_tz: "Asia/Seoul"}]
 decision_id: dec-NNN
 decision_prompt: "All assigned workers near quota. <worker_a> 95% used; <worker_b> 99% used. How to proceed?"
 decision_options:
@@ -818,15 +828,15 @@ responding to user):
    - Read `.dtd/permissions.md` `## Active rules`.
    - For every row with `resolved_until: run_end`: append
      tombstone row
-     `<ts> | revoke | <key> | scope: <expr> | by: finalize_run_session_end (revokes <orig ts> row)`.
+     `<ts> | revoke | <key> | scope: <expr> | by: finalize_run_run_end (revokes <orig ts> row)`.
    - For every row with `resolved_until: <ISO ts>` where
      `ts < now`: append tombstone row
      `<ts> | revoke | <key> | scope: <expr> | by: finalize_run_ttl_expired (revokes <orig ts> row)`.
    - Original rules preserved (audit trail); tombstones
      neutralize them in subsequent resolutions per
      `.dtd/permissions.md` §Resolution algorithm.
-   - Update `state.md.last_session_prune_at: <ts>`.
-   - Recount `state.md.session_active_time_limited_count` from
+   - Update `state.md.last_permission_prune_at: <ts>`.
+   - Recount `state.md.active_time_limited_rule_count` from
      remaining non-tombstoned time-limited rules.
 6. **Append AIMemory `WORK_END`** (only if AIMemory present):
    one-line event with

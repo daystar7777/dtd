@@ -4,7 +4,7 @@
 > Append-only history; current state is resolved by key, scope specificity,
 > and timestamp.
 > Rule format:
->   `<ts> | <decision> | <key> | scope: <expr> [| worker: <id>] [| until: <ts>] | by: <who>`
+>   `<ts> | <decision> | <key> | scope: <expr> [| worker: <id>] [| until: <orig>] [| resolved_until: <abs ts|run_end>] [| resolved_until_tz: <tz>] | by: <who>`
 >
 > Read by controller before any permission-class action. See
 > `dtd.md` §`/dtd permission` for command spec.
@@ -36,13 +36,23 @@ latest timestamp for ties.)
 1. Compute `(key, scope, worker, capability)` for the proposed action.
 2. Collect `## Active rules` whose key matches and whose scope/worker/
    capability filters match the proposed action.
-3. Drop rules whose `until` is past current time.
-4. Sort remaining matches by scope specificity DESC, then timestamp DESC.
+3. Apply tombstones first: a `revoke` row that references an earlier rule
+   neutralizes that earlier rule. Tombstone rows are audit records, not
+   candidate decisions.
+4. Drop expired rules:
+   - If `resolved_until: <ISO ts>` exists, compare that timestamp to now.
+   - If `resolved_until: run_end` exists, keep it active until finalize_run
+     step 5c appends its tombstone.
+   - Else if legacy `until: <ISO ts>` exists, compare that timestamp to now.
+   - Else if `until` is a v0.3.0e duration/named form but `resolved_until`
+     is missing, treat the rule as unresolved and fall through to the next
+     match/default; doctor reports `permission_until_unresolved`.
+5. Sort remaining matches by scope specificity DESC, then timestamp DESC.
    Specificity order: exact path/command > longer glob/prefix > shorter
    glob/prefix > `*`; worker/capability filters add specificity.
-5. First sorted rule wins. If no active rule matches, fall back to
+6. First sorted rule wins. If no active rule matches, fall back to
    `## Default rules` for that key.
-6. Apply the matched decision:
+7. Apply the matched decision:
    - `allow`: proceed; append `auto-allow` row to `.dtd/log/permissions.md`.
    - `deny`: abort; append `auto-deny` row. Silent mode does NOT defer
      deny — deny is final.
@@ -150,7 +160,7 @@ parse time with `permission_duration_combined_unsupported_v030e`.
 | `this-week` | until next Monday 00:00 local time | absolute ISO ts |
 | `next-monday` | alias for `this-week` (until next Monday 00:00) | absolute ISO ts |
 | `next-week` | until 7 days after this-week | absolute ISO ts |
-| `run` | until current `/dtd run` finalize_run | sentinel `run_end` |
+| `run` | until the active `/dtd run` finalize_run, or the next run's finalize_run if issued before a run starts | sentinel `run_end` |
 | `run_end` | explicit form of `run` | sentinel `run_end` |
 
 **`for <duration>` form**: equivalent UX wrapper. The user-facing
@@ -189,7 +199,7 @@ Examples:
 ```text
 2026-05-05 18:30 | allow | edit  | scope: src/**     | until: +1h        | resolved_until: 2026-05-05T19:30:00Z   | resolved_until_tz: UTC          | by: user
 2026-05-05 18:30 | allow | bash  | scope: npm test   | until: for run    | resolved_until: run_end                | resolved_until_tz: UTC          | by: user
-2026-05-05 18:30 | allow | edit  | scope: docs/**    | until: eod        | resolved_until: 2026-05-05T23:59:59+09 | resolved_until_tz: Asia/Seoul   | by: user
+2026-05-05 18:30 | allow | edit  | scope: docs/**    | until: eod        | resolved_until: 2026-05-05T23:59:59+09:00 | resolved_until_tz: Asia/Seoul   | by: user
 2026-05-05 18:30 | allow | edit  | scope: tests/**   | until: 2026-05-06T18:00:00Z | resolved_until: 2026-05-06T18:00:00Z   | resolved_until_tz: UTC          | by: user (legacy v0.2.0b form)
 ```
 

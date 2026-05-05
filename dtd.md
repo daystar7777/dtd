@@ -320,7 +320,7 @@ Forms:
 | `for <int><m\|h\|d\|w>` | `for 1h`, `for 30m`, `for 2d` | relative duration from now |
 | `until <ISO ts>` | `until 2026-05-06T18:00:00Z` | absolute UTC timestamp |
 | `until <named scope>` | `until eod`, `until this-week` | named time scope (local tz) |
-| `for run` | `for run` | until current `/dtd run` finalize_run (sentinel `run_end`) |
+| `for run` | `for run` | until the active `/dtd run` finalize_run, or the next run's finalize_run if issued before a run starts (sentinel `run_end`) |
 
 Named scopes: `today | eod | this-week | next-monday |
 next-week | run | run_end`. Local-time scopes
@@ -342,7 +342,7 @@ Auto-prune at finalize_run is a dedicated step 5c (NEW;
 v0.3.0e). At terminal exits (COMPLETED/STOPPED/FAILED), every
 `## Active rules` row with `resolved_until: run_end` OR
 `resolved_until: <ISO ts>` where ts < now gets a tombstone row
-appended (`by: finalize_run_session_end` or
+appended (`by: finalize_run_run_end` or
 `by: finalize_run_ttl_expired`). See `reference/run-loop.md`
 §"Time-limited permissions auto-prune (v0.3.0e R0)".
 

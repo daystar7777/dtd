@@ -3119,7 +3119,7 @@ values stay local.
 - Append row to `## Active rules` with `until: +1h`,
   `resolved_until: <now+1h ISO ts>`, `resolved_until_tz: UTC`,
   `by: user`.
-- `state.md.session_active_time_limited_count: 1`.
+- `state.md.active_time_limited_rule_count: 1`.
 
 **Pass**: duration syntax parses; resolved_until populated;
 state count incremented.
@@ -3138,8 +3138,8 @@ state count incremented.
   `resolved_until: run_end`, `resolved_until_tz: UTC`.
 - Step 2 finalize_run step 5c: tombstone row appended
   `<ts> | revoke | bash | scope: npm test | by:
-  finalize_run_session_end (revokes <orig ts> row)`.
-- `state.md.last_session_prune_at: <ts>`.
+  finalize_run_run_end (revokes <orig ts> row)`.
+- `state.md.last_permission_prune_at: <ts>`.
 - Original allow row preserved (audit trail).
 
 **Pass**: run-end sentinel cleared by step 5c; tombstone is
@@ -3235,7 +3235,7 @@ Plan running. 6 minutes pass.
 
 **Pass**: mixed for/until rejected; clear hint.
 
-### 117. finalize_run step 5c tombstones all session/run-end-scoped rules
+### 117. finalize_run step 5c tombstones all run-end-scoped rules
 
 **Setup**: 5 active rules:
 - 2 with `resolved_until: run_end` (for run).
@@ -3246,12 +3246,12 @@ Plan running. 6 minutes pass.
 
 **Expected** at step 5c:
 - 3 tombstones appended:
-  - 2 with `by: finalize_run_session_end`.
+  - 2 with `by: finalize_run_run_end`.
   - 1 with `by: finalize_run_ttl_expired`.
 - 2 future-ts rules untouched.
-- `state.md.session_active_time_limited_count: 2`
+- `state.md.active_time_limited_rule_count: 2`
   (post-prune count of remaining time-limited rules).
-- `state.md.last_session_prune_at: <ts>`.
+- `state.md.last_permission_prune_at: <ts>`.
 
 **Pass**: step 5c distinguishes run_end vs TTL-expired
 tombstones; future-ts rules survive; count accurate.

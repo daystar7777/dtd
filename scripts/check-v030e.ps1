@@ -67,6 +67,13 @@ Add-Result "v030e.permissions.run_end_sentinel" "permissions.md documents run_en
     ($permText -match "resolved_until: run_end")
 Add-Result "v030e.permissions.legacy_v020b_back_compat" "permissions.md acknowledges v0.2.0b legacy rules" `
     ($permText -match "permission_until_unresolved_legacy_v020b")
+Add-Result "v030e.permissions.resolution_uses_resolved_until" "permissions resolution uses resolved_until as canonical expiry" `
+    (($permText -match "(?s)Drop expired rules:.*?resolved_until: <ISO ts>") -and
+     ($permText -match "resolved_until: run_end") -and
+     ($permText -match 'legacy `until: <ISO ts>`'))
+Add-Result "v030e.permissions.resolution_handles_tombstones" "permissions resolution applies revoke tombstones before matching" `
+    (($permText -match "Apply tombstones first") -and
+     ($permText -match "Tombstone rows are audit records, not\s+candidate decisions"))
 
 # ─── dtd.md ──────────────────────────────────────────────────────────────────
 
@@ -93,7 +100,7 @@ $stateMd = Read-Text ".dtd/state.md"
 
 Add-Result "v030e.state.section" "state.md has ## Permission time-limited rules (v0.3.0e)" `
     ($stateMd -match "## Permission time-limited rules \(v0\.3\.0e\)")
-$stateKeys = @("session_active_time_limited_count", "last_session_prune_at")
+$stateKeys = @("active_time_limited_rule_count", "last_permission_prune_at")
 foreach ($key in $stateKeys) {
     Add-Result "v030e.state.key.$key" "state.md v0.3.0e section has $key" `
         ($stateMd -match "(?m)^- $([regex]::Escape($key)):")
@@ -105,12 +112,12 @@ $runLoopRef = Read-Text ".dtd/reference/run-loop.md"
 
 Add-Result "v030e.runloop.step_5c" "run-loop.md finalize_run has step 5c auto-prune" `
     ($runLoopRef -match "5c\.\s*\*\*Auto-prune time-limited permission rules\*\* \(v0\.3\.0e R0\)")
-Add-Result "v030e.runloop.session_end_tombstone" "run-loop.md step 5c tombstones run_end rules" `
-    ($runLoopRef -match "(?s)resolved_until: run_end.*?finalize_run_session_end")
+Add-Result "v030e.runloop.run_end_tombstone" "run-loop.md step 5c tombstones run_end rules" `
+    ($runLoopRef -match "(?s)resolved_until: run_end.*?finalize_run_run_end")
 Add-Result "v030e.runloop.ttl_expired_tombstone" "run-loop.md step 5c tombstones TTL-expired rules" `
     ($runLoopRef -match "(?s)ts < now.*?finalize_run_ttl_expired")
-Add-Result "v030e.runloop.recount_state" "run-loop.md step 5c recounts session_active_time_limited_count" `
-    ($runLoopRef -match "(?s)Recount.*?session_active_time_limited_count")
+Add-Result "v030e.runloop.recount_state" "run-loop.md step 5c recounts active_time_limited_rule_count" `
+    ($runLoopRef -match "(?s)Recount.*?active_time_limited_rule_count")
 
 # ─── reference/doctor-checks.md ──────────────────────────────────────────────
 

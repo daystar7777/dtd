@@ -338,11 +338,11 @@ Sections:
   `permission_duration_combined_unsupported_v030e`.
 - Mixed `for X until Y` rules: ERROR
   `permission_duration_until_mixed_unsupported`.
-- `state.md.session_active_time_limited_count` should match
+- `state.md.active_time_limited_rule_count` should match
   count of non-tombstoned time-limited rows in
   `## Active rules`; ELSE WARN
   `permission_time_limited_count_drift`.
-- `state.md.last_session_prune_at` is non-null after the
+- `state.md.last_permission_prune_at` is non-null after the
   first finalize_run step 5c; ELSE INFO
   `permission_finalize_prune_unrun` (acceptable for fresh
   installs).
