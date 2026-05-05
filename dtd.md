@@ -2312,16 +2312,24 @@ the next mutating turn. Localized examples belong in locale packs.
 
 ---
 
-## v0.1.1 / v0.2 Roadmap (declared, not implemented)
+## v0.1.1 / v0.2 / v0.3 Roadmap
 
 Released: v0.1, v0.1.1, v0.2.0a (TAGGED 2026-05-05).
-In progress / R0-ready: v0.2.0d, v0.2.0f.
-R0 designed (not implemented): v0.2.0e, v0.2.0b, v0.2.0c, v0.2.1,
-v0.2.2, v0.2.3.
 
-Implementation order (per dependency graph):
-v0.2.0a (✓) → v0.2.0d → v0.2.0f → v0.2.0e → v0.2.0b → v0.2.0c →
-v0.2.1 → v0.2.2 → v0.2.3.
+Release-ready (release-contract-passing; tag pending user auth):
+v0.2.0d, v0.2.0f, v0.2.3.
+
+R0 + R1 complete (Codex GO; tag pending user auth):
+v0.2.0e, v0.2.0b, v0.2.0c, v0.2.1, v0.2.2.
+
+v0.3 line GO at R0 + R1 across all 5 sub-releases (Codex final
+review pass `handoff_dtd-v030c-v030d-r1-codex-review.gpt-5-codex.md`
+2026-05-06; tag pending user auth):
+v0.3.0e, v0.3.0b, v0.3.0a, v0.3.0c, v0.3.0d.
+
+R2 (live execution verification) plan defined in
+`.dtd/reference/v030-r2-live-test-plan.md`; user-driven setup
+required (test project + 3 worker slots + optional sync target).
 
 > Full canonical reference: see `.dtd/reference/roadmap.md`
 > (per-sub-release scope, v0.1.1 features, v0.2 detailed feature notes,
