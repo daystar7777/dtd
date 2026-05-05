@@ -21,7 +21,7 @@
 | `workers` | Worker registry + dispatch + health check | canonical | `.dtd/reference/workers.md` |
 | `plan-schema` | Plan XML schema + size budget | canonical | `.dtd/reference/plan-schema.md` |
 | `status-dashboard` | Status rendering rules + glyph reference | canonical | `.dtd/reference/status-dashboard.md` |
-| `self-update` | v0.2.0d /dtd update + B1-B7 flow | stub | `dtd.md` `/dtd update` |
+| `self-update` | v0.2.0d /dtd update + B1-B7 flow | canonical | `.dtd/reference/self-update.md` |
 | `help-system` | v0.2.0d /dtd help + topic resolution | canonical | `.dtd/reference/help-system.md` |
 | `doctor-checks` | All doctor checks across sub-releases | canonical | `.dtd/reference/doctor-checks.md` |
 | `roadmap` | v0.2 sub-release tree | canonical | `.dtd/reference/roadmap.md` |
