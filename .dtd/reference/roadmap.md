@@ -64,7 +64,10 @@ R2 (Codex's residual risk): live DTD run against a nontrivial test
 project to exercise consensus staging, worker cancellation,
 git-branch sync, and session conflict recovery end-to-end. Defined
 in `.dtd/reference/v030-r2-live-test-plan.md` and ready for
-user-driven execution (session #11).
+user-driven execution (session #11). R2-0 readiness gate is
+defined in `.dtd/reference/v030-r2-0-readiness-checklist.md` and
+is invoked via `/dtd r2 readiness` before any disposable scaffold
+is created.
 
 ## v0.1.1
 

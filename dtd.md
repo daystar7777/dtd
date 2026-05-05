@@ -2313,6 +2313,30 @@ the next mutating turn. Localized examples belong in locale packs.
 
 ---
 
+## R2 Readiness (v0.3)
+
+### `/dtd r2 readiness [--full|--json]`
+
+Observational entry gate for v0.3 R2 live execution. It answers
+whether R2 can start without creating `test-projects/dtd-v03-live/`,
+calling live workers, touching secrets, or faking an R2 PASS from
+static checks.
+
+Aliases: `/dtd r2 status`, `/dtd r2 check`.
+
+Outputs one `r2_0_decision` row:
+
+- `GO`: proceed to R2-1 disposable scaffold.
+- `STOP`: fix static/doctor/worker prerequisites first.
+- `WARN`: only optional sync coverage is absent; user may proceed
+  without L-D-* coverage, but that is not a full R2 PASS.
+
+> Full canonical reference: see
+> `.dtd/reference/v030-r2-0-readiness-checklist.md`.
+> Lazy-load via `/dtd help v030-r2-0-readiness-checklist --full`.
+
+---
+
 ## v0.1.1 / v0.2 / v0.3 Roadmap
 
 Released: v0.1, v0.1.1, v0.2.0a (TAGGED 2026-05-05).

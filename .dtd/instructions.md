@@ -150,6 +150,7 @@ classification, confidence, and any assumptions in your turn output (briefly).
 | `incident` | `/dtd incident [list\|show\|resolve]` (v0.2.0a) | list/show are observational reads; resolve is a mutating decision action — see below |
 | `locale` | `/dtd locale [enable\|disable\|list\|show]` (v0.2.0e) | list/show are observational; enable/disable mutate locale state |
 | `loop_guard` | `/dtd loop-guard [show\|prune\|rehash]` (v0.3.0a) | show and rehash --dry-run are observational; prune/rehash mutate the cross-run ledger |
+| `r2_readiness` | `/dtd r2 readiness [--full\|--json]` (v0.3 R2-0) | observational; reads readiness checklist and local config/worker metadata without calling workers or creating test project |
 | `update` | `/dtd update [check\|--dry-run\|<version>\|--rollback]` (v0.2.0d) | check/--dry-run are observational; apply/rollback ALWAYS confirms (mutating) |
 | `help` | `/dtd help [topic]` (v0.2.0d) | observational; reads `.dtd/help/<topic>.md`; never mutates state |
 | `explain` | answer in chat using `dtd.md` / `instructions.md` | meta — explain DTD itself |
@@ -211,6 +212,7 @@ English canonical examples:
 | "token usage" | `/dtd perf --tokens` | any |
 | "loop history" | `/dtd loop-guard show` | any |
 | "rehash loop guard" | `/dtd loop-guard rehash` | PAUSED / no active run preferred; confirm before mutating |
+| "can we start R2?" | `/dtd r2 readiness` | any |
 | "use explore pattern" | set `context-pattern="explore"` | DRAFT = edit plan; else steer patch |
 
 Silent mode defers blockers and continues independent ready work. It never
@@ -537,6 +539,7 @@ Classify these as `observational_read`:
 - `/dtd locale show` (v0.2.0e)
 - `/dtd loop-guard show` (v0.3.0a) — any flag
 - `/dtd loop-guard rehash --dry-run` (v0.3.0a)
+- `/dtd r2 readiness` (v0.3 R2-0) — any flag; no worker calls, no test project creation
 - `/dtd perf` (v0.2.0f) — any flag
 - `/dtd silent` (v0.2.0f) — bare form (no args) shows current attention mode
 - `/dtd mode decision` (v0.2.0f) — bare form (no args) shows current decision mode

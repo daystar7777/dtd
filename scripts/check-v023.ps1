@@ -184,6 +184,36 @@ Add-Result "v023.r2_live_plan.reporting_evidence" "R2 live plan reporting table 
     (($r2LivePlanText -match '\| Scenario \| Status \| Evidence \| Notes \|') -and
      ($r2LivePlanText -match 'decision capsule id'))
 
+$r2ReadinessText = Read-Text ".dtd/reference/v030-r2-0-readiness-checklist.md"
+Add-Result "v023.r2_0.command_surface" "dtd.md + instructions expose /dtd r2 readiness" `
+    (($dtdMd -match '/dtd r2 readiness') -and
+     ($instructionsMd -match '\| `r2_readiness` \|') -and
+     ($instructionsMd -match '/dtd r2 readiness') -and
+     ($instructionsMd -match 'no worker calls, no test project creation'))
+Add-Result "v023.r2_0.reference_command_surface" "R2-0 readiness ref documents command and aliases" `
+    (($r2ReadinessText -match '/dtd r2 readiness \[--full\|--json\]') -and
+     ($r2ReadinessText -match '/dtd r2 status') -and
+     ($r2ReadinessText -match '/dtd r2 check'))
+Add-Result "v023.r2_0.no_mutating_sync_probe" "R2-0 readiness is observational for sync targets" `
+    (($r2ReadinessText -match 'no sync-target write') -and
+     ($r2ReadinessText -match 'sync_target_declared') -and
+     (-not ($r2ReadinessText -match 'check_writable')) -and
+     (-not ($r2ReadinessText -match 'write \+ delete a test file')))
+Add-Result "v023.r2_0.sync_disabled_warns" "R2-0 returns WARN when session sync is disabled/skipped" `
+    (($r2ReadinessText -match 'if not config\.session_sync\.enabled') -and
+     ($r2ReadinessText -match 'session_sync disabled') -and
+     ($r2ReadinessText -match 'R2-0 decision status WARN'))
+Add-Result "v023.r2_0.quota_header_blocks_full_r2" "R2-0 treats missing quota-header worker as full-R2 blocker" `
+    (($r2ReadinessText -match 'r2_0_no_quota_header_worker \(ERROR') -and
+     ($r2ReadinessText -match 'Blocks required L-B-2 coverage') -and
+     ($r2ReadinessText -match 'full R2 cannot start'))
+Add-Result "v023.r2_0.collects_all_blockers" "R2-0 collects all observable blockers before STOP" `
+    (($r2ReadinessText -match 'blockers = \[\]') -and
+     ($r2ReadinessText -match 'warnings = \[\]') -and
+     ($r2ReadinessText -match 'collect all observable blockers'))
+Add-Result "v023.r2_0.plan_related_topic" "R2 live plan links R2-0 readiness topic" `
+    ($r2LivePlanText -match 'v030-r2-0-readiness-checklist\.md')
+
 Add-Result "v023.instructions.effective_profile" "instructions compute effective_profile" `
     ($instructionsMd -match 'compute `effective_profile`')
 Add-Result "v023.instructions.observational_no_profile_write" "instructions prevent profile writes on observational reads" `

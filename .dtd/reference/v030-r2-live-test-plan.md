@@ -222,5 +222,7 @@ R2 unaided.
 ## Related topics
 
 - `test-scenarios.md` — static-contract scenarios 109-189.
+- `v030-r2-0-readiness-checklist.md` — observational entry gate
+  before creating `test-projects/dtd-v03-live/`.
 - `v030*.md` — per-sub-release reference topics (R0 + R1 contracts).
 - `roadmap.md` — overall v0.3 line status pointer.
