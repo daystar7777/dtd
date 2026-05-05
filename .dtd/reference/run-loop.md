@@ -476,7 +476,10 @@ path). Algorithm:
 
 **Per-run scope**: loop guard signatures are scoped to the active
 run; `finalize_run` resets to idle. Cross-run loop detection
-deferred to v0.3.
+shipped in v0.3.0a (see
+`.dtd/reference/v030a-cross-run-loop-guard.md`); `finalize_run`
+step 5d captures the within-run signature into
+`.dtd/cross-run-loop-guard.md` BEFORE clearing.
 
 ### State.md addition
 
