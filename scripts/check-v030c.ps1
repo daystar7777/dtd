@@ -192,6 +192,82 @@ foreach ($n in 134..141) {
     Add-Result "v030c.scenarios.$n" "test-scenarios.md has scenario $n" `
         ($scenariosMd -match "### $n\.")
 }
+Add-Result "v030c.scenarios.r1_section_header" "test-scenarios.md has v0.3.0c R1 section header" `
+    ($scenariosMd -match "## v0\.3\.0c R1 .* Multi-worker consensus dispatch runtime")
+foreach ($n in 174..181) {
+    Add-Result "v030c.scenarios.r1_$n" "test-scenarios.md has R1 scenario $n" `
+        ($scenariosMd -match "### $n\.")
+}
+
+# ─── reference/v030c-consensus.md (R1 sections) ──────────────────────────────
+
+Add-Result "v030c.r1_ref.section" "v030c ref has ## R1 runtime contract section" `
+    ($v030cRef -match "(?m)^## R1 runtime contract")
+Add-Result "v030c.r1_ref.parallel_dispatch" "v030c R1 ref documents parallel dispatch algorithm" `
+    (($v030cRef -match "Parallel dispatch algorithm") -and ($v030cRef -match "dispatch_consensus\("))
+Add-Result "v030c.r1_ref.lock_acquire" "v030c R1 ref documents lock acquisition algorithm" `
+    (($v030cRef -match "Lock acquisition") -and ($v030cRef -match "acquire_consensus_group_lock\("))
+Add-Result "v030c.r1_ref.lock_timeout_capsule" "v030c R1 ref defines CONSENSUS_LOCK_TIMEOUT capsule" `
+    ($v030cRef -match "CONSENSUS_LOCK_TIMEOUT")
+Add-Result "v030c.r1_ref.cancellation" "v030c R1 ref documents cancellation algorithm" `
+    (($v030cRef -match "cancel_inflight\(") -and ($v030cRef -match "cancellation_pending"))
+Add-Result "v030c.r1_ref.strategy_first_passing" "v030c R1 ref documents first_passing algorithm" `
+    ($v030cRef -match "strategy_first_passing\(")
+Add-Result "v030c.r1_ref.strategy_quality_rubric" "v030c R1 ref documents quality_rubric algorithm" `
+    ($v030cRef -match "strategy_quality_rubric\(")
+Add-Result "v030c.r1_ref.strategy_reviewer_consensus" "v030c R1 ref documents reviewer_consensus algorithm" `
+    ($v030cRef -match "strategy_reviewer_consensus\(")
+Add-Result "v030c.r1_ref.strategy_vote_unanimous" "v030c R1 ref documents vote_unanimous algorithm" `
+    ($v030cRef -match "strategy_vote_unanimous\(")
+Add-Result "v030c.r1_ref.reviewer_prompt_template" "v030c R1 ref provides reviewer prompt template" `
+    (($v030cRef -match "Consensus reviewer") -and ($v030cRef -match "::winner: <worker_id>::"))
+Add-Result "v030c.r1_ref.staging_cleanup" "v030c R1 ref documents staging cleanup" `
+    ($v030cRef -match "cleanup_staging\(")
+Add-Result "v030c.r1_ref.r1_scenarios" "v030c R1 ref lists scenarios 174-181" `
+    ($v030cRef -match "(?s)R1 acceptance scenarios.*?174.*?181")
+
+# v030c R1 doctor codes (additional)
+$v030cR1DoctorCodes = @(
+    "consensus_staging_orphan",
+    "consensus_lock_timeout_recurring",
+    "consensus_reviewer_unparseable",
+    "consensus_rubric_all_tied",
+    "consensus_skill_missing"
+)
+foreach ($code in $v030cR1DoctorCodes) {
+    Add-Result "v030c.doctor.r1_code.$code" "doctor-checks ref defines R1 $code" `
+        ($doctorRef -match [regex]::Escape($code))
+}
+Add-Result "v030c.doctor.r1_section" "doctor-checks ref has v0.3.0c R1 runtime checks header" `
+    ($doctorRef -match "v0\.3\.0c R1 runtime checks")
+
+# v030c R1 state fields
+$v030cR1StateKeys = @("last_consensus_lock_acquire_attempt_at",
+                       "last_consensus_strategy_outcome")
+foreach ($key in $v030cR1StateKeys) {
+    Add-Result "v030c.state.r1_key.$key" "state.md Consensus section has R1 $key" `
+        ($stateMd -match "(?m)^- $([regex]::Escape($key)):")
+}
+Add-Result "v030c.state.r1_capsule_enum" "state.md awaiting_user_reason enum lists CONSENSUS_LOCK_TIMEOUT" `
+    ($stateMd -match "CONSENSUS_LOCK_TIMEOUT")
+
+# v030c R1 config additions
+Add-Result "v030c.config.r1_reviewer_timeout" "config.md consensus section has consensus_reviewer_timeout_sec" `
+    ($configMd -match "(?m)^- consensus_reviewer_timeout_sec:")
+
+# v030c R1 NEW skill file
+$skillPath = Join-Path $RepoRoot ".dtd/skills/consensus-reviewer.md"
+Add-Result "v030c.r1_skill.exists" ".dtd/skills/consensus-reviewer.md (R1 NEW) exists" `
+    (Test-Path -LiteralPath $skillPath)
+if (Test-Path -LiteralPath $skillPath) {
+    $skillText = Read-Text ".dtd/skills/consensus-reviewer.md"
+    Add-Result "v030c.r1_skill.winner_token" "consensus-reviewer skill specifies ::winner: token" `
+        ($skillText -match "::winner: <worker_id>::")
+    Add-Result "v030c.r1_skill.distinct_invariant" "consensus-reviewer skill mentions reviewer-distinct (Codex P1)" `
+        (($skillText -match "DISTINCT") -or ($skillText -match "no self-review"))
+    Add-Result "v030c.r1_skill.none_correct_token" "consensus-reviewer skill defines NONE_CORRECT escape" `
+        ($skillText -match "NONE_CORRECT")
+}
 
 # ─── build-manifest.ps1 ───────────────────────────────────────────────────────
 
@@ -201,6 +277,8 @@ Add-Result "v030c.manifest.reference" "build-manifest includes reference/v030c-c
     ($builderText -match [regex]::Escape(".dtd/reference/v030c-consensus.md"))
 Add-Result "v030c.manifest.checker" "build-manifest includes scripts/check-v030c.ps1" `
     ($builderText -match [regex]::Escape("scripts/check-v030c.ps1"))
+Add-Result "v030c.manifest.r1_skill" "build-manifest includes skills/consensus-reviewer.md" `
+    ($builderText -match [regex]::Escape(".dtd/skills/consensus-reviewer.md"))
 
 $pass = @($Results | Where-Object { $_.pass }).Count
 $fail = @($Results | Where-Object { -not $_.pass }).Count

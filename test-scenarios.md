@@ -3110,6 +3110,165 @@ Locks; consensus group treated as one lock-holder, not N.
 
 ---
 
+## v0.3.0c R1 — Multi-worker consensus dispatch runtime
+
+### 174. Parallel dispatch with isolated staging
+
+**Setup**: plan task `2.1 [consensus=3 first_passing]`.
+3 workers: A, B, C.
+
+**Steps**: step 6.consensus.b acquires group lock; step
+6.consensus.c dispatches all 3 in parallel.
+
+**Expected**:
+- `.dtd/tmp/consensus-{run}-2.1-att1-A.staged/` created.
+- `.dtd/tmp/consensus-{run}-2.1-att1-B.staged/` created.
+- `.dtd/tmp/consensus-{run}-2.1-att1-C.staged/` created.
+- Group lock owns the consensus group (single lock; not 3).
+- `state.md.active_consensus_task: "2.1"`,
+  `active_consensus_n: 3`,
+  `active_consensus_strategy: first_passing`,
+  `active_consensus_group_lock: <lock-id>`.
+- Each worker writes ONLY to its own staged_dir; real
+  `output_paths` untouched until winner.
+
+**Pass**: parallel dispatch isolates candidate outputs; group
+lock owned by group, not divided per-worker.
+
+### 175. first_passing late-result cancellation
+
+**Setup**: same as 174; A returns first with `::done::`.
+
+**Expected**:
+- A declared winner immediately.
+- Controller calls `cancel_inflight()` on B and C.
+- If B's transport supports abort: B's call cancelled at provider
+  level; outcome marked `cancelled_inflight`.
+- C's transport doesn't support abort: C's call continues; when
+  C eventually returns, attempt row marked
+  `consensus_late_stale: true`; C's staged_dir deleted in
+  cleanup_staging.
+- ERROR `consensus_late_stale_applied_violation` does NOT fire
+  (correct: late staged_dir was NOT applied).
+
+**Pass**: late results never apply; cancellation handles both
+abort-capable and non-cancellable transports.
+
+### 176. quality_rubric scoring + tie
+
+**Setup**: 4 workers, `consensus-strategy="quality_rubric"`,
+default rubric weights (0.4 + 0.3 + 0.2 + 0.1 = 1.0).
+
+**Expected (case A — clear winner)**:
+- A: output_paths_match=Y, sentinel_match=Y, line_count=Y,
+  no_protocol_violation=Y → 1.0.
+- B: output_paths_match=Y, sentinel_match=N, ... → 0.6.
+- A wins.
+
+**Expected (case B — all tied at 1.0)**:
+- All 4 score 1.0 (identical correctness).
+- INFO `consensus_rubric_all_tied`.
+- Falls through to CONSENSUS_DISAGREEMENT capsule.
+
+**Pass**: scoring deterministic; ties handled with explicit
+fall-through (no random pick).
+
+### 177. reviewer_consensus prompt + parse + reviewer-distinct
+
+**Setup**: 3 candidate workers (A, B, C). Reviewer worker R
+declared via `consensus-reviewer="R"`; R is NOT in
+`<consensus-workers>`.
+
+**Steps**: step 6.consensus.f loads
+`.dtd/skills/consensus-reviewer.md`, builds review prompt with all
+3 candidate outputs, dispatches R.
+
+**Expected**:
+- Reviewer prompt includes task.goal + 3 candidate
+  `{worker_id, staged_dir, outcome, sentinel}` records.
+- R returns single line `::winner: B::`.
+- B applied; A + C marked superseded.
+- If R were in `<consensus-workers>` set: ERROR
+  `plan_consensus_reviewer_in_candidate_set` (caught at plan-XML
+  validation; never reaches dispatch).
+
+**Pass**: reviewer is distinct (Codex P1); prompt + parse
+deterministic; malformed responses handled separately.
+
+### 178. vote_unanimous whitespace normalization
+
+**Setup**: 3 workers produce same logical content but different
+line endings:
+- A: LF only.
+- B: CRLF only.
+- C: LF + trailing whitespace on each line.
+
+`config.consensus.whitespace_normalization_for_vote: true`
+(default).
+
+**Expected**:
+- After normalization: all 3 produce identical sha256.
+- Unanimous vote → A applied (first-returning tie-break).
+- WITHOUT normalization (`whitespace_normalization_for_vote: false`):
+  3 distinct hashes → CONSENSUS_DISAGREEMENT.
+
+**Pass**: whitespace normalization is a knob; defaults to true
+for human-tolerant byte-equality.
+
+### 179. CONSENSUS_LOCK_TIMEOUT capsule
+
+**Setup**: another task already holds the lock on
+`src/auth/jwt.ts`. Consensus task 3.1 needs the same path.
+`config.consensus_lock_acquire_timeout_sec: 30` (default).
+
+**Steps**: step 6.consensus.b enters acquisition loop.
+
+**Expected**:
+- Loop polls for 30 seconds, lock never frees.
+- Capsule fires:
+  `awaiting_user_reason: CONSENSUS_LOCK_TIMEOUT`
+  with options `[wait_more, retry_lock, demote_single, stop]`.
+- `state.md.last_consensus_lock_acquire_attempt_at: <ts>`.
+- `wait_more` → extends deadline by another 30s; retries.
+- `demote_single` → drops to single-worker dispatch with first
+  `<consensus-workers>` entry.
+
+**Pass**: lock-acquisition deadlock handled with explicit
+capsule; user retains control over wait vs. fallback.
+
+### 180. consensus_staging_orphan doctor check
+
+**Setup**: prior run crashed mid-consensus; staged dirs
+`.dtd/tmp/consensus-{old_run}-2.1-att1-A.staged/` etc. exist.
+Current state has no `active_consensus_task`.
+
+**Steps**: `/dtd doctor`.
+
+**Expected**:
+- WARN `consensus_staging_orphan` lists the orphan dirs.
+- Recommends `/dtd doctor --takeover` (which calls cleanup_staging).
+
+**Pass**: orphans flagged but not auto-deleted (audit-friendly);
+user opts in via takeover.
+
+### 181. retry_all option (CONSENSUS_DISAGREEMENT resolution)
+
+**Setup**: vote_unanimous strategy; 3 workers produce 3 distinct
+hashes; CONSENSUS_DISAGREEMENT capsule fires.
+
+**Steps**: user picks `retry_all` option; `/dtd run` resumes.
+
+**Expected**:
+- Group lock released.
+- All 3 staged_dirs cleaned up.
+- Fresh dispatch of all 3 workers (new attempt id).
+- New consensus group; if disagreement again: capsule re-fires.
+
+**Pass**: `retry_all` is non-destructive (audit-preserved via
+attempt rows); fresh dispatch starts cleanly.
+
+---
+
 ## v0.3.0d — Cross-machine session sync
 
 ### 142. Sync disabled (default backend: none)

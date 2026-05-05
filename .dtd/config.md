@@ -104,6 +104,7 @@
 - consensus_confirm_each_call: true       # always confirm N× cost in assisted host mode
 - max_consensus_n: 5                      # hard cap per task; doctor ERRORs above
 - consensus_lock_acquire_timeout_sec: 30  # how long to wait for output-path lock
+- consensus_reviewer_timeout_sec: 120     # R1; reviewer_consensus dispatch timeout
 - whitespace_normalization_for_vote: true # for vote_unanimous strategy
 - late_result_action: discard             # discard | log_and_discard
 - rubric:                                 # for quality_rubric strategy

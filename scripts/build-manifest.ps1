@@ -68,6 +68,7 @@ $IncludedPaths = @(
     ".dtd/skills/code-write.md",
     ".dtd/skills/review.md",
     ".dtd/skills/planning.md",
+    ".dtd/skills/consensus-reviewer.md",
     ".dtd/help/index.md",
     ".dtd/help/start.md",
     ".dtd/help/observe.md",

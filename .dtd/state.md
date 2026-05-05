@@ -72,6 +72,8 @@
 - active_consensus_strategy: null          # null | first_passing | quality_rubric | reviewer_consensus | vote_unanimous
 - active_consensus_group_lock: null        # null | <output-path-set hash>; held during dispatch
 - consensus_outcomes: []                   # per-attempt rows: {worker, status, score, winner, late_stale}
+- last_consensus_lock_acquire_attempt_at: null  # R1; ts of last lock acquisition attempt
+- last_consensus_strategy_outcome: null    # R1; winner_selected | disagreement | partial_failure | lock_timeout
 
 ## Project identity (v0.3.0a)
 
@@ -306,6 +308,7 @@
                                   #       | WORKER_NATIVE_TOOL_SANDBOX_INVALID
                                   # v0.3.0b: WORKER_QUOTA_EXHAUSTED_PREDICTED
                                   # v0.3.0c: CONSENSUS_DISAGREEMENT | CONSENSUS_PARTIAL_FAILURE
+                                  # v0.3.0c R1: CONSENSUS_LOCK_TIMEOUT
                                   # v0.3.0d: SESSION_CONFLICT
 - decision_id: null               # e.g. "dec-001" — monotonic per run
 - decision_prompt: null           # one-line user-facing question

@@ -319,6 +319,33 @@ Sections:
   `consensus_per_worker_lock_violation` (acquired wrong lock
   shape).
 
+### v0.3.0c R1 runtime checks (additional)
+
+> Full R1 runtime contract — parallel dispatch algorithm,
+> per-worker timeout / cancellation, strategy algorithms,
+> reviewer prompt, staging cleanup — lives in
+> `.dtd/reference/v030c-consensus.md` ## R1 runtime contract.
+
+- `.dtd/tmp/consensus-*.staged/` dirs exist AND
+  `state.md.active_consensus_task: null` AND no
+  `awaiting_user_decision` for consensus: WARN
+  `consensus_staging_orphan` recommending
+  `/dtd doctor --takeover` or manual cleanup.
+- 3+ `CONSENSUS_LOCK_TIMEOUT` capsules in last 5 runs: WARN
+  `consensus_lock_timeout_recurring` suggesting larger
+  `config.consensus_lock_acquire_timeout_sec` or reduced concurrent
+  task overlap.
+- Reviewer response did not contain a parseable
+  `::winner: <worker_id>::` token: WARN (runtime, not static)
+  `consensus_reviewer_unparseable`. Falls through to
+  CONSENSUS_DISAGREEMENT.
+- `quality_rubric` strategy yielded identical scores for all
+  candidates: INFO `consensus_rubric_all_tied`. Falls through to
+  CONSENSUS_DISAGREEMENT.
+- Plan task uses `consensus-strategy="reviewer_consensus"` AND
+  `.dtd/skills/consensus-reviewer.md` is missing: ERROR
+  `consensus_skill_missing`.
+
 ### v0.3.0d Cross-machine session sync checks
 
 - `config.session_sync.enabled: true` AND Backend != `none` AND env var named in
