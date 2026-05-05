@@ -78,11 +78,20 @@ Add-Result -Id "v020d.dtdmd.b_steps" -Name "dtd.md has B1-B7 update flow" `
 Add-Result -Id "v020d.dtdmd.help_resolution" -Name "dtd.md has Topic resolution algorithm" `
     -Pass ($dtdMd -match 'Topic resolution algorithm')
 
-Add-Result -Id "v020d.dtdmd.doctor_self_update" -Name "dtd.md has Doctor §Self-Update state" `
-    -Pass ($dtdMd -match '\*\*Self-Update state\*\* \(v0\.2\.0d\)')
+# Doctor §Self-Update state and §Help system — v0.2.3 R1: live in
+# .dtd/reference/doctor-checks.md (extracted). dtd.md keeps a stub
+# pointer.
+$doctorRef = Join-Path $RepoRoot ".dtd/reference/doctor-checks.md"
+$doctorText = if (Test-Path -LiteralPath $doctorRef) { Get-Content -LiteralPath $doctorRef -Raw } else { "" }
 
-Add-Result -Id "v020d.dtdmd.doctor_help" -Name "dtd.md has Doctor §Help system" `
-    -Pass ($dtdMd -match '\*\*Help system\*\* \(v0\.2\.0d\)')
+Add-Result -Id "v020d.doctor_ref.self_update" -Name "doctor-checks ref has Self-Update state (v0.2.3 R1 extracted)" `
+    -Pass ($doctorText -match '## Self-Update state \(v0\.2\.0d\)')
+
+Add-Result -Id "v020d.doctor_ref.help_system" -Name "doctor-checks ref has Help system (v0.2.3 R1 extracted)" `
+    -Pass ($doctorText -match '## Help system \(v0\.2\.0d\)')
+
+Add-Result -Id "v020d.dtdmd.doctor_stub" -Name "dtd.md keeps /dtd doctor stub with Self-Update bullet" `
+    -Pass (($dtdMd -match '### `/dtd doctor`') -and ($dtdMd -match 'Self-Update state \(v0\.2\.0d\)'))
 
 # ─── state.md fields ──────────────────────────────────────────────────────────
 

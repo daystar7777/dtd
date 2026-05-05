@@ -20,10 +20,10 @@
 | `perf` | v0.2.0f /dtd perf + ctx file format + controller usage ledger | canonical | `.dtd/reference/perf.md` |
 | `workers` | Worker registry + dispatch + health check | stub | `dtd.md` Worker Registry & Routing |
 | `plan-schema` | Plan XML schema + size budget | stub | `dtd.md` Plan Schema (XML) |
-| `status-dashboard` | Status rendering rules + glyph reference | stub | `dtd.md` Status Dashboard |
+| `status-dashboard` | Status rendering rules + glyph reference | canonical | `.dtd/reference/status-dashboard.md` |
 | `self-update` | v0.2.0d /dtd update + B1-B7 flow | stub | `dtd.md` `/dtd update` |
 | `help-system` | v0.2.0d /dtd help + topic resolution | stub | `dtd.md` `/dtd help` |
-| `doctor-checks` | All doctor checks across sub-releases | stub | `dtd.md` `/dtd doctor` |
+| `doctor-checks` | All doctor checks across sub-releases | canonical | `.dtd/reference/doctor-checks.md` |
 | `roadmap` | v0.2 sub-release tree | stub | `dtd.md` v0.1.1 / v0.2 Roadmap |
 | `load-profile` | v0.2.3 controller cognitive scoping | canonical | `.dtd/reference/load-profile.md` |
 

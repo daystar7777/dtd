@@ -101,8 +101,11 @@ $stateMd = Read-Text ".dtd/state.md"
 $scenariosMd = Read-Text "test-scenarios.md"
 $builderText = Read-Text "scripts/build-manifest.ps1"
 
-Add-Result "v023.dtd.reference_count" "dtd.md documents index + 13 reference topics" `
-    ($dtdMd -match "index\.md.*all 13 canonical reference topics")
+# v0.2.3 R1: doctor-checks extracted; dtd.md stub mentions "13 topics",
+# full enumeration lives in .dtd/reference/doctor-checks.md.
+$doctorRefText = Read-Text ".dtd/reference/doctor-checks.md"
+Add-Result "v023.dtd.reference_count" "dtd.md + doctor-checks ref document index + 13 reference topics" `
+    (($dtdMd -match "13 topics") -and ($doctorRefText -match "all 13 canonical reference topics"))
 Add-Result "v023.dtd.help_full_reference" "dtd.md help --full loads one reference file" `
     (($dtdMd -match '\.dtd/reference/<topic>\.md') -and ($dtdMd -match 'Do not load `dtd\.md` or other reference files'))
 Add-Result "v023.dtd.profile_observational" "dtd.md says observational reads do not persist profile" `

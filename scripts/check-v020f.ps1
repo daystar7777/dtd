@@ -130,14 +130,21 @@ foreach ($section in $dtdSections.Keys) {
         -Pass ($dtdMd -match $dtdSections[$section])
 }
 
-# Doctor checks
-Add-Result -Id "v020f.dtdmd.doctor_autonomy" `
-    -Name "dtd.md has Doctor §Autonomy & Attention state" `
-    -Pass ($dtdMd -match '\*\*Autonomy & Attention state\*\* \(v0\.2\.0f\)')
+# Doctor checks — v0.2.3 R1: lives in .dtd/reference/doctor-checks.md (extracted)
+$doctorRef = Join-Path $RepoRoot ".dtd/reference/doctor-checks.md"
+$doctorText = if (Test-Path -LiteralPath $doctorRef) { Get-Content -LiteralPath $doctorRef -Raw } else { "" }
 
-Add-Result -Id "v020f.dtdmd.doctor_context_pattern" `
-    -Name "dtd.md has Doctor §Context-pattern state" `
-    -Pass ($dtdMd -match '\*\*Context-pattern state\*\* \(v0\.2\.0f\)')
+Add-Result -Id "v020f.doctor_ref.autonomy" `
+    -Name "doctor-checks ref has Autonomy & Attention state (v0.2.3 R1 extracted)" `
+    -Pass ($doctorText -match '## Autonomy & Attention state \(v0\.2\.0f\)')
+
+Add-Result -Id "v020f.doctor_ref.context_pattern" `
+    -Name "doctor-checks ref has Context-pattern state (v0.2.3 R1 extracted)" `
+    -Pass ($doctorText -match '## Context-pattern state \(v0\.2\.0f\)')
+
+Add-Result -Id "v020f.dtdmd.doctor_stub" `
+    -Name "dtd.md keeps /dtd doctor stub with Autonomy bullet" `
+    -Pass (($dtdMd -match '### `/dtd doctor`') -and ($dtdMd -match 'Autonomy & Attention state \(v0\.2\.0f\)'))
 
 # Silent ready-work algorithm — v0.2.3 R1: lives in .dtd/reference/autonomy.md (extracted)
 $autonomyRef = Join-Path $RepoRoot ".dtd/reference/autonomy.md"
