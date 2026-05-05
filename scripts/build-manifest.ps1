@@ -41,6 +41,7 @@ $IncludedPaths = @(
     "examples/run-001-summary.md",
     "scripts/build-manifest.ps1",
     "scripts/check-v020d.ps1",
+    "scripts/check-v020f.ps1",
     ".dtd/instructions.md",
     ".dtd/config.md",
     ".dtd/state.md",

@@ -175,14 +175,14 @@ if (Test-Path -LiteralPath $builderPath) {
 
 # ─── Summary ──────────────────────────────────────────────────────────────────
 
-$pass = ($Results | Where-Object { $_.pass }).Count
-$fail = ($Results | Where-Object { -not $_.pass }).Count
+$pass = @($Results | Where-Object { $_.pass }).Count
+$fail = @($Results | Where-Object { -not $_.pass }).Count
 $total = $Results.Count
 
 if ($fail -gt 0) {
     Write-Host ""
     Write-Host "FAILED checks:"
-    $Results | Where-Object { -not $_.pass } | ForEach-Object {
+    @($Results | Where-Object { -not $_.pass }) | ForEach-Object {
         Write-Host "  - [$($_.id)] $($_.name) — $($_.detail)"
     }
 }
