@@ -333,7 +333,10 @@ These are on the v0.2 / v0.1.1 roadmap.
 
 ## v0.2 line — Operations hardening + lifecycle
 
-Spec-complete; tag pending user authorization. Adds incident
+Spec-complete. **4 of 9 sub-releases tagged**
+(v0.2.0a / v0.2.0d / v0.2.0f / v0.2.3); remaining 5
+(v0.2.0e / v0.2.0b / v0.2.0c / v0.2.1 / v0.2.2) Codex-GO with
+tag pending user authorization. Adds incident
 tracking, permission ledger, snapshot/revert, runtime resilience
 (worker health-check + session resume + loop guard), notepad v2
 + reasoning-utility post-processing, autonomy & attention modes,

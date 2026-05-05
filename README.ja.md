@@ -304,7 +304,10 @@ v0.2 / v0.1.1 のロードマップに含まれます。
 
 ## v0.2 ライン — 運用強化 + ライフサイクル
 
-仕様完成; ユーザーのタグ承認待ち。incident tracking、permission
+仕様完成。**9 sub-release 中 4 個タグ完了**
+(v0.2.0a / v0.2.0d / v0.2.0f / v0.2.3); 残り 5 個
+(v0.2.0e / v0.2.0b / v0.2.0c / v0.2.1 / v0.2.2) は Codex-GO で
+ユーザーのタグ承認待ち。incident tracking、permission
 ledger、snapshot/revert、runtime resilience (worker health-check +
 session resume + loop guard)、notepad v2 + reasoning-utility 後処理、
 autonomy & attention モード、locale パック、マイグレーション付き

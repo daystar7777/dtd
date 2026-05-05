@@ -299,7 +299,10 @@ v0.2 / v0.1.1 로드맵에 있습니다.
 
 ## v0.2 라인 — 운영 강화 + 라이프사이클
 
-스펙 완성; 사용자 태그 권한 대기 중. incident tracking, permission
+스펙 완성. **9개 sub-release 중 4개 태그 완료**
+(v0.2.0a / v0.2.0d / v0.2.0f / v0.2.3); 나머지 5개
+(v0.2.0e / v0.2.0b / v0.2.0c / v0.2.1 / v0.2.2) Codex-GO이며
+사용자 태그 권한 대기 중. incident tracking, permission
 ledger, snapshot/revert, runtime resilience (워커 health-check +
 session resume + loop guard), notepad v2 + reasoning-utility 후처리,
 autonomy & attention 모드, locale 팩, 마이그레이션 가능한
