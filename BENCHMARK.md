@@ -129,6 +129,44 @@ Benchmark results should eventually power user-facing recommendations:
 | `thorough` | Larger or important work needing repair loops and stronger QA. |
 | `silent-overnight` | Long unattended runs that defer blockers and keep moving safely. |
 
+## Intake States
+
+Where the realuse track is at any moment is one of 4 states. Run
+`pwsh ./scripts/realuse-runner.ps1 -Mode intake-status` for the
+current state.
+
+| State | Meaning | What's needed to advance |
+|---|---|---|
+| `no_results` | No `results.jsonl` files exist anywhere under `test-projects/dtd-realuse-agent-suite/`. | Run dry-run to generate hermetic fixtures, OR the user starts the real benchmark. |
+| `partial_results` | Some rows fail schema/doctor validation. | Fix or remove the invalid rows; re-run validate-results. |
+| `schema_valid` | Rows valid, but either all dry-run OR no scores assigned. | If all dry-run: run real benchmark (user-gated). If non-dry-run no-score: assign scores via formula-bound scorekeeper. |
+| `scored_report_ready` | Real (non-dry-run) rows exist, all schema-valid, all scored. | Aggregate into a public summary in this file. |
+
+As of 2026-05-06, the realuse track is at **`no_results`**. The
+single token experiment under `test-projects/dtd-realuse-token-test/`
+predates the JSONL schema and is design-evidence only.
+
+## Runner Modes
+
+`scripts/realuse-runner.ps1` is the hermetic dev-phase runner.
+
+| Mode | Network | LLM | What it does |
+|---|---|---|---|
+| `dry-run` | NO | NO | Generates a hermetic `results.jsonl` with `dry_run:true`, tokens=0, evidence_paths=[]. Exits 0 on clean validation. |
+| `validate-results -Path <file>` | NO | NO | Validates a `results.jsonl` against schema + invariants + doctor codes. Exits 0 if clean. |
+| `intake-status [-RunDir <dir>]` | NO | NO | Reports which of the 4 intake states the realuse track is in. |
+| `probe-only` | (gated) | (gated) | Stub. Prints user-gate instructions; does not call any worker. |
+| `full` | BLOCKED | BLOCKED | Refuses to run a live benchmark from this runner. Real execution requires explicit user start through a separate path. |
+
+## Doctor-Code Fixtures
+
+Each of the 8 realuse doctor codes has a deterministic JSONL
+fixture under `examples/realuse-benchmark-fixtures/`.
+Fixture harness: `pwsh ./scripts/check-realuse-fixtures.ps1`.
+
+This makes the doctor codes operationally testable WITHOUT
+requiring a live LLM run.
+
 ## Execution Boundary
 
 The public docs and dry-run tooling are safe to run. Full live benchmark
@@ -146,5 +184,8 @@ Before a live run, DTD should have:
 
 - `.dtd/reference/v030-realuse-benchmark.md` - canonical schema and contract.
 - `test-projects/dtd-realuse-token-test/benchmark-matrix.md` - control matrix.
+- `examples/realuse-benchmark-fixtures/` - doctor-code fixtures.
 - `.dtd/reference/doctor-checks.md` - doctor-code registry.
+- `scripts/realuse-runner.ps1` - hermetic dev-phase runner.
+- `scripts/check-realuse-fixtures.ps1` - fixture harness.
 - `scripts/check-v023.ps1` - current realuse contract guard.

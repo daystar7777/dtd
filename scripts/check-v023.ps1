@@ -213,6 +213,80 @@ Add-Result "v023.realuse.readme_discovery" "README links to public real-use benc
      ($readmeText -match 'Real-use Benchmark') -and `
      ($readmeText -match 'plain-vs-DTD'))
 
+# Session #21 deliverable: realuse runner + fixture harness
+$runnerPath = Join-Path $RepoRoot "scripts/realuse-runner.ps1"
+$fixtureHarnessPath = Join-Path $RepoRoot "scripts/check-realuse-fixtures.ps1"
+$fixtureDir = Join-Path $RepoRoot "examples/realuse-benchmark-fixtures"
+
+Add-Result "v023.realuse.runner_exists" "scripts/realuse-runner.ps1 exists" `
+    (Test-Path -LiteralPath $runnerPath)
+Add-Result "v023.realuse.fixture_harness_exists" "scripts/check-realuse-fixtures.ps1 exists" `
+    (Test-Path -LiteralPath $fixtureHarnessPath)
+Add-Result "v023.realuse.fixture_dir_exists" "examples/realuse-benchmark-fixtures/ exists" `
+    (Test-Path -LiteralPath $fixtureDir)
+
+if (Test-Path -LiteralPath $runnerPath) {
+    $runnerText = [System.IO.File]::ReadAllText($runnerPath, [System.Text.Encoding]::UTF8)
+    Add-Result "v023.realuse.runner_modes" "runner supports dry-run / validate-results / intake-status / probe-only / full" `
+        (($runnerText -match '"dry-run"') -and `
+         ($runnerText -match '"validate-results"') -and `
+         ($runnerText -match '"intake-status"') -and `
+         ($runnerText -match '"probe-only"') -and `
+         ($runnerText -match '"full"'))
+    Add-Result "v023.realuse.runner_full_blocked" "runner blocks full mode without user gate" `
+        (($runnerText -match 'INTENTIONALLY BLOCKED') -and `
+         ($runnerText -match 'realuse_full_run_no_user_gate'))
+    Add-Result "v023.realuse.runner_dryrun_hermetic" "runner dryrun emits dry_run:true rows with zero tokens + empty evidence" `
+        (($runnerText -match 'dry_run = \$true') -and `
+         ($runnerText -match 'total_tokens = 0') -and `
+         ($runnerText -match 'evidence_paths = @\(\)') -and `
+         ($runnerText -match 'FIXTURE-NO-LLM'))
+    Add-Result "v023.realuse.runner_token_sum_check" "runner enforces DTD token sum invariant" `
+        (($runnerText -match 'DTD token sum invariant') -and `
+         ($runnerText -match 'controller_tokens') -and `
+         ($runnerText -match 'implementation_worker_tokens'))
+    Add-Result "v023.realuse.runner_score_inflation_check" "runner enforces score inflation guard" `
+        (($runnerText -match 'realuse_score_inflation_violation') -and `
+         ($runnerText -match 'score=\$score >= 70'))
+}
+
+if (Test-Path -LiteralPath $fixtureDir) {
+    $expectedFixtures = @(
+        "valid-plain-row.jsonl",
+        "valid-dtd-row.jsonl",
+        "invalid-schema-version.jsonl",
+        "invalid-token-sum.jsonl",
+        "score-inflation.jsonl",
+        "unknown-mode.jsonl",
+        "no-evidence.jsonl",
+        "same-model-judge.jsonl",
+        "dryrun-with-evidence.jsonl",
+        "full-no-user-gate.jsonl",
+        "README.md"
+    )
+    foreach ($fname in $expectedFixtures) {
+        $fpath = Join-Path $fixtureDir $fname
+        Add-Result "v023.realuse.fixture.$($fname -replace '[^a-zA-Z0-9]','_')" "fixture $fname exists" `
+            (Test-Path -LiteralPath $fpath)
+    }
+}
+
+Add-Result "v023.realuse.benchmark_intake_states" "BENCHMARK.md documents 4 intake states" `
+    (($benchmarkPublicText -match 'no_results') -and `
+     ($benchmarkPublicText -match 'partial_results') -and `
+     ($benchmarkPublicText -match 'schema_valid') -and `
+     ($benchmarkPublicText -match 'scored_report_ready'))
+Add-Result "v023.realuse.benchmark_runner_modes_doc" "BENCHMARK.md documents runner modes" `
+    (($benchmarkPublicText -match '`dry-run`') -and `
+     ($benchmarkPublicText -match '`validate-results') -and `
+     ($benchmarkPublicText -match '`intake-status') -and `
+     ($benchmarkPublicText -match '`probe-only`') -and `
+     ($benchmarkPublicText -match '`full`'))
+Add-Result "v023.realuse.benchmark_fixtures_doc" "BENCHMARK.md links to doctor-code fixtures" `
+    ($benchmarkPublicText -match 'fixtures/')
+Add-Result "v023.realuse.help_observe_realuse" "help/observe lists /dtd realuse intake-status" `
+    ($helpObserveText -match '/dtd realuse intake-status')
+
 # v030-realuse-benchmark dev-phase reference (session #19 deliverable)
 $realuseRef = Read-Text ".dtd/reference/v030-realuse-benchmark.md"
 

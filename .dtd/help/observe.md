@@ -28,6 +28,7 @@ affecting the active run.
 - `/dtd session-sync show` (v0.3.0d)
 - `/dtd loop-guard show` / `/dtd loop-guard rehash --dry-run` (v0.3.0a)
 - `/dtd r2 readiness` (v0.3 R2 entry gate)
+- `/dtd realuse intake-status` (v0.3 realuse benchmark intake state)
 
 ## Observational read isolation
 
