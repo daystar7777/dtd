@@ -118,6 +118,9 @@ Add-Result "v030b.runloop.advisory_redaction" "run-loop.md says provider headers
     ($runLoopRef -match "(?s)Provider-header capture.*?advisory.*?NEVER capture or log raw header strings")
 Add-Result "v030b.runloop.capsule_schema" "run-loop.md has WORKER_QUOTA_EXHAUSTED_PREDICTED capsule schema" `
     ($runLoopRef -match "awaiting_user_reason: WORKER_QUOTA_EXHAUSTED_PREDICTED")
+Add-Result "v030b.runloop.finalize_hook" "run-loop.md wires finalize_run step 9.quota terminal hook" `
+    (($runLoopRef -match "9\.quota") -and `
+     ($runLoopRef -match "v030b-quota-scheduling"))
 
 # ─── reference/doctor-checks.md ──────────────────────────────────────────────
 
@@ -157,6 +160,12 @@ foreach ($n in 158..165) {
     Add-Result "v030b.scenarios.r1_$n" "test-scenarios.md has R1 scenario $n" `
         ($scenariosMd -match "### $n\.")
 }
+Add-Result "v030b.scenarios.r1_158_fallback_source" "scenario 158 separates plan-derived from no-plan fallback" `
+    (($scenariosMd -match 'Task `2\.1` has `<context-files>`') -and `
+     ($scenariosMd -match 'Task `2\.1-empty` has no plan-size signal'))
+Add-Result "v030b.scenarios.r1_163_pause_not_terminal" "scenario 163 expects durable pause rather than legacy terminal status" `
+    (($scenariosMd -match "plan_status: PAUSED") -and `
+     ($scenariosMd -notmatch "STOPPED_BY_QUOTA_MID_RUN"))
 
 # ─── reference/v030b-quota-scheduling.md (R1 canonical topic) ──────────────
 
@@ -168,6 +177,9 @@ Add-Result "v030b.r1_ref.anchor" "v030b R1 ref has Anchor section" `
     ($v030bRef -match "(?m)^## Anchor")
 Add-Result "v030b.r1_ref.estimation" "v030b R1 ref documents estimation function" `
     ($v030bRef -match "next_task_estimate\(")
+Add-Result "v030b.r1_ref.estimation_fallback_reachable" "v030b R1 estimation gates plan-derived before conservative fallback" `
+    (($v030bRef -match "task_has_plan_size_signal") -and `
+     ($v030bRef -match "DEFAULT_TASK_ESTIMATE_TOKENS"))
 Add-Result "v030b.r1_ref.history_priority" "v030b R1 ref documents history-first priority (Codex P1)" `
     (($v030bRef -match "Per-task historical mean") -and ($v030bRef -match "Codex P1"))
 Add-Result "v030b.r1_ref.vendor_table" "v030b R1 ref has provider header vendor table" `
@@ -183,6 +195,9 @@ Add-Result "v030b.r1_ref.tz_aware_reset" "v030b R1 ref documents TZ-aware reset 
     (($v030bRef -match "compute_daily_window") -and ($v030bRef -match "user_tz"))
 Add-Result "v030b.r1_ref.mid_run_exhaust" "v030b R1 ref documents mid-run exhaust handling" `
     (($v030bRef -match "Mid-run quota exhaust") -and ($v030bRef -match "mid_run_actual_exceeded"))
+Add-Result "v030b.r1_ref.mid_run_no_legacy_terminal" "v030b R1 mid-run quota exhaust uses durable pause, not legacy terminal status" `
+    (($v030bRef -match 'plan_status = "PAUSED"') -and `
+     ($v030bRef -notmatch "STOPPED_BY_QUOTA_MID_RUN"))
 Add-Result "v030b.r1_ref.capsule_rendering" "v030b R1 ref documents capsule prompt rendering" `
     ($v030bRef -match "Capsule rendering")
 Add-Result "v030b.r1_ref.r1_scenarios" "v030b R1 ref lists scenarios 158-165" `

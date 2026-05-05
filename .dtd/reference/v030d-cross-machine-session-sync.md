@@ -80,8 +80,8 @@ plus `<sync_root>/<repo_identity_hash>/session-sync.encrypted`
 
 ## Encryption invariant (Codex P1.6 — MANDATORY)
 
-When ANY backend other than `none` is enabled, the following are
-contract-mandatory:
+When `session_sync.enabled: true` and ANY backend other than `none`
+is active, the following are contract-mandatory:
 
 1. **`session_sync_encryption_key_env` MUST resolve** to a non-empty
    value before any sync read or write.
@@ -110,10 +110,11 @@ contract-mandatory:
    - `decrypt_failed` produces a WARN, marks the row `corrupted`, and
      does NOT advance to plaintext fallback.
 
-5. Doctor check `session_sync_plaintext_violation` runs whenever the
-   `session-sync.encrypted` file is missing while a non-`none` backend
-   is configured AND `session-sync.md` contains rows that should
-   have backing encrypted entries.
+5. Doctor check `session_sync_plaintext_violation` runs whenever
+   `session_sync.enabled: true`, the `session-sync.encrypted` file
+   is missing while a non-`none` backend is configured, AND
+   `session-sync.md` contains rows that should have backing
+   encrypted entries.
 
 ## Backends
 
@@ -158,6 +159,13 @@ Sync mechanism:
 - **Write**: at finalize_run + every `commit_interval_min`,
   commit `.dtd/session-sync.md` + `.dtd/session-sync.encrypted` to
   sync branch + push.
+- **Branch isolation**: writes happen only in the dedicated sync
+  branch or an isolated worktree for that branch. These files are
+  gitignored on the project working branch; implementations that
+  use Git MUST force-add them only on the configured sync branch
+  (for example `git add -f .dtd/session-sync.md
+  .dtd/session-sync.encrypted`) and MUST NOT stage them on `main`
+  or the user's active feature branch.
 - **Encryption**: same MANDATORY invariant — encrypted blob in
   `.dtd/session-sync.encrypted` committed to branch; raw id never
   committed.
@@ -256,21 +264,30 @@ v0.3.0c remains stable.
 
 ```
 - session_sync_no_encryption_key (ERROR)
-    Backend != none AND env var named in
+    session_sync.enabled = true AND Backend != none AND env var named in
     config.session_sync.encryption_key_env is unset / empty.
     Per Codex P1.6 this disables sync for the run; controller
     proceeds with v0.2.1 per-machine behavior.
 
 - session_sync_path_invalid (ERROR)
-    Backend = filesystem AND sync_path missing or not writable.
+    session_sync.enabled = true AND Backend = filesystem AND sync_path
+    missing or not writable.
 
 - session_sync_branch_missing (WARN)
-    Backend = git_branch AND sync_branch does not exist locally.
+    session_sync.enabled = true AND Backend = git_branch AND sync_branch
+    does not exist locally.
 
 - session_sync_plaintext_violation (ERROR)
-    Backend != none AND .dtd/session-sync.md contains rows but
+    session_sync.enabled = true AND Backend != none AND
+    .dtd/session-sync.md contains rows but
     .dtd/session-sync.encrypted is missing — synced ledger would
     leak raw session metadata.
+
+- session_sync_files_staged_on_work_branch (ERROR)
+    .dtd/session-sync.md or .dtd/session-sync.encrypted is staged
+    while the current branch is not config.session_sync.sync_branch.
+    Use an isolated sync branch/worktree; never commit sync ledgers
+    to the project working branch.
 
 - session_sync_unresolved_conflicts (WARN)
     state.md.session_sync_pending_conflicts non-empty.
@@ -284,7 +301,8 @@ v0.3.0c remains stable.
     Suggests setting state.md.project_id or git remote.
 
 - session_sync_machine_id_missing (ERROR)
-    Backend != none AND state.md.machine_id is null.
+    session_sync.enabled = true AND Backend != none AND
+    state.md.machine_id is null.
     Auto-generated at install; missing means migration drift.
 
 - session_sync_unreachable (WARN — runtime, not static)

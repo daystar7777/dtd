@@ -856,8 +856,9 @@ responding to user):
        - Output path scope hash.
        - Failure class (categorical).
        - Normalized error line.
-     - Read `.dtd/cross-run-loop-guard.md` (apply tombstones
-       first; skip rows with `revoked:` set).
+     - Read `.dtd/cross-run-loop-guard.md` and resolve active
+       rows after tombstones per
+       `.dtd/reference/v030a-cross-run-loop-guard.md` R1.2.
      - Upsert: if signature matches an active row, increment
        `run_count` + update `last_seen` + record current
        run's `last_resolution`. Else append new row with
@@ -867,8 +868,23 @@ responding to user):
        not physical removal).
      - Update `state.md.last_cross_run_finalize_at: <ts>`.
    - This step is observational w.r.t. permissions and
-     incidents (no v0.2.0a/v0.2.0b state mutation); it only
-     writes to `.dtd/cross-run-loop-guard.md` ledger.
+     incidents (no v0.2.0a/v0.2.0b permission or incident
+     mutation); it writes to `.dtd/cross-run-loop-guard.md` and
+     cross-run loop-guard fields in `.dtd/state.md`.
+5e. **Dedicated v0.3 terminal hooks**:
+   - Run v0.3.0b quota aggregation hook (`9.quota`) if enabled
+     by `config.quota.cross_run_quota_persist`; it writes the
+     worker quota tracker, quota archives, and quota fields in
+     `.dtd/state.md`. See
+     `.dtd/reference/v030b-quota-scheduling.md`.
+   - Run v0.3.0d session-sync hook (`9.session-sync`) if
+     `config.session_sync.enabled: true` and backend is not
+     `none`; it requires the configured encryption key and writes
+     local/synced encrypted session ledgers. Connectivity failures
+     are WARN incidents/log rows, not terminal blockers. See
+     `.dtd/reference/v030d-cross-machine-session-sync.md`.
+   - These hooks run before `WORK_END` so the AIMemory summary can
+     reflect quota and sync side effects.
 6. **Append AIMemory `WORK_END`** (only if AIMemory present):
    one-line event with
    `status=<terminal_status> grade=<final_grade> <duration>`. Per
@@ -881,6 +897,13 @@ responding to user):
    `loop_guard_signature`, `loop_guard_signature_count`,
    `loop_guard_signature_first_seen_at`, and reset
    `loop_guard_status: idle` because loop signatures are per-run.
+   Also clear v0.3 per-run runtime fields:
+   `cross_run_match_count`, `pending_cross_run_signature`, reset
+   `cross_run_loop_guard_status: idle`, clear
+   `active_consensus_task`, `active_consensus_n`,
+   `active_consensus_strategy`, `active_consensus_group_lock`, and
+   `consensus_outcomes`, then clear `pending_quota_capsule` and
+   reset `mid_run_actual_exceeded_count: 0`.
    Set `last_update`. Single atomic tmp-rename write.
 
 If any step fails partway, the controller logs an

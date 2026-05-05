@@ -279,11 +279,17 @@ Backends: `none | filesystem | git_branch`. Filesystem syncs
 through user-configured cloud folder (Dropbox / iCloud / OneDrive /
 Drive); git_branch commits to a dedicated branch with periodic
 push.
+For `git_branch`, sync ledger files are force-added only on the
+configured sync branch or isolated worktree; they must never be
+staged on the user's active project branch.
 
-Encryption invariant (Codex P1.6 — MANDATORY when backend ≠ none):
+Encryption invariant (Codex P1.6 — MANDATORY when sync is enabled and backend ≠ none):
 - `session_sync_encryption_key_env` MUST resolve to a non-empty
   value. Missing / empty: ERROR `session_sync_no_encryption_key`,
   sync DISABLED for the run (NEVER plaintext fallback).
+- These backend doctor errors apply only when
+  `session_sync.enabled: true` and backend is not `none`; users may
+  preconfigure a backend while sync remains disabled.
 - Synced ledger contains only `session_id_hash` + metadata; raw
   `session_id` lives in `.dtd/session-sync.encrypted`
   (AES-256-GCM, key derived via HKDF from env-var value, per-row
@@ -308,7 +314,7 @@ capsule before any same-session reuse (Codex additional
 amendment: connectivity ≠ conflict).
 
 > Full canonical reference (3 backends + run-loop steps 5.5.5b +
-> 9.session-sync + encryption invariant + 9 doctor checks +
+> 9.session-sync + encryption invariant + 10 doctor checks +
 > migration): see `.dtd/reference/v030d-cross-machine-session-sync.md`.
 > Lazy-load via `/dtd help v030d-cross-machine-session-sync --full`.
 

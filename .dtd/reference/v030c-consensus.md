@@ -98,9 +98,10 @@ invariant"):
 - `dtd.md` `/dtd permission` body Permission keys table: 10 → 11.
 - `.dtd/reference/doctor-checks.md` `## Permission ledger
   (v0.2.0b)`: enumerate 11 keys.
-- `scripts/check-v020b.ps1`: add `task_consensus` to the
-  `permKeys` array.
-- `scripts/check-v030c.ps1`: NEW; validates 11-key contract holds.
+- `scripts/check-v020b.ps1`: preserves the v0.2.0b 10-key base
+  permission coverage and documents that v0.3.0c adds the 11th key.
+- `scripts/check-v030c.ps1`: NEW; validates `task_consensus` and
+  the full 11-key contract.
 - `test-scenarios.md`: scenarios that enumerate keys updated.
 
 ## Run-loop integration

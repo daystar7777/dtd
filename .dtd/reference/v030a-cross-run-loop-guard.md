@@ -180,8 +180,9 @@ function on_finalize_run() {
 After v0.2.1 within-run signature computation, ALSO:
 
 1. Compute `cross_run_signature` for current attempt.
-2. Read `.dtd/cross-run-loop-guard.md` (apply tombstones first;
-   skip rows with `revoked:` set).
+2. Read `.dtd/cross-run-loop-guard.md` and resolve active rows
+   after tombstones per R1.2. Do not only drop tombstone rows; a
+   newer tombstone deactivates the earlier row it revokes.
 3. If cross_run_signature matches an active row AND
    `last_seen >= now - config.cross_run_retention_days`:
    - Increment ephemeral counter `cross_run_match_count` in
@@ -322,8 +323,8 @@ match_cross_run(failed_attempt, ledger):
   # 1. Compute the new attempt's stable signature.
   sig_new = compute_stable_signature(failed_attempt)
 
-  # 2. Apply tombstones first (Codex: tombstone, never physical removal).
-  active_rows = ledger.rows.filter(r => not r.is_tombstoned())
+  # 2. Apply tombstone precedence first (R1.2; never physical removal).
+  active_rows = resolve_active_rows_after_tombstones(ledger)
 
   # 3. Look up by signature (sha256 prefix-match safe; full match required).
   match = active_rows.find(r => r.signature == sig_new)

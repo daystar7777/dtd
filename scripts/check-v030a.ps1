@@ -194,6 +194,9 @@ Add-Result "v030a.r1_ref.match_algo" "v030a R1 ref documents match algorithm" `
     (($v030aRef -match "Match algorithm") -and ($v030aRef -match "match_cross_run\("))
 Add-Result "v030a.r1_ref.tombstone_precedence" "v030a R1 ref documents tombstone precedence" `
     ($v030aRef -match "Tombstone precedence")
+Add-Result "v030a.r1_ref.tombstone_precedence_algorithm" "v030a R1 match algorithm resolves active rows after tombstones" `
+    (($v030aRef -match "resolve_active_rows_after_tombstones") -and `
+     ($v030aRef -notmatch "ledger\.rows\.filter\(r => not r\.is_tombstoned\(\)\)"))
 Add-Result "v030a.r1_ref.retention_pruning" "v030a R1 ref documents retention pruning" `
     (($v030aRef -match "Pruning at finalize_run") -and `
      ($v030aRef -match "finalize_run_step_5d_prune"))

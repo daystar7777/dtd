@@ -100,6 +100,7 @@ Add-Result "v030d.index.expansion_note" "index.md mentions v0.3.0d expansion (15
 # ─── dtd.md ─────────────────────────────────────────────────────────────────
 
 $dtdMd = Read-Text "dtd.md"
+$runLoopRef = Read-Text ".dtd/reference/run-loop.md"
 
 Add-Result "v030d.dtdmd.command_body" "dtd.md has /dtd session-sync command body" `
     ($dtdMd -match '### `/dtd session-sync \[show\|sync\|expire\|purge\]` \(v0\.3\.0d\)')
@@ -115,6 +116,9 @@ Add-Result "v030d.dtdmd.encryption_mandatory" "dtd.md /dtd session-sync says MAN
     (($dtdMd -match "MANDATORILY encrypted") -and ($dtdMd -match "Codex P1\.6"))
 Add-Result "v030d.dtdmd.doctor_lists_session_sync" "dtd.md doctor lists Session sync (v0.3.0d)" `
     ($dtdMd -match "Session sync \(v0\.3\.0d\)")
+Add-Result "v030d.runloop.finalize_hook" "run-loop.md wires finalize_run step 9.session-sync terminal hook" `
+    (($runLoopRef -match "9\.session-sync") -and `
+     ($runLoopRef -match "v030d-cross-machine-session-sync"))
 Add-Result "v030d.dtdmd.session_conflict_capsule" "dtd.md mentions SESSION_CONFLICT capsule" `
     ($dtdMd -match "SESSION_CONFLICT")
 
@@ -171,6 +175,7 @@ $doctorCodes = @(
     "session_sync_path_invalid",
     "session_sync_branch_missing",
     "session_sync_plaintext_violation",
+    "session_sync_files_staged_on_work_branch",
     "session_sync_unresolved_conflicts",
     "session_sync_expired_rows_pending",
     "session_sync_repo_identity_unstable",
@@ -183,6 +188,13 @@ foreach ($code in $doctorCodes) {
 }
 Add-Result "v030d.doctor.no_encryption_is_error" "doctor-checks says missing key is ERROR (not WARN)" `
     ($doctorRef -match "(?s)session_sync_no_encryption_key.*?ERROR")
+Add-Result "v030d.doctor.enabled_gating" "doctor-checks gates backend errors on session_sync.enabled true" `
+    (($doctorRef -match "session_sync\.enabled: true") -and `
+     ($v030dRef -match "session_sync\.enabled: true"))
+Add-Result "v030d.doctor.git_branch_staging_guard" "session sync doctor protects ignored ledgers from work-branch staging" `
+    (($doctorRef -match "session_sync_files_staged_on_work_branch") -and `
+     ($v030dRef -match "force-add") -and `
+     ($v030dRef -match "dedicated sync"))
 
 # ─── test-scenarios.md ──────────────────────────────────────────────────────
 

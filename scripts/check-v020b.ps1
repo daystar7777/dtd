@@ -3,7 +3,8 @@
 # Validates that the v0.2.0b deliverables match the design contract:
 #   - .dtd/permissions.md exists with ## Active rules + ## Default rules
 #     + ## Resolution algorithm sections
-#   - 10 default rules cover canonical permission keys
+#   - v0.2.0b 10 default rules cover the base permission keys
+#     (v030c checker validates the 11th task_consensus extension)
 #   - dtd.md has /dtd permission command body with all 7 forms
 #   - dtd.md doctor section lists Permission ledger (v0.2.0b)
 #   - reference/doctor-checks.md has ## Permission ledger (v0.2.0b)

@@ -45,12 +45,13 @@ next_task_estimate(task, history, worker):
     return mean(matching.tokens_per_attempt) * worker.quota_safety_margin
 
   # 2. Plan-derived estimate.
-  ctx_files_size = sum(file_size_tokens(f) for f in task.context_files)
-  system_prompt_size = system_prompt_tokens(worker)
-  completion_size_estimate = task.expected_completion_tokens or DEFAULT_COMPLETION
+  if task_has_plan_size_signal(task):
+    ctx_files_size = sum(file_size_tokens(f) for f in task.context_files)
+    system_prompt_size = system_prompt_tokens(worker)
+    completion_size_estimate = task.expected_completion_tokens or DEFAULT_COMPLETION
 
-  return (ctx_files_size + system_prompt_size + completion_size_estimate)
-       * worker.quota_safety_margin
+    return (ctx_files_size + system_prompt_size + completion_size_estimate)
+         * worker.quota_safety_margin
 
   # 3. Fallback (no plan estimate, no history).
   # Conservative multiplier — do NOT overload context-budget.default_failure_threshold
@@ -161,9 +162,10 @@ finalize_run_step_9_quota(run_id, now_local, user_tz):
 ```
 
 This step is observational w.r.t. permissions and incidents (no
-v0.2.0a / v0.2.0b state mutation); it only writes to
-`.dtd/log/worker-quota-tracker.md` and the new
-`.dtd/runs/quota-archive-*.md`.
+v0.2.0a / v0.2.0b permission or incident mutation). It writes to
+`.dtd/log/worker-quota-tracker.md`, the new
+`.dtd/runs/quota-archive-*.md`, and the quota fields in
+`.dtd/state.md`.
 
 ## 4. Reset window calculator (TZ-aware)
 
@@ -237,13 +239,16 @@ on_dispatch_response(response, worker):
 
   if response.status == 429 OR provider_quota_exceeded(response):
     # Mid-run exhaust detected.
+    record_attempt_failure(reason = "WORKER_QUOTA_ACTUAL_EXCEEDED")
     fill_capsule(
       reason = "WORKER_QUOTA_EXHAUSTED_PREDICTED",   # same reason; suffix differentiates
       pending_quota_capsule = {...},
       mid_run_actual_exceeded = true,                 # NEW R1 flag
     )
-    halt_run_at_finalize(STOPPED_BY_QUOTA_MID_RUN)
-    return
+    state.md.mid_run_actual_exceeded_count += 1
+    state.md.plan_status = "PAUSED"
+    state.md.awaiting_user_decision = true
+    return  # block before apply; resume follows the quota decision capsule
 ```
 
 The `mid_run_actual_exceeded` flag in `pending_quota_capsule`

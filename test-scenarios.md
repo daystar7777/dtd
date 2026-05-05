@@ -3188,6 +3188,9 @@ file.
 - Commit on `dtd-session-sync` branch contains
   `.dtd/session-sync.md` (metadata) + `.dtd/session-sync.encrypted`
   (binary blob).
+- Commit uses an isolated sync branch/worktree and force-adds
+  ignored sync ledgers only there; project working branch has no
+  staged `.dtd/session-sync.*` files.
 - `git log -p dtd-session-sync` for the committed file shows NO
   raw `session_id` strings — only hashes and encrypted blob.
 - Push to `origin` happens; failure logged as
@@ -3417,14 +3420,16 @@ control.
 
 ### 158. Estimation source priority
 
-**Setup**: 3 workers, 1 plan task (id="2.1"):
+**Setup**: 3 workers, 2 plan variants:
+- Task `2.1` has `<context-files>` totaling 4000 tokens.
+- Task `2.1-empty` has no plan-size signal.
 - (A) Worker `deepseek-local` has 5 prior `exec-*-ctx.md` rows
   for task 2.1 with avg=12000 tokens.
 - (B) Worker `qwen-cloud` has 2 prior rows for task 2.1.
-- (C) Worker `mistral-paid` has 0 prior rows for task 2.1, but
-  task has `<context-files>` totaling 4000 tokens.
+- (C) Worker `mistral-paid` has 0 prior rows for task `2.1-empty`.
 
-**Steps**: predictive check at step 5.5.0 for each.
+**Steps**: predictive check at step 5.5.0 for the task assigned
+to each worker above.
 
 **Expected**:
 - (A): per_task_history → `12000 * margin` used (Codex P1
@@ -3519,8 +3524,8 @@ proceeds; provider returns 429.
 - Capsule fills with
   `awaiting_user_reason: WORKER_QUOTA_EXHAUSTED_PREDICTED`.
 - `pending_quota_capsule.mid_run_actual_exceeded: true` (R1 flag).
-- Run halts at finalize_run with terminal status
-  STOPPED_BY_QUOTA_MID_RUN.
+- `plan_status: PAUSED`, `awaiting_user_decision: true`; no apply
+  occurs until the quota decision capsule is resolved.
 - `state.md.mid_run_actual_exceeded_count: 1`.
 
 **Pass**: prediction-was-wrong case has explicit handling;

@@ -321,20 +321,26 @@ Sections:
 
 ### v0.3.0d Cross-machine session sync checks
 
-- Backend != `none` AND env var named in
+- `config.session_sync.enabled: true` AND Backend != `none` AND env var named in
   `config.session_sync.encryption_key_env` is unset / empty:
   ERROR `session_sync_no_encryption_key`. Sync is **disabled** for
   the run; controller falls back to v0.2.1 per-machine behavior
   (Codex P1.6: missing key MUST be ERROR, not WARN with plaintext
   fallback).
-- Backend = `filesystem` AND `config.session_sync.sync_path`
-  missing or not writable: ERROR `session_sync_path_invalid`.
-- Backend = `git_branch` AND `config.session_sync.sync_branch`
-  does not exist locally: WARN `session_sync_branch_missing`.
-- Backend != `none` AND `.dtd/session-sync.md` contains rows but
+- `config.session_sync.enabled: true` AND Backend = `filesystem`
+  AND `config.session_sync.sync_path` missing or not writable:
+  ERROR `session_sync_path_invalid`.
+- `config.session_sync.enabled: true` AND Backend = `git_branch`
+  AND `config.session_sync.sync_branch` does not exist locally:
+  WARN `session_sync_branch_missing`.
+- `config.session_sync.enabled: true` AND Backend != `none` AND
+  `.dtd/session-sync.md` contains rows but
   `.dtd/session-sync.encrypted` is missing: ERROR
   `session_sync_plaintext_violation` (synced ledger would leak
   raw session metadata; Codex P1.6 invariant violation).
+- `.dtd/session-sync.md` or `.dtd/session-sync.encrypted` staged
+  while current branch is not `config.session_sync.sync_branch`:
+  ERROR `session_sync_files_staged_on_work_branch`.
 - `state.md.session_sync_pending_conflicts` non-empty: WARN
   `session_sync_unresolved_conflicts` recommending
   `/dtd session-sync show`.
@@ -344,7 +350,8 @@ Sections:
   when sync is enabled: WARN
   `session_sync_repo_identity_unstable` recommending
   `state.md.project_id` set or git remote configured.
-- Backend != `none` AND `state.md.machine_id` is null: ERROR
+- `config.session_sync.enabled: true` AND Backend != `none` AND
+  `state.md.machine_id` is null: ERROR
   `session_sync_machine_id_missing` (auto-generated at install;
   null means migration drift).
 - Last sync attempt logged a connectivity failure (network
