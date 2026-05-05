@@ -438,8 +438,8 @@ artifacts logged to `.dtd/log/worker-checks/<ts>.md`.
 
 | Level | Stages | Use |
 |---|---|---|
-| `--quick` (default) | 1-3 | schema + secret/env + connectivity |
-| `--connectivity` | 3 only | network reachability + TLS handshake |
+| `--quick` (default) | 1-5 | schema + secret/env + endpoint + network reachability |
+| `--connectivity` | 4-6 | endpoint URL + network reachability + TLS handshake |
 | `--full` | 1-17 | quick + protocol probe + tool relay + native sandbox |
 
 17 stages (in order):
@@ -456,11 +456,14 @@ artifacts logged to `.dtd/log/worker-checks/<ts>.md`.
 8. `model_id_check` — provider lists target model id (or accept
    silently).
 9. `rate_limit_probe` — non-blocking sniff of `Retry-After`.
-10. `protocol_probe` (--full only) — send canonical 5-token prompt
-    asking for `::done:: ok`. Verify response shape.
-11. `sentinel_match` — verify response contains expected sentinel.
-12. `output_discipline_check` — verify worker uses `===FILE:===`
-    + `::done::` correctly.
+10. `protocol_probe` (--full only) — send a tiny DTD-shaped mock
+    output prompt asking for one `===FILE: .dtd/tmp/healthcheck-sentinel.txt===`
+    block plus terminal `::done:: healthcheck`. The controller parses but
+    NEVER applies this mock file.
+11. `sentinel_match` — verify response contains the expected terminal
+    sentinel exactly.
+12. `output_discipline_check` — verify the mock file block and terminal
+    marker are well-formed, with no extra prose outside the DTD protocol.
 13. `protocol_violation_log` — record any deviation.
 14. `tool_request_relay_probe` (--full only; for
     `tool_runtime: controller_relay|hybrid`) — verify worker emits
@@ -471,8 +474,9 @@ artifacts logged to `.dtd/log/worker-checks/<ts>.md`.
     boundary intact).
 16. `health_cache_write` — append redacted summary to
     `.dtd/log/worker-checks/<ts>.md`.
-17. `incident_decision` — emit incident row if any stage failed
-    blocking.
+17. `diagnostic_summary` — render the compact result and next-action hints.
+    Standalone `/dtd workers test` does NOT create incidents or decision
+    capsules.
 
 ### Failure taxonomy (`WORKER_*`)
 
@@ -490,8 +494,12 @@ artifacts logged to `.dtd/log/worker-checks/<ts>.md`.
 
 ### Decision capsule integration
 
+Standalone `/dtd workers test` is observational: it writes only the redacted
+diagnostic log and prints actionable next commands.
+
 `/dtd run` preflight runs `--quick` on assigned workers (config
-`worker_test_auto_before_run: assigned_only` default). Failure fills:
+`worker_test_auto_before_run: assigned_only` default). A preflight failure
+inside `/dtd run` fills:
 
 ```yaml
 awaiting_user_decision: true

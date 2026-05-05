@@ -67,6 +67,19 @@ foreach ($strategy in $resumeStrategies) {
 }
 Add-Result "v021.dtdmd.loop_signature" "dtd.md documents loop_signature formula" `
     ($dtdMd -match "loop_signature\s*=\s*sha256")
+Add-Result "v021.dtdmd.quick_stages_1_5" "dtd.md says quick worker test runs stages 1-5" `
+    ($dtdMd -match "--quick.*stages 1-5")
+Add-Result "v021.dtdmd.connectivity_stages_4_6" "dtd.md says connectivity worker test runs stages 4-6" `
+    ($dtdMd -match "--connectivity.*stages 4-6")
+Add-Result "v021.dtdmd.standalone_test_no_capsule" "dtd.md says standalone workers test creates no capsule" `
+    (($dtdMd -match "Standalone .*/dtd workers test.*observational") -and
+     ($dtdMd -match "creates no incident"))
+Add-Result "v021.dtdmd.same_worker_no_raw_replay" "dtd.md forbids raw prior output replay for same-worker resume" `
+    (($dtdMd -match "Same-worker resume never appends raw prior worker output") -and
+     ($dtdMd -match "previous worker transcript"))
+Add-Result "v021.dtdmd.loop_auto_explicit_config" "dtd.md says decision_mode auto does not imply loop auto-action" `
+    (($dtdMd -match "decision_mode: auto.*does NOT imply loop-guard auto-action") -and
+     ($dtdMd -match "loop_guard_threshold_action"))
 
 # ─── reference/workers.md ────────────────────────────────────────────────────
 
@@ -115,6 +128,14 @@ Add-Result "v021.workers_ref.observational" "workers ref says health check is ob
      ($workersRef -match "does NOT mutate"))
 Add-Result "v021.workers_ref.redaction" "workers ref documents redaction model" `
     (($workersRef -match "Redaction model") -and ($workersRef -match "NEVER logged"))
+Add-Result "v021.workers_ref.quick_stages_1_5" "workers ref maps --quick to stages 1-5" `
+    ($workersRef -match '\| `--quick` .* \| 1-5 \|')
+Add-Result "v021.workers_ref.connectivity_stages_4_6" "workers ref maps --connectivity to stages 4-6" `
+    ($workersRef -match '\| `--connectivity` \| 4-6 \|')
+Add-Result "v021.workers_ref.mock_probe_never_apply" "workers ref protocol probe uses mock file and never applies it" `
+    (($workersRef -match "healthcheck-sentinel\.txt") -and ($workersRef -match "NEVER applies"))
+Add-Result "v021.workers_ref.no_incident_decision_stage" "workers ref does not make standalone test stage create incidents" `
+    (($workersRef -match "diagnostic_summary") -and ($workersRef -notmatch "incident_decision"))
 
 # ─── state.md ─────────────────────────────────────────────────────────────────
 
@@ -219,6 +240,12 @@ foreach ($letter in @("b", "c", "d")) {
 }
 Add-Result "v021.scenarios.section_header" "test-scenarios.md has v0.2.1 section header" `
     ($scenariosMd -match "## v0\.2\.1 .* Runtime Resilience")
+Add-Result "v021.scenarios.quick_1_5" "scenario 70 expects quick stages 1-5" `
+    ($scenariosMd -match "Stages 1-5 run for each worker")
+Add-Result "v021.scenarios.worker_test_observational_no_capsule" "scenario 70 says standalone workers test creates no capsule" `
+    ($scenariosMd -match "No incident or decision capsule is created by standalone")
+Add-Result "v021.scenarios.mock_probe" "scenario 71 expects mock-output protocol probe" `
+    ($scenariosMd -match "healthcheck-sentinel\.txt")
 
 # ─── build-manifest.ps1 ───────────────────────────────────────────────────────
 

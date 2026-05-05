@@ -1113,7 +1113,7 @@ within budget).
 
 **Pass**: workers see structured handoff only; total within budget.
 
-### 82. Compaction at phase boundary truncates Progress + Relevant Files first
+### 82. Compaction at phase boundary truncates Progress, then Relevant Files
 
 **Setup**: handoff at 1.5 KB (over budget); each heading at 2× its
 allowed budget.
@@ -1121,15 +1121,15 @@ allowed budget.
 **Steps**: phase boundary triggers compaction.
 
 **Expected**:
-- Step 1: `Relevant Files` truncated to last 5 path refs.
-- Step 2: `Progress` truncated to "Phase N completed; see
+- Step 1: `Progress` truncated to "Phase N completed; see
   phase-history.md".
+- Step 2: `Relevant Files` truncated to last 5 path refs.
 - Other 6 headings (Goal, Constraints, Decisions, Next Steps,
   Critical Context, Reasoning Notes) preserved as-is.
 - Total handoff ≤ 1.2 KB after compaction.
 
-**Pass**: priority order (TRUNCATE first → Relevant Files;
-TRUNCATE second → Progress) respected; KEEP headings unchanged.
+**Pass**: priority order (TRUNCATE first → Progress;
+TRUNCATE second → Relevant Files) respected; KEEP headings unchanged.
 
 ### 83. Schema v1 notepad keeps working (backward-compat); doctor INFO
 
@@ -1248,13 +1248,16 @@ chain-of-thought storage in durable state.
 **Steps**: `/dtd workers test --all --quick`.
 
 **Expected**:
-- Stages 1-3 run for each worker.
+- Stages 1-5 run for each worker.
 - Healthy worker: PASS.
 - Unset env: FAIL stage 3 with `WORKER_ENV_MISSING`.
 - Unreachable: FAIL stage 5 with `WORKER_NETWORK_UNREACHABLE`.
 - One row per worker in `.dtd/log/worker-checks/<ts>.md` (redacted —
   no env values, no auth headers).
 - `state.md` NOT mutated (observational read).
+- No incident or decision capsule is created by standalone
+  `/dtd workers test`; only `/dtd run` preflight may create
+  `WORKER_HEALTH_FAILED`.
 
 **Pass**: per-worker outcomes are independent; redaction enforced.
 
@@ -1267,10 +1270,13 @@ completions.
 
 **Expected**:
 - All 17 stages run.
-- Stage 10 (protocol_probe) sends a small canonical prompt asking
-  for `::done:: ok`.
-- Stage 11 (sentinel_match) verifies response contains
-  `::done::` exactly.
+- Stage 10 (protocol_probe) sends a small DTD-shaped mock-output
+  prompt asking for one `.dtd/tmp/healthcheck-sentinel.txt` file block
+  plus `::done:: healthcheck`; the mock file is parsed but never
+  applied.
+- Stage 11 (sentinel_match) verifies response contains the terminal
+  sentinel exactly.
+- Stage 12 verifies the mock file block + terminal marker discipline.
 - Worker that fabricates response (e.g. wraps in markdown):
   FAIL stage 11 with `WORKER_SENTINEL_MISMATCH`.
 

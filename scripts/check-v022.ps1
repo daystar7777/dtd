@@ -61,6 +61,10 @@ foreach ($section in $freeForm) {
 }
 Add-Result "v022.notepad.schema_label" "notepad.md labels schema as v0.2.2 8-heading" `
     ($notepadMd -match "v0\.2\.2 8-heading")
+Add-Result "v022.notepad.no_trigger_phrase_in_template" "notepad template guidance avoids literal private-reasoning trigger phrases" `
+    (($notepadMd -notmatch "let me think") -and ($notepadMd -notmatch "step-by-step"))
+Add-Result "v022.notepad.updated_before_dispatch" "notepad template says handoff updates before every worker dispatch" `
+    ($notepadMd -match "before\s*>?\s*every worker dispatch")
 
 # ─── dtd.md ──────────────────────────────────────────────────────────────────
 
@@ -80,14 +84,21 @@ Add-Result "v022.dtdmd.eight_headings" "dtd.md lists 8 handoff headings" `
      ($dtdMd -match "Progress") -and ($dtdMd -match "Decisions") -and `
      ($dtdMd -match "Next Steps") -and ($dtdMd -match "Critical Context") -and `
      ($dtdMd -match "Relevant Files") -and ($dtdMd -match "Reasoning Notes"))
-Add-Result "v022.dtdmd.compaction_priority" "dtd.md documents TRUNCATE order (Relevant Files first, Progress second)" `
-    (($dtdMd -match "TRUNCATE first") -and ($dtdMd -match "TRUNCATE second"))
+Add-Result "v022.dtdmd.compaction_priority" "dtd.md documents TRUNCATE order (Progress first, Relevant Files second)" `
+    (($dtdMd -match "\| Progress \| 200 ch \| TRUNCATE first") -and
+     ($dtdMd -match "\| Relevant Files \| 100 ch \| TRUNCATE second") -and
+     ($dtdMd -match "truncate Progress first, then\s+Relevant Files"))
 Add-Result "v022.dtdmd.schema_detection" "dtd.md documents schema v1/v2 detection" `
     (($dtdMd -match "schema v2") -and ($dtdMd -match "schema v1"))
 Add-Result "v022.dtdmd.reasoning_discipline" "dtd.md documents Reasoning Notes content discipline" `
     (($dtdMd -match "chain-of-thought") -and ($dtdMd -match "5 lines per"))
 Add-Result "v022.dtdmd.doctor_lists_notepad" "dtd.md doctor lists Notepad schema (v0.2.2)" `
     ($dtdMd -match "Notepad schema \(v0\.2\.2\)")
+Add-Result "v022.instructions.notepad_intent" "instructions.md has notepad intent" `
+    ((Read-Text ".dtd/instructions.md") -match '\| `notepad` \| `/dtd notepad')
+Add-Result "v022.instructions.notepad_observational" "instructions.md marks notepad show/search observational" `
+    (((Read-Text ".dtd/instructions.md") -match "/dtd notepad show") -and
+     ((Read-Text ".dtd/instructions.md") -match "/dtd notepad search"))
 
 # ─── reference/doctor-checks.md ──────────────────────────────────────────────
 
@@ -108,6 +119,9 @@ foreach ($code in $doctorCodes) {
     Add-Result "v022.doctor_ref.code.$code" "doctor-checks ref defines $code" `
         ($doctorRef -match [regex]::Escape($code))
 }
+Add-Result "v022.doctor_ref.heuristic_ignores_template_guidance" "doctor heuristic ignores template blockquote guidance" `
+    (($doctorRef -match "Ignore template guidance") -and
+     ($doctorRef -match "A simple .*checklist alone is not enough"))
 
 # ─── test-scenarios.md ────────────────────────────────────────────────────────
 
@@ -123,6 +137,9 @@ foreach ($letter in @("b", "c", "d")) {
 }
 Add-Result "v022.scenarios.section_header" "test-scenarios.md has v0.2.2 section header" `
     ($scenariosMd -match "## v0\.2\.2 .* Compaction UX")
+Add-Result "v022.scenarios.compaction_order" "scenario 82 expects Progress first, Relevant Files second" `
+    (($scenariosMd -match 'Step 1: `Progress`') -and
+     ($scenariosMd -match 'Step 2: `Relevant Files`'))
 
 # ─── build-manifest.ps1 ───────────────────────────────────────────────────────
 

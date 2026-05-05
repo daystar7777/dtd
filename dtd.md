@@ -172,9 +172,11 @@ entry. Doctor flags narrative leakage as
    sections (`learnings`, `decisions`, `issues`, `verification`).
 2. Free-form sections: preserve last 3 entries; older summarize
    to one bullet per category.
-3. `<handoff>`: if total ≤ 1.2 KB, no change. Else apply
-   per-heading priorities (truncate Relevant Files first, then
-   Progress; KEEP others).
+3. `## handoff`: if total ≤ 1.2 KB, no change. Else apply
+   per-heading priorities (truncate Progress first, then
+   Relevant Files; KEEP others). Progress is historical and recoverable from
+   `phase-history.md`; relevant file refs are often more immediately useful
+   to the next worker.
 4. If still over budget after truncation: log WARN to
    `.dtd/log/run-NNN.md`; doctor surfaces
    `notepad_heading_oversized` next time.
@@ -494,7 +496,7 @@ Worker registry management. Backed by `.dtd/workers.md`.
   6. **max_context** — suggests provider default (32000 / 64000 / 128000 / 200000 depending on model hint).
   7. **capabilities** — suggests based on phrasing (qwen/deepseek-coder → `code-write, code-refactor`).
   8. **permission_profile** — defaults to `code-write`. Asks user to confirm or pick `explore | review | planning | code-write`.
-  9. **Test now?** — offers to run `/dtd workers test <id>` immediately. If test fails (network/auth), creates a `WORKER_INACTIVE` or `AUTH_FAILED` decision capsule for the worker config (not for an active task).
+  9. **Test now?** — offers to run `/dtd workers test <id>` immediately. A standalone test is observational: it prints the failure, writes only a redacted worker-check log, and does NOT mutate state/notepad/attempts or create a decision capsule. `/dtd run` preflight later creates `WORKER_HEALTH_FAILED` if an assigned worker is still unhealthy.
 
   **Secret handling rules**:
   - API key value (raw) NEVER enters chat conversation. v0.1.1 wizard does NOT prompt for it.
@@ -523,11 +525,11 @@ Worker registry management. Backed by `.dtd/workers.md`.
   multi-stage health probe per `.dtd/reference/workers.md` §"Worker
   Health Check" (full canonical spec for the 17-stage diagnostic).
   Compact summary:
-  - `--quick` (default): stages 1-3 (schema → secret/env → connectivity).
+  - `--quick` (default): stages 1-5 (schema → secret/env → endpoint → network).
   - `--full`: all 17 stages, including stage 4 protocol probe + stages
     14-15 tool-relay + native-sandbox checks (when worker has
     `tool_runtime: controller_relay | worker_native | hybrid`).
-  - `--connectivity`: just stage 3 (network reachability + TLS).
+  - `--connectivity`: stages 4-6 (endpoint URL + network reachability + TLS).
   - `--all`: every registered worker.
   - `--assigned`: every worker assigned to the active plan.
   - `--json`: machine-readable summary.
@@ -544,8 +546,9 @@ Worker registry management. Backed by `.dtd/workers.md`.
   `WORKER_HEALTH_LOG_WRITE_FAILED`. Diagnostic log written to
   `.dtd/log/worker-checks/<ts>.md` (gitignored; redacted artifacts
   only — no raw env values, no auth headers).
-  Decision capsule reason `WORKER_HEALTH_FAILED` fires when `/dtd run`
-  preflight detects an assigned worker is unhealthy.
+  Standalone `/dtd workers test` is observational and creates no incident
+  or decision capsule. Decision capsule reason `WORKER_HEALTH_FAILED` fires
+  only when `/dtd run` preflight detects an assigned worker is unhealthy.
 - `rm <id>`: remove (warn if any plan references this worker; offer to remap)
 - `alias add <id> <alias>` / `alias rm <id> <alias>`: manage aliases
 - `role set <role> <id>` / `role unset <role>`: manage role mapping in `config.md`
@@ -560,7 +563,7 @@ takeover), controller picks a `resume_strategy` for the next attempt:
 | Strategy | When | Effect |
 |---|---|---|
 | `fresh` | Default; provider has no session, OR prior failed with AUTH/MALFORMED/PROTOCOL_VIOLATION | Brand-new prompt assembly + fresh worker context |
-| `same-worker` | `worker.supports_session_resume: true` AND prior was TIMEOUT / NETWORK / RATE_LIMIT / 5xx | Same provider, pass `session_id`, append "continue" prompt |
+| `same-worker` | `worker.supports_session_resume: true` AND prior was TIMEOUT / NETWORK / RATE_LIMIT / 5xx | Same provider, pass `session_id`, append compact continue instruction |
 | `new-worker` | After 2 consecutive `same-worker` resume failures | Tier-escalate per fallback chain; fresh context |
 | `controller-takeover` | All workers in chain exhausted OR explicit user request | Controller acts; REVIEW_REQUIRED gate |
 
@@ -573,6 +576,13 @@ State additions (state.md `## Active Run Capsule`):
 Worker registry gains optional `supports_session_resume: true|false`
 (default false). `RESUME_STRATEGY_REQUIRED` capsule fires when
 controller cannot pick automatically.
+
+Same-worker resume never appends raw prior worker output, partial stream
+content, or private reasoning to the next prompt. It may pass a provider
+session id only for interruption-class failures; if the provider requires
+message replay rather than a session id, replay only sanitized controller
+prompt artifacts (`state.md`, plan, `## handoff`, attempt/log refs), not the
+previous worker transcript.
 
 #### Loop guard / doom-loop detection (v0.2.1)
 
@@ -599,6 +609,11 @@ Signature stales after `loop_guard_signature_window_min` (default
 
 Loop guard scope is per-run; `finalize_run` resets to idle. Cross-run
 loop detection deferred.
+
+`decision_mode: auto` does NOT imply loop-guard auto-action. Loop guard can
+skip the user prompt only when `config.md loop_guard_threshold_action` is
+explicitly `worker_swap` or `controller`; the default `ask` always surfaces a
+durable `LOOP_GUARD_HIT` capsule.
 
 > Full canonical reference for worker health check (17-stage diagnostic
 > with redacted evidence model): see `.dtd/reference/workers.md`
@@ -1565,11 +1580,15 @@ Each phase declares `max-iterations="<N>"` in plan XML. An "iteration" = one ful
 
 ## Per-Run Notepad
 
-`.dtd/notepad.md` is a compact wisdom capsule for the active run. Five sections:
-`learnings`, `decisions`, `issues`, `verification`, `handoff`.
+`.dtd/notepad.md` is a compact wisdom capsule for the active run. Schema v2
+has a worker-visible `## handoff` section with 8 H3 headings plus four
+controller-only sections: `learnings`, `decisions`, `issues`, and
+`verification`. Schema v1 legacy notepads may have a free-form `<handoff>` or
+`### handoff` block.
 
-**Workers receive ONLY the `<handoff>` section** as part of their prompt prefix
-(after `worker-system.md` and `PROJECT.md`, before `skills/<capability>.md`).
+**Workers receive ONLY the schema-v2 `## handoff` section** (or the legacy
+schema-v1 handoff block) as part of their prompt prefix after
+`worker-system.md` and `PROJECT.md`, before `skills/<capability>.md`.
 This replaces "send entire phase log to next worker" (token-expensive) with a
 curated controller-authored summary.
 
@@ -1577,7 +1596,7 @@ Update lifecycle:
 
 - Controller updates `notepad.md` in the canonical `/dtd run` step (o) — between tasks, never mid-flight.
 - `learnings` / `decisions` / `issues` / `verification` are append-mostly. Controller may prune/compact when total file size exceeds ~4 KB.
-- `handoff` section is **rewritten** before each worker dispatch — it's a snapshot of state, not history.
+- `## handoff` section is **rewritten** before each worker dispatch — it's a snapshot of state, not history.
 
 **Terminal lifecycle**: notepad archive/reset is one of the steps in `finalize_run(terminal_status)` (see `/dtd run` section). Called by ALL terminal exits — `COMPLETED`, `STOPPED`, `FAILED`. Steps:
 

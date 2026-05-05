@@ -1,7 +1,8 @@
 # DTD Run Notepad
 
-> Compact wisdom capsule for the active run. Updated by the controller at every
-> phase boundary. Workers receive ONLY the `## handoff` section (8 H3 headings)
+> Compact wisdom capsule for the active run. Updated by the controller before
+> every worker dispatch and at phase boundaries. Workers receive ONLY the
+> `## handoff` section (8 H3 headings)
 > as part of their prompt prefix — not the full notepad.
 >
 > Replaces "send entire phase log to next worker" (token-expensive) with a
@@ -60,8 +61,8 @@ roll into `## learnings` as one-line bullets)
 > **Reasoning Notes content discipline**: this is NOT a chain-of-thought log.
 > Allowed entry shapes: `decision: ... evidence: [...] risks: ... next: ...`
 > or `lesson (reflexion): ... trigger: ...`. Each entry ≤ 5 lines. NO
-> "let me think step-by-step", NO multi-paragraph reasoning, NO branching
-> candidate exploration. Doctor flags narrative leakage as
+> private-reasoning trigger phrases, NO multi-paragraph reasoning, NO
+> branching candidate exploration. Doctor flags narrative leakage as
 > `reasoning_notes_chain_of_thought_leak`.
 
 ## learnings

@@ -329,8 +329,11 @@ Sections:
   budget; allows buffer for non-worker-visible content); ELSE
   WARN `notepad_handoff_oversized`.
 - Reasoning Notes content discipline: heuristic scan for
-  chain-of-thought leakage — phrases like "let me think",
-  "step-by-step", multi-paragraph blocks > 5 lines per entry.
+  chain-of-thought leakage. Ignore template guidance/comment lines
+  (Markdown blockquotes beginning with `>`). Warn when an actual entry
+  contains private-reasoning trigger phrases, or when an entry combines
+  step-by-step/narrative wording with multi-paragraph blocks > 5 lines.
+  A simple "step 1 / step 2" checklist alone is not enough to warn.
   ELSE WARN `reasoning_notes_chain_of_thought_leak` with line ref.
 - `Reasoning Notes` heading exists in v2 schema notepad; ELSE WARN
   `notepad_v2_missing_reasoning_notes`.

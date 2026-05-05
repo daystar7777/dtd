@@ -141,7 +141,8 @@ classification, confidence, and any assumptions in your turn output (briefly).
 | `perf` | `/dtd perf [flags]` | observational token/performance report; no run memory mutation |
 | `install` | run `prompt.md` bootstrap | first-time only |
 | `uninstall` | `/dtd uninstall [--soft\|--hard\|--purge]` | destructive — confirm always |
-| `workers` | `/dtd workers [list\|add\|test\|rm\|alias\|role]` | edit registry |
+| `workers` | `/dtd workers [list\|add\|test\|rm\|alias\|role]` | list/test are observational; add/rm/alias/role mutate registry |
+| `notepad` | `/dtd notepad [show\|search\|compact]` (v0.2.2) | show/search are observational; compact mutates notepad only |
 | `context_pattern` | set/override `context-pattern` on DRAFT plan or steer active run | `fresh` / `explore` / `debug`; confirm if target ambiguous |
 | `attention` | `/dtd silent on|off`, `/dtd interactive`, `/dtd run --silent=<duration>` | ask now vs defer blockers |
 | `decision_mode` | `/dtd mode decision <plan|permission|auto>` or `/dtd run --decision <mode>` | how often DTD asks before non-destructive choices |
@@ -361,17 +362,25 @@ Hard rules. Violations waste user tokens or degrade UX.
 ```
 1. .dtd/worker-system.md            (static, cache hit)
 2. .dtd/PROJECT.md                  (rarely changes, cache hit)
-3. .dtd/notepad.md <handoff> only   (dynamic — REWRITTEN before each dispatch, NO cache)
+3. .dtd/notepad.md handoff only     (dynamic — REWRITTEN before each dispatch, NO cache)
 4. .dtd/skills/<capability>.md      (per capability, cache hit per capability)
 5. task-specific section            (varies, no cache; includes compact
    persona/reasoning/tool-runtime controls when configured)
 ```
 
-**Important**: only steps 1, 2, 4 are cache-friendly. The notepad `<handoff>` (step 3) is intentionally dynamic — controller rewrites it before each worker dispatch to reflect the latest run state. Do NOT mark it with `cache_control: ephemeral`.
+**Important**: only steps 1, 2, 4 are cache-friendly. The notepad handoff
+(schema-v2 `## handoff` section, or legacy schema-v1 handoff block) is
+intentionally dynamic — controller rewrites it before each worker dispatch to
+reflect the latest run state. Do NOT mark it with `cache_control: ephemeral`.
 
-For Anthropic-compatible endpoints, mark steps 1, 2, and 4 (in that order) with `cache_control: ephemeral`. Step 3 (notepad handoff) goes between cached blocks but is itself uncached. Step 5 (task) is always uncached.
+For Anthropic-compatible endpoints, mark steps 1, 2, and 4 (in that order)
+with `cache_control: ephemeral`. Step 3 (notepad handoff) goes between cached
+blocks but is itself uncached. Step 5 (task) is always uncached.
 
-Workers receive ONLY the `<handoff>` section of `notepad.md`, not the full notepad. The other sections (`learnings`, `decisions`, `issues`, `verification`) stay in the file for the controller's own use and are pruned/compacted as it grows.
+Workers receive ONLY the schema-v2 `## handoff` section of `notepad.md`, not
+the full notepad. Legacy schema-v1 notepads use their existing handoff block.
+The other sections (`learnings`, `decisions`, `issues`, `verification`) stay
+in the file for the controller's own use and are pruned/compacted as it grows.
 
 ### 3. Worker context reset + pattern resolution
 
@@ -517,6 +526,8 @@ Classify these as `observational_read`:
 - `/dtd doctor`
 - `/dtd workers` (list / test)
 - `/dtd attempts show` (future)
+- `/dtd notepad show` (v0.2.2)
+- `/dtd notepad search <query>` (v0.2.2)
 - `/dtd incident list` (v0.2.0a) — any flag
 - `/dtd incident show <id>` (v0.2.0a)
 - `/dtd locale list` (v0.2.0e)
