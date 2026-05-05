@@ -132,6 +132,7 @@ $builderText = Read-Text "scripts/build-manifest.ps1"
 $readmeText = Read-Text "README.md"
 $readmeKoText = Read-Text "README.ko.md"
 $readmeJaText = Read-Text "README.ja.md"
+$benchmarkPublicText = Read-Text "BENCHMARK.md"
 $helpIndexText = Read-Text ".dtd/help/index.md"
 $helpObserveText = Read-Text ".dtd/help/observe.md"
 $helpObserveLineCount = ($helpObserveText -split "\r?\n").Count
@@ -195,6 +196,22 @@ Add-Result "v023.realuse.benchmark_matrix" "real-use benchmark matrix captures p
      ($benchmarkMatrixText -match 'controller_tokens') -and
      ($benchmarkMatrixText -match 'test_worker_tokens') -and
      ($benchmarkMatrixText -match 'thinking/reasoning level only when the'))
+Add-Result "v023.realuse.public_benchmark_doc" "BENCHMARK.md exposes benchmark status, token split, controls, and execution boundary" `
+    (($benchmarkPublicText -match 'DTD Real-Use Benchmark') -and `
+     ($benchmarkPublicText -match 'No full benchmark results have been received yet') -and `
+     ($benchmarkPublicText -match 'Single real-use token experiment') -and `
+     ($benchmarkPublicText -match 'DeepSeek/OpenCode large benchmark suite') -and `
+     ($benchmarkPublicText -match 'Not received') -and `
+     ($benchmarkPublicText -match 'controller_tokens') -and `
+     ($benchmarkPublicText -match 'implementation_worker_tokens') -and `
+     ($benchmarkPublicText -match 'P0F') -and `
+     ($benchmarkPublicText -match 'D5') -and `
+     ($benchmarkPublicText -match 'Full live benchmark') -and `
+     ($benchmarkPublicText -match 'explicit user approval'))
+Add-Result "v023.realuse.readme_discovery" "README links to public real-use benchmark document" `
+    (($readmeText -match 'BENCHMARK\.md') -and `
+     ($readmeText -match 'Real-use Benchmark') -and `
+     ($readmeText -match 'plain-vs-DTD'))
 
 # v030-realuse-benchmark dev-phase reference (session #19 deliverable)
 $realuseRef = Read-Text ".dtd/reference/v030-realuse-benchmark.md"
@@ -241,6 +258,8 @@ $realuseDoctorCodes = @(
 foreach ($code in $realuseDoctorCodes) {
     Add-Result "v023.realuse.doctor.$code" "realuse ref defines doctor code $code" `
         ($realuseRef -match [regex]::Escape($code))
+    Add-Result "v023.realuse.doctor_registry.$code" "doctor-checks registers realuse doctor code $code" `
+        ($doctorRefText -match [regex]::Escape($code))
 }
 Add-Result "v023.realuse.r2_separation" "realuse ref maintains separation from v0.3 R2 live validation" `
     (($realuseRef -match "separate evidence track") -and `

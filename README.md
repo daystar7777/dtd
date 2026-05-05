@@ -39,6 +39,12 @@ your `CLAUDE.md` / `.cursorrules` / `AGENTS.md`.
 
 ---
 
+**Want evidence?** [Real-use Benchmark](BENCHMARK.md) explains the
+plain-vs-DTD comparison plan, token accounting, score rubric, model-role split,
+and current execution boundary.
+
+---
+
 ## How do I use it?
 
 Slash — three small command groups: **Start**, **Observe**, **Recover**.

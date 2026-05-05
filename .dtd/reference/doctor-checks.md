@@ -609,6 +609,36 @@ Sections:
   field: INFO `permission_finalize_pre_r1_tombstone_unannotated`
   (cosmetic; not a contract violation).
 
+### Realuse benchmark (v0.3 dev phase)
+
+> Real-use benchmark track doctor codes — scoped to benchmark artifacts
+> only. Full spec in `.dtd/reference/v030-realuse-benchmark.md`.
+> These fire when `.dtd/log/realuse/` or realuse-scoped test project
+> artifacts exist.
+
+- Worker has been used in benchmark BUT
+  `.dtd/log/worker-checks/<id>-capabilities.md` is missing: INFO
+  `realuse_capability_inventory_missing`. Recommends running
+  probe-only first.
+- A `results.jsonl` row fails schema_version 1.0 validation:
+  ERROR `realuse_jsonl_schema_invalid` (runtime, not static).
+- `result_score >= 70` with `external_acceptance: 0`: ERROR
+  `realuse_score_inflation_violation`. Score must reflect
+  external acceptance failures.
+- `recommend_mode()` returned a value outside {quick, balanced,
+  thorough, silent-overnight}: ERROR
+  `realuse_recommendation_unknown_mode`.
+- A row's `score_evidence_paths` is empty AND `row_type !=
+  "dry_run"`: ERROR `realuse_score_no_evidence_path`.
+- A `full` mode `results.jsonl` exists without recorded user
+  start command: ERROR `realuse_full_run_no_user_gate`.
+- `controller_model == scorekeeper_model` AND row lacks
+  `same_model_judge: true` flag: WARN
+  `realuse_same_model_judge_unflagged`.
+- A `dry_run: true` row has non-empty `evidence_paths`
+  or non-zero tokens: ERROR `realuse_dryrun_has_evidence`.
+  Dry-run must be hermetic.
+
 ## Worker health + runtime resilience (v0.2.1)
 
 ### Worker health check freshness
