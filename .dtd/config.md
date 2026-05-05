@@ -95,6 +95,19 @@
 - profile_transition_log_path: .dtd/log/profile-transitions.md
 - aggressive_unload: false                # if true, hosts that support unload may evict non-profile sections (advanced)
 
+## locale (v0.2.0e)
+
+# Optional locale-pack support. Core operational prompts stay English-only;
+# locale packs augment NL routing and slash aliases for the user's preferred
+# language. See dtd.md §/dtd locale and .dtd/locales/<lang>.md.
+
+- enabled: false                  # true | false (auto in future)
+- language: null                  # null | ko | ja  (matches .dtd/locales/<lang>.md)
+- auto_probe: false               # if true, installer probes user's first message language
+- pack_path: .dtd/locales         # directory containing <lang>.md packs
+- pack_size_budget_kb: 8          # WARN reference_oversized above this
+- merge_policy: pack_wins_on_conflict   # pack_wins_on_conflict | core_wins_on_conflict
+
 ## update (v0.2.0d)
 
 # Self-Update settings. See dtd.md §/dtd update.

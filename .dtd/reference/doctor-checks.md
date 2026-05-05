@@ -221,6 +221,42 @@ Sections:
 - Default help body (rendered from index.md Summary section) ≤ 25
   lines; topic help ≤ 50 lines (line-budget INFO; not blocking).
 
+## Locale state (v0.2.0e)
+
+- `.dtd/locales/` directory exists; ELSE INFO `locale_dir_missing`
+  (acceptable — locale packs are optional).
+- If `config.md locale.enabled: true`: `config.md locale.language`
+  is non-null AND `.dtd/locales/<language>.md` exists. ELSE ERROR
+  `locale_pack_missing`.
+- `state.md locale_active` matches `config.md locale.language` (or
+  both `null`). ELSE WARN `locale_state_drift`.
+- `state.md locale_set_by` is one of `default | install | user |
+  auto_probe`. ELSE WARN `locale_set_by_invalid`.
+- Each existing pack file `.dtd/locales/<lang>.md` is ≤
+  `config.md locale.pack_size_budget_kb` (default 8 KB). ELSE WARN
+  `locale_pack_oversized: <lang>`.
+- Each existing pack file contains the required sections
+  `## Slash aliases` AND `## NL routing additions`. ELSE ERROR
+  `locale_pack_missing_required_section: <lang>`.
+- Each pack's `## Pack metadata` declares `merge_policy` matching
+  `config.md locale.merge_policy`. ELSE WARN
+  `locale_pack_merge_policy_drift`.
+- `instructions.md` contains the §"Locale bootstrap aliases"
+  section even when `locale.enabled: false`; ELSE ERROR
+  `bootstrap_alias_missing` (a non-English user cannot enable
+  their pack without this).
+- Pack canonical-references: each NL row in a pack maps to a
+  canonical action that exists in `dtd.md` Canonical Actions; ELSE
+  ERROR `locale_pack_invalid_canonical: <lang>:<row>`. (R0:
+  spot-check; R1+ may make this exhaustive.)
+- Core-prompt locale drift: scan `.dtd/instructions.md` (outside
+  the bootstrap alias table + §Locale bootstrap aliases),
+  `prompt.md` (outside locale offer), and `dtd.md` (outside
+  user-data examples and the `/dtd locale` documentation block) for
+  Korean/Japanese characters; ELSE WARN
+  `core_prompt_locale_drift: <file>:<line>`. R0 may surface this as
+  INFO; R1+ tightens to WARN.
+
 ## Spec modularization (v0.2.3 R1)
 
 - `.dtd/reference/` directory exists; ELSE INFO

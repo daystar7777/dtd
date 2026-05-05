@@ -27,6 +27,12 @@ action set:
 /디티디 <args>    ← full Korean alias
 ```
 
+> v0.2.0e note: full Korean (and other locale) NL routing now lives
+> in optional locale packs at `.dtd/locales/<lang>.md`. The Korean
+> aliases above are kept here as a **bootstrap surface** so non-English
+> users can enable their pack from a fresh install. See "Locale
+> bootstrap aliases" below and `/dtd locale enable <lang>`.
+
 Routing rule: **detect prefix → strip → normalize to `/dtd` → feed remainder
 to NL/canonical router**. If remainder is empty, default to `/dtd status`.
 
@@ -54,6 +60,29 @@ through this in-context routing rule once DTD mode is on.
 
 ---
 
+## Locale bootstrap aliases (v0.2.0e)
+
+Even when `state.md locale_active: null` (no locale pack loaded), the
+following minimum non-English aliases work — they exist solely to let
+non-English users enable their pack:
+
+| Alias | Routes to |
+|---|---|
+| `/ㄷㅌㄷ locale enable <lang>` | `/dtd locale enable <lang>` |
+| `/ㄷㅌㄷ locale list` | `/dtd locale list` |
+| `/ㄷㅌㄷ 도움말` | one-line hint: "Korean locale not enabled. Run `/dtd locale enable ko`." |
+| `/디티디 locale enable <lang>` | same as `/ㄷㅌㄷ` form |
+| `/ディーティーディー locale enable <lang>` | same; Japanese alias for ja pack discovery |
+
+Nothing else routes via these aliases until the locale pack is loaded.
+A user typing `/ㄷㅌㄷ 워커 추가` while `locale_active: null` gets the
+one-line bootstrap hint, NOT a full action.
+
+Doctor check `bootstrap_alias_missing`: ERROR if this section is
+absent. Required to keep non-English users unblocked.
+
+---
+
 ## Per-turn protocol
 
 On every user turn, before responding:
@@ -72,6 +101,16 @@ On every user turn, before responding:
      observational reads. If the turn performs a mutating action, include
      `loaded_profile`, `loaded_profile_set_at`, and `loaded_profile_reason`
      in that same atomic state write when they differ.
+1.6. **Load locale pack** (v0.2.0e): if `state.md locale_active != null`
+     AND `config.md locale.enabled: true`, load
+     `.dtd/locales/<locale_active>.md` for this turn. Pack additions
+     augment (never replace) core NL routing and the Intent Gate.
+     On phrase-match conflict between core and pack: pack wins
+     (user explicitly opted in via `/dtd locale enable`).
+     If `locale_active: null`, only the §"Locale bootstrap aliases"
+     non-English forms route; everything else is English-only NL.
+     Locale pack loading does not persist state changes by itself
+     (it's a per-turn cognitive load, like the profile resolution).
 2. **Read** `.dtd/steering.md` from `steering_cursor` to end → apply any new low-impact entries; flag medium/high if not yet patched.
 3. **Check** `pause_requested`: if true and `plan_status: RUNNING`, finish in-flight task only, then mark PAUSED.
 4. **Check** `awaiting_user_decision`: if true, do not auto-act. Show the choice menu, AND display `awaiting_user_reason` (e.g. `CONTEXT_EXHAUSTED`, `ESCALATION_TERMINAL`) so the user knows why.

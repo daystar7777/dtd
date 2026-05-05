@@ -50,6 +50,8 @@ Sections:
 - Self-Update state (v0.2.0d) — `installed_version`, `update_in_progress`
   staleness, MANIFEST.json validity
 - Help system (v0.2.0d) — 9 canonical topics, size budgets
+- Locale state (v0.2.0e) — locale pack existence, required sections,
+  bootstrap-alias presence, ≤ 8 KB pack budget
 - Spec modularization (v0.2.3 R1) — reference dir, 13 canonical topics,
   Summary + Anchor sections, ≤ 24 KB
 - Path policy (BLOCK patterns, `..` paths, relative/absolute)
@@ -111,6 +113,72 @@ Output is `observational_read`: never writes `state.md`, `notepad.md`,
 > (resolution algorithm, topic file structure, NL routing table,
 > v0.2.3 reference-topic extension, output discipline).
 > Lazy-load via `/dtd help help-system --full`.
+
+### `/dtd locale [enable|disable|list|show] [<lang>]` (v0.2.0e)
+
+Optional locale-pack management. Core operational prompts ship
+English-only; locale packs augment NL routing + slash aliases for
+the user's preferred language.
+
+Forms:
+
+```text
+/dtd locale list              # observational; show available + active
+/dtd locale show              # observational; current locale config
+/dtd locale enable <lang>     # mutating; activate <lang> pack (e.g. ko, ja)
+/dtd locale disable           # mutating; back to English-only core
+```
+
+Effects:
+
+- **`/dtd locale enable <lang>`**:
+  - Validate `<lang>` against `.dtd/locales/<lang>.md` existence;
+    ELSE refuse with `locale_pack_missing` hint.
+  - Set `config.md locale.enabled: true`, `locale.language: <lang>`.
+  - Set `state.md locale_active: <lang>`, `locale_set_by: user`,
+    `locale_set_at: <ts>`.
+  - Pack loaded on the next instruction-load turn (controller picks
+    up `.dtd/locales/<lang>.md` after reading `state.md`).
+  - Confirm to user with localized phrasing if pack is now active.
+- **`/dtd locale disable`**:
+  - Set `config.md locale.enabled: false`, `locale.language: null`.
+  - Set `state.md locale_active: null`, `locale_set_by: user`.
+  - Pack file remains on disk; `enable` reactivates without reinstall.
+- **`/dtd locale list`**: observational. Output:
+
+  ```text
+  + DTD locales
+  | active     ko (enabled by user 2026-05-05)
+  | available
+  | * ko       Korean (NL routing + /ㄷㅌㄷ alias)
+  | * ja       Japanese (seed pack — full coverage in R1+)
+  | * en       English (always available — core prompts)
+  ```
+
+- **`/dtd locale show`**: observational read of current settings.
+
+Pack-load order (per-turn protocol step 1.6 — added by v0.2.0e):
+After `instructions.md` and lazy-load profile resolution (step 1.5),
+if `state.md locale_active != null`, also load
+`.dtd/locales/<active>.md` for this turn. Pack additions augment
+core NL routing; **on conflict, pack wins** (user explicitly opted
+in).
+
+Bootstrap chicken-and-egg: even before any locale pack is loaded,
+core `instructions.md` retains a tiny bootstrap alias table so a
+non-English user can issue `/ㄷㅌㄷ locale enable ko` from a fresh
+install. See `instructions.md` §"Locale bootstrap aliases".
+
+NL routing (English):
+
+| Phrase | Canonical |
+|---|---|
+| "enable Korean", "Korean mode on" | `/dtd locale enable ko` |
+| "show locales", "what languages" | `/dtd locale list` |
+| "disable locale", "English only" | `/dtd locale disable` |
+
+Korean / Japanese NL routing for `/dtd locale` is in the
+respective pack file.
 
 ### `/dtd uninstall [--soft|--hard|--purge]`
 

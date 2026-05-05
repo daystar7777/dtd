@@ -1078,6 +1078,125 @@ follow normal confidence rules; no silent run termination via NL.
 
 ---
 
+## v0.2.0e — Locale Packs
+
+### 44. Locale pack disabled by default; only bootstrap aliases route
+
+**Setup**: fresh install at v0.2.0e. `config.md locale.enabled: false`,
+`state.md locale_active: null`, `.dtd/locales/ko.md` AND `.dtd/locales/ja.md`
+both present on disk.
+
+**Steps**:
+1. User: `/ㄷㅌㄷ 워커 추가` (Korean alias + non-bootstrap NL phrase).
+2. User: `/ㄷㅌㄷ locale enable ko` (bootstrap form).
+3. User: `/ㄷㅌㄷ locale list` (bootstrap form).
+4. User: `/ㄷㅌㄷ 워커 추가` again (post-enable; should now route).
+
+**Expected**:
+- Step 1: controller returns the bootstrap hint
+  `"Korean locale is not enabled. Run /dtd locale enable ko."`. Does NOT
+  route to `/dtd workers add`.
+- Step 2: routes to `/dtd locale enable ko`. After confirm, sets
+  `config.md locale.enabled: true`, `locale.language: ko`, `state.md
+  locale_active: ko`, `locale_set_by: user`.
+- Step 3: routes to `/dtd locale list` and prints the catalog
+  (active=ko, available=ko/ja/en).
+- Step 4: now routes to `/dtd workers add` because the Korean pack is
+  loaded and its NL row matches.
+
+**Pass**: only the four bootstrap-alias forms route while
+`locale_active: null`; full Korean NL routing requires a successful
+`/dtd locale enable ko`.
+
+### 45. /dtd locale enable activates Korean pack on next turn
+
+**Setup**: install per scenario 44 step 0. Run `/dtd locale enable ko`.
+
+**Steps**:
+1. Inspect `.dtd/state.md` and `.dtd/config.md` immediately after the
+   enable command.
+2. Issue any Korean NL phrase (e.g. `"진행상황"`).
+
+**Expected**:
+- `state.md`: `locale_active: ko`, `locale_set_by: user`,
+  `locale_set_at: <ts>` set in same atomic write.
+- `config.md`: `locale.enabled: true`, `locale.language: ko`.
+- Next turn loads `.dtd/locales/ko.md` after `instructions.md`
+  (per-turn protocol step 1.6).
+- `"진행상황"` routes to `/dtd status` via the Korean NL row.
+
+**Pass**: pack-load is observable on the next turn; canonical action
+is recorded in audit log as `/dtd status`, never the Korean phrasing.
+
+### 46. /dtd locale disable reverts to English-only without removing files
+
+**Setup**: ko pack enabled per scenario 45.
+
+**Steps**:
+1. `/dtd locale disable`.
+2. Issue `"진행상황"` (Korean NL).
+3. Issue `/ㄷㅌㄷ locale enable ko` (bootstrap form).
+
+**Expected**:
+- Step 1: `config.md locale.enabled: false`, `locale.language: null`,
+  `state.md locale_active: null`, `locale_set_by: user`.
+  `.dtd/locales/ko.md` file remains on disk untouched.
+- Step 2: `"진행상황"` does NOT route (no pack loaded). Controller
+  returns bootstrap hint.
+- Step 3: re-enable works without reinstall (pack file still present).
+
+**Pass**: disable is reversible; pack files persist; only state/config
+flip.
+
+### 47. Doctor flags missing locale pack when enabled
+
+**Setup**: `config.md locale.enabled: true, locale.language: ko`, but
+`.dtd/locales/ko.md` is intentionally absent (simulated misconfig).
+
+**Steps**: `/dtd doctor`.
+
+**Expected**:
+- ERROR `locale_pack_missing` with hint to disable or install pack.
+- Exit code 1.
+
+**Pass**: misconfigured locale state surfaces as a blocking ERROR.
+
+### 48. Locale pack required-section + size budget validated
+
+**Setup**: install with valid `ko.md` and `ja.md` packs.
+
+**Steps**:
+1. `/dtd doctor` against valid packs → PASS.
+2. Edit `ko.md` to remove the `## NL routing additions` section. Run
+   doctor.
+3. Inflate `ko.md` past 8 KB. Run doctor.
+
+**Expected**:
+- Step 1: no locale-related ERROR/WARN.
+- Step 2: ERROR `locale_pack_missing_required_section: ko`.
+- Step 3: WARN `locale_pack_oversized: ko`.
+
+**Pass**: doctor validates pack contract and size budget per
+`config.md locale.pack_size_budget_kb`.
+
+### 49. Bootstrap alias section enforced in instructions.md
+
+**Setup**: install at v0.2.0e.
+
+**Steps**:
+1. Verify `.dtd/instructions.md` contains §"Locale bootstrap aliases".
+2. Remove that section (simulated drift).
+3. Run `/dtd doctor`.
+
+**Expected**:
+- Step 1: section present with `/ㄷㅌㄷ locale enable <lang>` row, etc.
+- Step 3 after removal: ERROR `bootstrap_alias_missing` (a non-English
+  user could not enable their pack from a fresh install).
+
+**Pass**: bootstrap alias surface is doctor-enforced; cannot regress.
+
+---
+
 ## v0.2.0d — Self-Update + /dtd help
 
 ### 86. /dtd update check no-op when on latest

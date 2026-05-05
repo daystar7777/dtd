@@ -26,6 +26,16 @@
 - loaded_profile_set_at: null      # timestamp; debug aid for profile transitions
 - loaded_profile_reason: null      # null | mode_off | no_plan | draft_or_approved | running_or_paused | active_blocker | pending_patch
 
+## Locale (v0.2.0e)
+
+# Optional locale-pack activation. Core prompts stay English-only;
+# locale_active selects which .dtd/locales/<lang>.md augments NL
+# routing this session. See dtd.md §/dtd locale.
+
+- locale_active: null             # null | ko | ja  (matches config.md locale.language)
+- locale_set_by: default          # default | install | user | auto_probe
+- locale_set_at: null             # timestamp when last changed
+
 ## Self-Update state (v0.2.0d)
 
 # /dtd update flow tracking. See dtd.md §/dtd update.
