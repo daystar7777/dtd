@@ -2366,4 +2366,5 @@ required (test project + 3 worker slots + optional sync target).
 
 This spec is the source of truth. NL routing and per-turn behavior live in
 `.dtd/instructions.md`. Templates and examples live in `.dtd/` and `examples/`.
-Test scenarios for v0.1 acceptance are in `test-scenarios.md`.
+Acceptance scenarios spanning v0.1 / v0.2 / v0.3 lines are in
+`test-scenarios.md`.
