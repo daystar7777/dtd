@@ -3281,6 +3281,138 @@ that cross-machine match will not work without stable identity.
 
 ---
 
+## v0.3.0e R1 — Time-limited permissions runtime
+
+### 150. Pre-dispatch gate locks in mid-call expiry
+
+**Setup**: rule `allow | edit | scope: src/** | until: +1m`
+written at T=0. Tool dispatch begins at T=58s; tool runs 5 minutes
+total.
+
+**Steps**: invoke a tool call that takes 5 minutes.
+
+**Expected**:
+- T=58s pre-dispatch gate: rule Active → call dispatched.
+- T=120s rule's `resolved_until` passes; call is still running.
+- T=358s tool returns; apply proceeds normally.
+- INFO `permission_late_bind_overrun` logged in
+  `.dtd/log/permissions.md`.
+- Next dispatch at T=400s: rule is Expired; falls through to
+  default rule.
+
+**Pass**: gate-time decision locked-in; mid-call expiry does not
+abort an in-flight call; next dispatch re-evaluates.
+
+### 151. Named-local scope writes resolved_until_tz=user_tz
+
+**Setup**: `state.md.user_tz: Asia/Seoul`. User issues
+`/dtd permission allow edit scope: docs/** until eod` at
+2026-05-05 14:00 Seoul time (= 05:00 UTC).
+
+**Expected** rule row:
+```
+2026-05-05 05:00 UTC | allow | edit | scope: docs/** | until: eod | resolved_until: 2026-05-05T23:59:59+09:00 | resolved_until_tz: Asia/Seoul | by: user
+```
+
+- `resolved_until` carries the +09:00 offset (NOT UTC-converted).
+- `resolved_until_tz: Asia/Seoul`.
+- Read-time check converts to UTC for comparison against
+  `now_utc`.
+
+**Pass**: named-local scopes preserve TZ in audit trail;
+read-time comparison handles offset correctly.
+
+### 152. user_tz null + named-local form rejected at write
+
+**Setup**: `state.md.user_tz: null`. User issues
+`/dtd permission allow edit scope: docs/** until eod`.
+
+**Expected**:
+- ERROR `permission_user_tz_required` returned.
+- Rule NOT written.
+- User prompted to set `user_tz` via `/dtd config user_tz <tz>`.
+
+**Pass**: named-local writes fail closed without TZ; UTC fallback
+is NEVER auto-assumed.
+
+### 153. Combined units rejected at write
+
+**Setup**: any project.
+
+**Steps**: user issues `/dtd permission allow edit scope: src/**
+for 1h30m`.
+
+**Expected**:
+- ERROR `permission_duration_combined_unsupported_v030e`.
+- Rule NOT written.
+- Suggestion: split into separate rules OR use absolute ts.
+
+**Pass**: combined-unit syntax explicitly rejected; deferred to
+v0.3.x.
+
+### 154. for run + finalize_run audit fields
+
+**Setup**: rule
+`allow | bash | scope: npm test | until: for run`. Run a plan
+to COMPLETED.
+
+**Expected** at finalize_run step 5c tombstone row:
+```
+... | by: finalize_run_run_end (revokes <orig ts> row, resolved_until: run_end) | resolved_until_form: named_run
+```
+
+- `resolved_until_form: named_run` is the new R1 audit field.
+- Doctor `permission_finalize_form_drift` does NOT fire (form
+  matches).
+
+**Pass**: R1 audit field present and matches original rule's
+form.
+
+### 155. Form mismatch detected by doctor
+
+**Setup**: manual edit of `.dtd/permissions.md` introduces a row
+with form=named_local but resolved_until_tz=UTC (corruption).
+
+**Steps**: `/dtd doctor`.
+
+**Expected**: ERROR `permission_until_tz_form_mismatch` flagging
+the corrupted row.
+
+**Pass**: form/tz invariant violation detected; user can recover
+via re-write.
+
+### 156. Clock skew opt-in WARN
+
+**Setup**:
+- `config.permission_clock_skew_check_enabled: true`
+- Controller clock 7 minutes ahead of NTP reference.
+
+**Steps**: `/dtd doctor`.
+
+**Expected**: WARN `permission_clock_skew_excessive` recommending
+clock sync.
+
+**Pass**: opt-in skew check fires only when enabled AND drift > 5
+min.
+
+### 157. DST spring-forward warns ambiguous
+
+**Setup**:
+- `state.md.user_tz: America/Los_Angeles`
+- Date: 2026-03-08 (US spring-forward at 02:00 → 03:00).
+- Rule written 2026-03-07 23:00 PST: `until: today`.
+
+**Expected**:
+- `resolved_until` correctly resolves to
+  `2026-03-08T23:59:59-07:00` (PDT after spring-forward).
+- WARN `permission_until_dst_ambiguous` flags the rule for user
+  awareness — does NOT auto-resolve / auto-rewrite.
+
+**Pass**: named-local scope on DST date warned; user retains
+control.
+
+---
+
 ## v0.3.0a — Cross-run loop guard
 
 ### 126. Stable cross-run signature differs from within-run signature

@@ -140,6 +140,66 @@ foreach ($code in $doctorCodes) {
         ($doctorRef -match [regex]::Escape($code))
 }
 
+# v0.3.0e R1 doctor codes (additional)
+$doctorR1Codes = @(
+    "permission_until_form_unknown",
+    "permission_user_tz_required",
+    "permission_until_tz_form_mismatch",
+    "permission_late_bind_overrun",
+    "permission_clock_skew_excessive",
+    "permission_until_dst_ambiguous",
+    "permission_until_legacy_local_offset",
+    "permission_finalize_form_drift",
+    "permission_finalize_pre_r1_tombstone_unannotated"
+)
+foreach ($code in $doctorR1Codes) {
+    Add-Result "v030e.doctor.r1_code.$code" "doctor-checks ref defines R1 $code" `
+        ($doctorRef -match [regex]::Escape($code))
+}
+Add-Result "v030e.doctor.r1_section" "doctor-checks ref has v0.3.0e R1 runtime checks header" `
+    ($doctorRef -match "v0\.3\.0e R1 runtime checks")
+
+# ─── reference/v030e-time-limited-permissions.md (R1 canonical topic) ──────
+
+$v030eRef = Read-Text ".dtd/reference/v030e-time-limited-permissions.md"
+
+Add-Result "v030e.r1_ref.summary" "v030e R1 ref has Summary section" `
+    ($v030eRef -match "(?m)^## Summary")
+Add-Result "v030e.r1_ref.anchor" "v030e R1 ref has Anchor section" `
+    ($v030eRef -match "(?m)^## Anchor")
+Add-Result "v030e.r1_ref.write_time_evaluator" "v030e R1 ref documents write-time evaluator algorithm" `
+    ($v030eRef -match "Resolution-time evaluator")
+Add-Result "v030e.r1_ref.pre_dispatch_check" "v030e R1 ref documents pre-dispatch check algorithm" `
+    ($v030eRef -match "Pre-dispatch check")
+Add-Result "v030e.r1_ref.late_binding" "v030e R1 ref documents late-binding behavior" `
+    (($v030eRef -match "Late-binding") -and ($v030eRef -match "mid-tool-call"))
+Add-Result "v030e.r1_ref.clock_skew" "v030e R1 ref documents clock skew model" `
+    ($v030eRef -match "Clock skew")
+Add-Result "v030e.r1_ref.dst_handling" "v030e R1 ref documents DST handling" `
+    (($v030eRef -match "DST transitions") -or ($v030eRef -match "spring forward"))
+Add-Result "v030e.r1_ref.tombstone_audit_form" "v030e R1 ref documents tombstone resolved_until_form audit field" `
+    ($v030eRef -match "resolved_until_form:")
+Add-Result "v030e.r1_ref.r1_scenarios" "v030e R1 ref lists scenarios 150-157 (R1)" `
+    ($v030eRef -match "(?s)R1 acceptance scenarios.*?150.*?157")
+
+# ─── reference/index.md (v030e R1 row + expansion note) ─────────────────────
+
+$indexRef = Read-Text ".dtd/reference/index.md"
+Add-Result "v030e.index.r1_row" "index.md has v030e-time-limited-permissions row" `
+    ($indexRef -match '(?m)^\| `v030e-time-limited-permissions` ')
+Add-Result "v030e.index.r1_canonical" "index.md marks v030e-time-limited-permissions canonical" `
+    ($indexRef -match '(?m)^\| `v030e-time-limited-permissions` .*\| canonical \|')
+Add-Result "v030e.index.r1_expansion_note" "index.md mentions v030e R1 catalog growth (16 -> 17)" `
+    ($indexRef -match "16 .*17|v030e R1")
+
+# ─── state.md (R1 fields) ───────────────────────────────────────────────────
+
+$stateR1Keys = @("last_permission_rule_written_at", "last_permission_rule_form", "user_tz")
+foreach ($key in $stateR1Keys) {
+    Add-Result "v030e.state.r1_key.$key" "state.md v0.3.0e section has R1 $key" `
+        ($stateMd -match "(?m)^- $([regex]::Escape($key)):")
+}
+
 # ─── test-scenarios.md ────────────────────────────────────────────────────────
 
 $scenariosMd = Read-Text "test-scenarios.md"
@@ -150,6 +210,12 @@ foreach ($n in 109..117) {
     Add-Result "v030e.scenarios.$n" "test-scenarios.md has scenario $n" `
         ($scenariosMd -match "### $n\.")
 }
+Add-Result "v030e.scenarios.r1_section_header" "test-scenarios.md has v0.3.0e R1 section header" `
+    ($scenariosMd -match "## v0\.3\.0e R1 .* Time-limited permissions runtime")
+foreach ($n in 150..157) {
+    Add-Result "v030e.scenarios.r1_$n" "test-scenarios.md has R1 scenario $n" `
+        ($scenariosMd -match "### $n\.")
+}
 
 # ─── build-manifest.ps1 ───────────────────────────────────────────────────────
 
@@ -157,6 +223,8 @@ $builderText = Read-Text "scripts/build-manifest.ps1"
 
 Add-Result "v030e.manifest.checker" "build-manifest includes scripts/check-v030e.ps1" `
     ($builderText -match [regex]::Escape("scripts/check-v030e.ps1"))
+Add-Result "v030e.manifest.r1_reference" "build-manifest includes reference/v030e-time-limited-permissions.md" `
+    ($builderText -match [regex]::Escape(".dtd/reference/v030e-time-limited-permissions.md"))
 
 $pass = @($Results | Where-Object { $_.pass }).Count
 $fail = @($Results | Where-Object { -not $_.pass }).Count

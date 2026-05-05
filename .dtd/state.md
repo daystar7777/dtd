@@ -138,6 +138,9 @@
 
 - active_time_limited_rule_count: 0       # for /dtd status --full perms line; recounted at finalize_run 5c
 - last_permission_prune_at: null          # ts of last finalize_run step 5c
+- last_permission_rule_written_at: null   # R1; ts of last /dtd permission write
+- last_permission_rule_form: null         # R1; absolute | duration | named_local | named_run
+- user_tz: null                           # R1; user-configured timezone (e.g. Asia/Seoul); REQUIRED for named-local-scope writes
 
 ## Silent window transient rules (v0.2.0b R1)
 

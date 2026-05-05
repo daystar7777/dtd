@@ -95,6 +95,7 @@ $IncludedPaths = @(
     ".dtd/reference/v030a-cross-run-loop-guard.md",
     ".dtd/reference/v030c-consensus.md",
     ".dtd/reference/v030d-cross-machine-session-sync.md",
+    ".dtd/reference/v030e-time-limited-permissions.md",
     ".dtd/locales/ko.md",
     ".dtd/locales/ja.md",
     ".dtd/permissions.md",

@@ -451,6 +451,42 @@ Sections:
   `permission_finalize_prune_unrun` (acceptable for fresh
   installs).
 
+### v0.3.0e R1 runtime checks (additional)
+
+> Full R1 runtime contract — pre-dispatch resolver, late-binding,
+> TZ/DST/clock-skew — lives in
+> `.dtd/reference/v030e-time-limited-permissions.md`.
+
+- Write-time form unrecognized: ERROR
+  `permission_until_form_unknown`. Rule write rejected.
+- Write-time form is `named_local` (today/eod/this-week/etc.) AND
+  `state.md.user_tz` is null: ERROR
+  `permission_user_tz_required`. Rule write rejected; user must
+  set `user_tz` first.
+- `## Active rules` row with form `named_local` AND
+  `resolved_until_tz: UTC` (or vice versa: form `absolute|duration|named_run`
+  AND non-`UTC` tz): ERROR
+  `permission_until_tz_form_mismatch` (corruption / migration
+  drift).
+- Tool call wall-clock duration exceeded the residual time on its
+  gating rule: INFO `permission_late_bind_overrun` (gate-time
+  decision is locked-in by design — informational only).
+- Controller clock drift > 5 min vs. NTP reference (only when
+  `config.permission_clock_skew_check_enabled: true`): WARN
+  `permission_clock_skew_excessive`.
+- Rule with form `named_local` resolves to within a DST transition
+  window: WARN `permission_until_dst_ambiguous` (Codex: warn but
+  do not auto-resolve).
+- Legacy v0.2.0b rule uses `<ISO ts>` with non-UTC offset
+  (e.g. `-07:00`): INFO `permission_until_legacy_local_offset`
+  suggesting rewrite to UTC for clarity.
+- Tombstone row's `resolved_until_form` does not match the original
+  rule's form: WARN `permission_finalize_form_drift`
+  (controller bug or manual edit).
+- Tombstones written before R1 lack `resolved_until_form` audit
+  field: INFO `permission_finalize_pre_r1_tombstone_unannotated`
+  (cosmetic; not a contract violation).
+
 ## Worker health + runtime resilience (v0.2.1)
 
 ### Worker health check freshness
