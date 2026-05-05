@@ -476,31 +476,24 @@ Forms:
 | `for <int><m\|h\|d\|w>` | `for 1h`, `for 30m`, `for 2d` | relative duration from now |
 | `until <ISO ts>` | `until 2026-05-06T18:00:00Z` | absolute UTC timestamp |
 | `until <named scope>` | `until eod`, `until this-week` | named time scope (local tz) |
-| `for run` | `for run` | until the active `/dtd run` finalize_run, or the next run's finalize_run if issued before a run starts (sentinel `run_end`) |
+| `for run` | `for run` | until current/next `/dtd run` finalize_run (sentinel `run_end`) |
 
-Named scopes: `today | eod | this-week | next-monday |
-next-week | run | run_end`. Local-time scopes
-(`today/eod/this-week/next-monday/next-week`) are interpreted in
-the user's local timezone; `resolved_until_tz` is stored on the
-rule for unambiguous cross-machine interpretation (v0.3.0d sync
-reads it).
+Named scopes: `today | eod | this-week | next-monday | next-week
+| run | run_end`. Local-time scopes are interpreted in the user's
+local timezone; `resolved_until_tz` is stored on the rule for
+unambiguous cross-machine interpretation (v0.3.0d sync reads it).
 
-`for X` and `until Y` are MUTUALLY EXCLUSIVE; a rule mixing both
-is rejected at parse time
-(`permission_duration_until_mixed_unsupported`).
+`for X` and `until Y` are MUTUALLY EXCLUSIVE — parse-rejected
+(`permission_duration_until_mixed_unsupported`). Combined units (`for 1h30m`) deferred to v0.3.x — rejected with
+`permission_duration_combined_unsupported_v030e`; workaround
+`for 90m`.
 
-Combined units (e.g. `for 1h30m`) deferred to v0.3.x — rejected
-in v0.3.0e R0 with
-`permission_duration_combined_unsupported_v030e`. Workaround:
-compute manually (`for 90m`).
-
-Auto-prune at finalize_run is a dedicated step 5c (NEW;
-v0.3.0e). At terminal exits (COMPLETED/STOPPED/FAILED), every
-`## Active rules` row with `resolved_until: run_end` OR
-`resolved_until: <ISO ts>` where ts < now gets a tombstone row
-appended (`by: finalize_run_run_end` or
-`by: finalize_run_ttl_expired`). See `reference/run-loop.md`
-§"Time-limited permissions auto-prune (v0.3.0e R0)".
+Auto-prune at finalize_run runs as dedicated step 5c (v0.3.0e):
+terminal exits append tombstone rows for `resolved_until:
+run_end` AND `resolved_until: <ISO ts>` rows where `ts < now`.
+See `reference/run-loop.md` §"Time-limited permissions
+auto-prune (v0.3.0e R0)" + `.dtd/reference/v030e-time-limited-permissions.md`
+for the R1 runtime contract.
 
 Permission keys (canonical 11-key set; v0.2.0b 10-key + v0.3.0c
 `task_consensus`):
