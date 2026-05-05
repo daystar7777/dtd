@@ -1,6 +1,6 @@
 # DTD v0.1 Test Scenarios
 
-> 60 acceptance scenarios for v0.1 + v0.1.1 + v0.2.0a + v0.2.0f (planned). Not auto-runnable — these are
+> 69 acceptance scenarios (60 single-feature + 9 cross-sub-release integration) for v0.1 + v0.1.1 + v0.2.0a (TAGGED) + v0.2.0d/0f/0e/0b/0c/0.2.1/0.2.2/0.2.3 (planned). Not auto-runnable — these are
 > (a) QA checklist for releases, (b) Codex review criteria, (c) user
 > usage examples. Each scenario has Setup / Steps / Expected / Pass.
 
@@ -1078,6 +1078,235 @@ follow normal confidence rules; no silent run termination via NL.
 
 ---
 
+## Cross-sub-release integration scenarios (v0.2 line)
+
+These scenarios verify interactions between features that ship in DIFFERENT
+v0.2 sub-releases. They cannot be tested until ALL referenced sub-releases
+have shipped, but the contracts can be validated against the design proposals
+today.
+
+### 100. Silent + permission deny — auto-deny is final, never deferred (v0.2.0f + v0.2.0b)
+
+**Setup**: silent run with `decision_mode: auto`. Permission ledger has
+`deny | bash | scope: rm -rf` (set by user pre-run). Worker emits
+`::tool_request:: tool_name=run_shell args="rm -rf node_modules"`.
+
+**Steps**:
+1. `/dtd run --silent=4h --decision auto`.
+2. Worker dispatch reaches the dangerous bash request.
+
+**Expected**:
+- Permission ledger resolves `deny | tool_relay_mutating | scope: run_shell pattern: "rm -rf"`.
+- Action BLOCKED immediately (NOT deferred — deny is unambiguous final).
+- Attempt entry: `status: blocked`, reason: `tool_relay_denied`.
+- NO entry in `deferred_decision_refs` (deny doesn't defer).
+- Controller continues with next ready work.
+- Morning summary shows: 0 deferred, but the blocked task is in skipped list.
+
+**Pass**: deny rules block IMMEDIATELY without going through silent defer flow,
+even in auto mode. silent+auto+deny = block.
+
+### 101. Silent + ask permission + autonomy interaction (v0.2.0f + v0.2.0b)
+
+**Setup**: silent run with `decision_mode: auto`. Permission ledger has
+`ask | tool_relay_mutating | scope: web_post` (default). Worker emits
+`::tool_request:: tool_name=web_post`.
+
+**Steps**:
+1. `/dtd run --silent=4h --decision auto`.
+2. Worker requests web_post relay.
+
+**Expected**:
+- Permission ledger resolves `ask`.
+- Silent mode: capsule snapshotted to incident, deferred per silent algorithm.
+- `deferred_decision_refs` += incident id.
+- Decision capsule body preserved in incident detail file under
+  `deferred_capsule:` key.
+- Controller continues with next ready work.
+- On `/dtd interactive`, capsule surfaces; user picks allow_once / allow_always
+  / deny_once / deny_always per v0.2.0b.
+
+**Pass**: ask permissions defer in silent (per v0.2.0f algorithm) and surface
+correctly in morning summary. allow_always option correctly adds an `allow`
+rule to ledger when chosen.
+
+### 102. Snapshot + revert + permission audit (v0.2.0c + v0.2.0b)
+
+**Setup**: completed run with snapshots (preimage mode for src/api/users.ts).
+Permission ledger has `ask | revert | scope: *` (default).
+
+**Steps**:
+1. `/dtd revert task 2.1` (after run completed).
+2. Permission ledger fires `PERMISSION_REQUIRED` capsule.
+3. User chooses `allow_always`.
+4. Revert proceeds.
+
+**Expected**:
+- Permission resolution PRECEDES revert execution (capsule fires before any
+  file write).
+- After user `allow_always`: ledger gains `allow | revert | scope: *`.
+- Revert proceeds atomically: temp + rename per phase 1/2.
+- Snapshot manifest entry for revert appended; original file's pre-snapshot
+  preserved.
+- `.dtd/log/permissions.md` audit row appended for the revert decision.
+- `state.md.last_revert_id: snap-001-task-2.1-att-1`,
+  `state.md.last_revert_at: <ts>`.
+
+**Pass**: permission ledger gates revert correctly; audit log records the
+permission resolution; revert atomically restores file content.
+
+### 103. Loop guard + worker session resume (v0.2.1 internal)
+
+**Setup**: RUNNING plan; worker has `supports_session_resume: true` in registry.
+Worker has hit the same task with same prompt+failure twice; this is the 3rd
+hit (loop_guard_threshold).
+
+**Steps**:
+1. Worker emits failure for the 3rd consecutive time with same signature.
+2. Loop guard signature_count reaches threshold.
+3. `loop_guard_status: hit`.
+
+**Expected**:
+- Decision capsule `LOOP_GUARD_HIT` fires.
+- Loop guard interaction with resume strategy: even though worker supports
+  session resume, the next attempt should NOT reuse the failed session
+  (loop guard suggests fresh context). Resume strategy resolves to
+  `new-worker` (skip same-worker), advancing fallback chain.
+- If user picks `worker_swap` from capsule: `current_fallback_index++`,
+  fresh worker context, new dispatch.
+- `last_resume_strategy: new-worker`,
+  `last_worker_session_id: null`.
+- Loop guard resets: `signature_count: 0`, `status: idle`.
+
+**Pass**: loop guard short-circuits the would-be `same-worker` resume; tier
+escalation happens; loop signature resets after user resolution.
+
+### 104. Self-update + state migration + locale auto-detect (v0.2.0d + v0.2.0e)
+
+**Setup**: install at v0.2.0a tagged. User has been using `/ㄷㅌㄷ` aliases
+in `steering.md` (auto-detected by migration).
+
+**Steps**:
+1. `/dtd update --dry-run` (after v0.2.0d ships with v0.2.0e migration delta).
+2. Migration detects Korean usage; offers `Auto-enable locale pack? (y/n/skip)`.
+3. User picks `y`.
+4. `/dtd update` proceeds.
+
+**Expected**:
+- Pre-update backup created at `.dtd.backup-v020a-to-v020d-<ts>/`.
+- State schema migration applies all v0.2.0d/0f/0e/0b/0c deltas if they all
+  ship by then; or sub-releases are migrated incrementally per release order.
+- Locale auto-enabled: `state.md.locale_active: ko`,
+  `config.md.locale.enabled: true`, `config.md.locale.language: ko`.
+- `.dtd/locales/ko.md` copied from release manifest.
+- `.dtd/help/` directory installed.
+- Doctor PASS post-update.
+- AIMemory NOTE: `dtd_updated, from=v020a to=v020d, locale=ko (auto)`.
+
+**Pass**: cumulative migration applies cleanly; locale pack auto-detected;
+user's Korean UX is preserved post-update; doctor verification PASSes.
+
+### 105. Tool relay + snapshot + permission (v0.2.0f + v0.2.0c + v0.2.0b)
+
+**Setup**: APPROVED plan. Worker has `tool_runtime: controller_relay`.
+Permission ledger has:
+- `ask | tool_relay_mutating | scope: file_write`
+- `allow | snapshot | scope: *`
+
+Worker emits `::tool_request:: tool_name=file_write args={path: src/api/users.ts}`.
+
+**Steps**:
+1. `/dtd run`.
+2. Worker emits the file_write tool request.
+
+**Expected**:
+- Controller resolves `tool_relay_mutating ask` → fills PERMISSION_REQUIRED
+  capsule.
+- User picks `allow_once`.
+- Controller proceeds: BEFORE relay execution, takes snapshot per v0.2.0c
+  rules (preimage mode for src/api/users.ts).
+- Snapshot manifest entry created.
+- Tool relay executes: file_write applied via controller (NOT worker).
+- Sanitized output saved to `.dtd/log/tool-001-task-2.1-1.md`.
+- Compact result ref passed to next dispatch.
+
+**Pass**: three-way integration (tool runtime + permission + snapshot)
+correctly orders: permission first, snapshot second, execution third.
+Audit log + snapshot + tool log all populate per spec.
+
+### 106. Persona resolution under context_pattern + reasoning_utility (v0.2.0f internal)
+
+**Setup**: DRAFT plan with phase 1 having
+`context-pattern="explore" persona="planner" reasoning-utility="least_to_most"`.
+
+**Steps**:
+1. `/dtd plan show --full`.
+2. `/dtd approve`.
+3. `/dtd run` until phase 1 dispatches.
+
+**Expected**:
+- Plan XML attributes preserved.
+- state.md fields after dispatch:
+  - `resolved_context_pattern: explore`
+  - `resolved_handoff_mode: rich` (from explore pattern config)
+  - `resolved_sampling: "temp=0.6 top_p=0.95 samples=2"`
+  - `resolved_controller_persona: planner` (explicit)
+  - `resolved_worker_persona: planner` (defaults to same when phase says planner)
+  - `resolved_reasoning_utility: least_to_most`
+  - `resolved_tool_runtime: controller_relay` (default)
+- Worker prompt task-specific section has compact persona/reasoning capsule:
+  `controller=planner; worker=planner; stance="make dependencies and decision points explicit"; utility=least_to_most`
+- ≤ 120 words for persona; reasoning utility output_contract present.
+
+**Pass**: all 4 v0.2.0f attributes resolve correctly; worker prompt is
+compact (no role-play biography); reasoning chain-of-thought NOT requested.
+
+### 107. Notepad v2 reasoning notes + reflexion utility (v0.2.0f + v0.2.2)
+
+**Setup**: RUNNING plan with notepad v2 schema. Phase 2 task with
+`reasoning-utility="reflexion"` and a prior failed attempt.
+
+**Steps**:
+1. Worker dispatch with reflexion utility.
+2. Worker fails on first attempt; controller retries.
+3. After concrete failure signal (test failure / reviewer finding /
+   incident), reflexion utility writes a 1-line lesson.
+
+**Expected**:
+- Reasoning Notes heading in notepad gets a new entry:
+  ```
+  - lesson (reflexion): <one-line learned heuristic>
+    trigger: <attempt-002-task-2.1>
+  ```
+- ≤ 5 lines per entry (rule).
+- Older Reasoning Notes entries (after 3rd entry) roll into `## learnings`
+  section as one-line bullets.
+- Doctor `reasoning_notes_chain_of_thought_leak` does NOT trigger
+  (no narrative, no multi-paragraph blocks).
+
+**Pass**: reflexion lesson stored compactly; old entries rolled into
+learnings; chain-of-thought leak detection passes.
+
+### 108. dtd.md modularization + /dtd help drilling (v0.2.3 + v0.2.0d)
+
+**Setup**: post-v0.2.3 install. `/dtd help` topic system from v0.2.0d in place.
+User runs `/dtd help autonomy`.
+
+**Steps**:
+1. `/dtd help autonomy`.
+
+**Expected**:
+- Controller resolves `<topic>` to `.dtd/reference/autonomy.md`.
+- Loads ONLY that file (not dtd.md or other reference files).
+- Renders Summary + Quick examples sections (≤ 50 lines).
+- Mentions related topics (e.g., persona-reasoning-tools.md) without loading them.
+- `state.md` unchanged (observational read).
+
+**Pass**: lazy-load policy works (only one reference file loaded);
+help output stays under 50 lines; user can drill via `/dtd help <other-topic>`.
+
+---
+
 ## Coverage map
 
 | Test # | P1 / P2 spec rule covered |
@@ -1128,6 +1357,15 @@ follow normal confidence rules; no silent run termination via NL.
 | 28 | v0.2.0a: doctor cross-link integrity check |
 | 29 | v0.2.0a: finalize_run clears incident state on terminal exit (P1-4 R1 fix) |
 | 30 | v0.2.0a: destructive incident option requires explicit confirmation (R2 P1 fix) |
+| 100 | cross v0.2.0f+0b: silent + permission deny — auto-deny is final, never deferred |
+| 101 | cross v0.2.0f+0b: silent + ask permission defers; allow_always adds ledger rule |
+| 102 | cross v0.2.0c+0b: snapshot + revert + permission audit |
+| 103 | cross v0.2.1: loop guard + worker session resume (skip same-worker on loop hit) |
+| 104 | cross v0.2.0d+0e: self-update + state migration + locale auto-detect |
+| 105 | cross v0.2.0f+0c+0b: tool relay + snapshot + permission ordering |
+| 106 | cross v0.2.0f: persona + context_pattern + reasoning_utility resolution |
+| 107 | cross v0.2.0f+2.2: reflexion utility writes notepad v2 reasoning notes |
+| 108 | cross v0.2.3+0d: modularization + /dtd help lazy-load drilling |
 
 Controller no-self-grade gate (P1-2): exercised wherever step 4 of escalation ladder is reached (Scenario 17 covers this; specific REVIEW_REQUIRED gate is observed in phase-history.md gate column).
 
