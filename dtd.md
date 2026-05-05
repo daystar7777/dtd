@@ -1373,15 +1373,19 @@ Data sources (priority order for controller totals):
    timings.
 4. `.dtd/workers.md` optional pricing metadata for `--cost`.
 
-Output is split into separate **controller** + **workers** + **worker detail**
-sections. Controller and worker totals MUST remain separate (no blended
-"total tokens"). No double-counting between ledger and ctx-file controller
-estimate fields.
+Output is split into separate **controller**, **implementation workers**,
+**test workers**, **verifiers/scorekeepers**, and **worker detail** sections
+when role metadata is available. Controller and delegated-worker totals MUST
+remain separate. Benchmark reports may add a derived `total_system_tokens`
+rollup, but it must never replace the role columns or be described as
+controller context usage. No double-counting between ledger and ctx-file
+controller estimate fields.
 
 For full output sample, ledger schema (9-column markdown table with `kind`
 enum), ctx file YAML front matter (run/task/worker/attempt/phase/
-context_pattern/sampling/elapsed_ms/controller_*tokens/worker_*tokens/
-cost_usd/http_status), and output flag matrix, see `.dtd/reference/perf.md`.
+context_pattern/sampling/worker_role/provider_thinking/elapsed_ms/
+controller_*tokens/worker_*tokens/reasoning-token flags/cost_usd/
+http_status), and output flag matrix, see `.dtd/reference/perf.md`.
 
 ---
 
@@ -1559,6 +1563,12 @@ Three pattern surfaces:
   reason privately, but DTD never asks for, stores, or forwards raw
   chain-of-thought; persist ONLY decision/evidence_refs/risks/next_action +
   ≤5 line summary.
+- **Provider thinking levels**: transport hints such as DeepSeek thinking
+  level or OpenAI reasoning effort. Apply only when the provider/host
+  explicitly supports them. Defaults: controller `low`, scorekeeper `max`,
+  file-output/test-program workers `disabled`. Unsupported providers omit the
+  field. Empty `content` plus hidden reasoning is a worker output failure,
+  never a partial success.
 - **Tool runtime** (4 modes): `none`, `controller_relay` (default),
   `worker_native`, `hybrid`. controller_relay: worker emits
   `::tool_request::`, controller validates + runs + logs sanitized

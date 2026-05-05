@@ -612,6 +612,8 @@ Reason: long sessions easily fill controller context with repeated "what's the s
 - **Don't carry worker chat transcripts across dispatches** (v0.2.0f). Every worker dispatch starts from a fresh context per the GSD-style reset semantics. Improvements survive as durable artifacts (notepad distilled facts, file changes, attempt/log refs), NOT as raw chat history.
 - **Don't auto-flip silent → interactive without user action** (v0.2.0f). When `silent_deferred_decision_limit`, `attention_until`, or `CONTROLLER_TOKEN_EXHAUSTED` is hit, the controller PAUSES the run and preserves attention state. The user must explicitly run `/dtd interactive` to surface the full morning summary. (Rationale: the user may have stepped away; auto-flipping would surface decisions to an empty terminal.)
 - **Don't ask workers to reveal chain-of-thought** (v0.2.0f). Use reasoning utilities privately, then save only concise rationale summaries, evidence refs, risks, and next actions.
+- **Don't parse hidden reasoning as output**. If a provider returns empty `content` with `reasoning_content`/thinking blocks, treat it as `WORKER_EMPTY_CONTENT_REASONING_ONLY`; retry with thinking disabled for file/test workers or lower/larger-budget thinking for scorekeeper calls.
+- **Don't send unsupported provider options**. Thinking levels, JSON response format, streaming, and usage-token capture are capabilities discovered by `/dtd workers test`; unsupported optional features are omitted, not forced.
 - **Don't let worker tool use bypass controller policy** (v0.2.0f). Without a trusted worker-native sandbox, workers emit `::tool_request::`; the controller validates and runs relay tools between dispatches, logs sanitized output, then retries with a compact result ref.
 
 ---

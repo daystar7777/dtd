@@ -103,6 +103,34 @@ Reasoning output contract:
   after a concrete external signal (test failure, reviewer finding,
   incident, or user correction). No free-floating self-talk.
 
+## Provider thinking levels
+
+Provider thinking/reasoning level is separate from DTD reasoning
+utilities. Utilities describe the public work pattern; provider
+thinking controls a model-specific transport option such as DeepSeek
+thinking level or OpenAI reasoning effort.
+
+Default policy:
+
+| Role | Default provider thinking | Notes |
+|---|---|---|
+| DTD controller | `low` | repeated orchestration calls; apply only if provider supports it |
+| file-output worker | `disabled` | protects `===FILE:===` output from empty-content failures |
+| test-program worker | `disabled` | tests must be emitted in `content`, not hidden reasoning |
+| verifier / scorekeeper | `max` | rare judgment calls; formula-bound scoring still required |
+
+Rules:
+
+- Apply `low` / `max` only for providers and host runtimes that
+  explicitly support them. Unsupported providers omit the field.
+- Never parse `reasoning_content`, hidden thinking blocks, or private
+  reasoning as worker output.
+- If a response has empty `content` but non-empty hidden reasoning,
+  classify it as an output failure and retry with thinking disabled or
+  a larger output budget, depending on task role.
+- Persist only concise public rationale summaries and evidence refs.
+  Raw chain-of-thought or provider reasoning text is never saved.
+
 ## Tool-use runtime policy
 
 Workers have four tool modes:

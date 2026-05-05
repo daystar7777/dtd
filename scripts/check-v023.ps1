@@ -134,6 +134,15 @@ $readmeJaText = Read-Text "README.ja.md"
 $helpIndexText = Read-Text ".dtd/help/index.md"
 $helpObserveText = Read-Text ".dtd/help/observe.md"
 $helpObserveLineCount = ($helpObserveText -split "\r?\n").Count
+$workersRefText = Read-Text ".dtd/reference/workers.md"
+$workersExampleText = Read-Text ".dtd/workers.example.md"
+$personaReasoningText = Read-Text ".dtd/reference/persona-reasoning-tools.md"
+$perfRefText = Read-Text ".dtd/reference/perf.md"
+$benchmarkMatrixText = ""
+$benchmarkMatrixPath = Join-Path $RepoRoot "test-projects/dtd-realuse-token-test/benchmark-matrix.md"
+if (Test-Path -LiteralPath $benchmarkMatrixPath) {
+    $benchmarkMatrixText = [System.IO.File]::ReadAllText($benchmarkMatrixPath, [System.Text.Encoding]::UTF8)
+}
 
 # v0.2.3 R1: doctor-checks extracted; dtd.md stub mentions "13 topics",
 # full enumeration lives in .dtd/reference/doctor-checks.md.
@@ -151,6 +160,40 @@ Add-Result "v023.dtd.profile_log_not_steering" "dtd.md routes profile diagnostic
     (($dtdMd -match '\.dtd/log/profile-transitions\.md') -and ($dtdMd -match 'never\s+to\s+`steering\.md`'))
 Add-Result "v023.dtd.token_caveat" "dtd.md does not guarantee token savings" `
     ($dtdMd -match "not a guaranteed provider-token reduction")
+Add-Result "v023.realuse.provider_thinking_policy" "provider thinking is role-scoped and support-gated" `
+    (($configMd -match 'provider_thinking_apply_only_when_supported') -and
+     ($configMd -match 'file_output_worker_provider_thinking_default: disabled') -and
+     ($personaReasoningText -match 'Provider thinking levels') -and
+     ($workersRefText -match 'provider_thinking') -and
+     ($workersRefText -match 'Do not\s+invent\s+unsupported\s+request fields') -and
+     ($workersExampleText -match 'provider_thinking: disabled'))
+Add-Result "v023.realuse.reasoning_empty_content_guard" "hidden reasoning is never parsed as worker output" `
+    (($workersRefText -match 'WORKER_EMPTY_CONTENT_REASONING_ONLY') -and
+     ($workersRefText -match 'Never save raw\s+`reasoning_content`') -and
+     ($instructionsMd -match 'Don''t parse hidden reasoning as output') -and
+     ($workersExampleText -match 'protocol failure, not a partial success') -and
+     ($configMd -match 'parse_reasoning_content_as_output: false'))
+Add-Result "v023.realuse.worker_capability_probe" "worker setup probes optional thinking/streaming/json capabilities" `
+    (($workersRefText -match 'Worker setup capability probe') -and
+     ($workersRefText -match 'provider thinking\s+disabled/low/max') -and
+     ($workersRefText -match 'streaming') -and
+     ($workersRefText -match 'JSON response') -and
+     ($workersExampleText -match 'workers test <id>.*probe optional capabilities'))
+Add-Result "v023.realuse.perf_role_split" "perf separates implementation, test, verifier, and derived total system tokens" `
+    (($perfRefText -match 'implementation workers') -and
+     ($perfRefText -match 'test workers') -and
+     ($perfRefText -match 'verifiers / scorekeepers') -and
+     ($perfRefText -match 'total_system_tokens') -and
+     ($dtdMd -match 'test workers') -and
+     ($dtdMd -match 'total_system_tokens'))
+Add-Result "v023.realuse.benchmark_matrix" "real-use benchmark matrix captures plain vs DTD role/token/iteration controls" `
+    (($benchmarkMatrixText -match 'Plain Execution Row') -and
+     ($benchmarkMatrixText -match 'DTD Execution Row') -and
+     ($benchmarkMatrixText -match 'P0F') -and
+     ($benchmarkMatrixText -match 'D5') -and
+     ($benchmarkMatrixText -match 'controller_tokens') -and
+     ($benchmarkMatrixText -match 'test_worker_tokens') -and
+     ($benchmarkMatrixText -match 'thinking/reasoning level only when the'))
 
 $roadmapRefText = Read-Text ".dtd/reference/roadmap.md"
 Add-Result "v023.roadmap.permission_keys_current" "roadmap includes current 10 permission keys" `
@@ -181,6 +224,16 @@ Add-Result "v023.roadmap.v02_partial_tag_status" "roadmap/README/dtd reflect par
      ($readmeText -match '4 of 9 sub-releases tagged') -and
      (($readmeText + $readmeKoText + $readmeJaText) -match 'v0\.2\.0a / v0\.2\.0d / v0\.2\.0f / v0\.2\.3') -and
      (($roadmapRefText + $dtdMd + $readmeText) -notmatch 'Release-ready \(release-contract-passing; tag pending user auth\)'))
+Add-Result "v023.scenarios.header_current" "test-scenarios header spans v0.1/v0.2/v0.3 current state" `
+    (($scenariosMd -match '# DTD Test Scenarios \(v0\.1 / v0\.2 / v0\.3\)') -and
+     ($scenariosMd -match 'Tagged: v0\.1 / v0\.1\.1 / v0\.2\.0a / v0\.2\.0d / v0\.2\.0f / v0\.2\.3') -and
+     ($scenariosMd -match '13 release-contract harnesses \+ v0\.1 smoke') -and
+     ($scenariosMd -match '/dtd r2 readiness') -and
+     (-not ($scenariosMd -match 'DTD v0\.1 Test Scenarios')) -and
+     (-not ($scenariosMd -match '81 acceptance scenarios')))
+Add-Result "v023.dtd.end_spec_scenarios_current" "dtd.md End of spec points to v0.1/v0.2/v0.3 scenarios" `
+    (($dtdMd -match 'Acceptance scenarios spanning v0\.1 / v0\.2 / v0\.3 lines are in[\s\S]*?`test-scenarios\.md`') -and
+     (-not ($dtdMd -match 'Test scenarios for v0\.1 acceptance')))
 
 $r2LivePlanText = Read-Text ".dtd/reference/v030-r2-live-test-plan.md"
 Add-Result "v023.r2_live_plan.rehash_scenario" "R2 live plan covers loop-guard rehash admin path" `

@@ -347,6 +347,7 @@ request body per the rules above:
 | `frequency_penalty` | `0.0` | Rare; usually leave default. |
 | `presence_penalty` | `0.0` | Rare; usually leave default. |
 | `reasoning_effort` | (omitted) | OpenAI o1/o3/gpt-5 reasoning only; ignored by others. |
+| `provider_thinking` | role default | Provider-specific: `disabled`, `low`, `medium`, `high`, `max`, or omitted. Only when supported. |
 | `stream` | `false` | **Always false through v0.2 / v0.3 lines.** Workers with `stream: true` configured: controller forces false anyway, logs WARN. Streaming deferred to a future release. |
 | `extra_body` | `{}` | JSON object shallow-merged into request body for provider-specific params (e.g. `top_k`, `min_p`). Use sparingly. |
 
@@ -355,24 +356,29 @@ the explicit tuning whitelist above plus `extra_body`. This prevents
 accidental leakage of internal DTD config (`tier`, `failure_threshold`,
 `aliases`, etc.) into the worker's request.
 
+### Reasoning / "thinking" model request policy
+
+Provider thinking is transport, not a DTD reasoning utility. Map it
+only when supported; otherwise omit it. Defaults: file/test workers
+`disabled`; controller `low`; verifier/scorekeeper `max`. DeepSeek v4
+file-output example: `{"thinking":{"type":"disabled"}}`. Do not invent
+unsupported request fields.
+
 ### Reasoning / "thinking" model response handling
 
-For workers using reasoning models:
-
-- **OpenAI o1 / o3 / gpt-5 (reasoning)**: provider returns standard
-  `choices[0].message.content`; chain-of-thought hidden. Set
-  `reasoning_effort` per worker.
-- **DeepSeek-R1 / V3**: response may include
-  `choices[0].message.reasoning_content` AND `content`. Controller
-  extracts ONLY `content` for `===FILE:===` parsing. Optionally save
-  `reasoning_content` to
-  `.dtd/log/exec-<run>-task-<id>-reasoning.md` for debugging
-  (gitignored along with `log/`).
-- **Anthropic extended thinking via shim**: depends on shim mapping;
-  usually maps back to standard `content`.
+For reasoning models, parse only `choices[0].message.content`.
+OpenAI-style hidden reasoning returns content normally; DeepSeek and
+shimmed models may also return `reasoning_content`. Never save raw
+`reasoning_content`; log only `reasoning_present: true` and provider
+reasoning token counts when reported.
 
 In all cases the controller's parsing logic is identical — extract
 `content`, parse markers. The reasoning content is informational only.
+
+Operational rule: if `content` is empty but hidden reasoning is present,
+mark `WORKER_EMPTY_CONTENT_REASONING_ONLY`; retry file/test workers with
+thinking disabled, retry scorekeeper/verifier with lower thinking or a
+larger output budget, then escalate on repeat.
 
 ### Streaming (deferred)
 
@@ -380,6 +386,14 @@ v0.1 / v0.2 / v0.3 lines enforce `stream: false`. Streaming
 (`stream: true`, SSE response) is deferred to a future release for
 partial file application during long generation. Until then: full
 response or nothing.
+
+### Worker setup capability probe
+
+`/dtd workers test <id>` records capability metadata: basic content,
+file-marker echo for code/test roles, JSON response, provider thinking
+disabled/low/max, streaming, and usage tokens. Unsupported optional
+features are omitted, not forced. Unhealthy only when a required role
+feature fails.
 
 ### Provider-specific notes
 

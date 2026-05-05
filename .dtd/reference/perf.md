@@ -37,14 +37,20 @@ Output is split into two layers:
 | phase 1    prompt 12k  completion 2k   ctx peak 31%
 | phase 2    prompt 18k  completion 3k   ctx peak 42%
 | phase 3    prompt 8k   completion 1k   ctx peak 28%
-+ workers
++ implementation workers
 | total      calls 12  prompt 182k completion 41k ctx peak 68% cost $0.42
 | phase 1    calls 3   prompt 32k  completion 9k  ctx peak 44%
 | phase 2    calls 7   prompt 94k  completion 21k ctx peak 68%
 | phase 3    calls 2   prompt 56k  completion 11k ctx peak 51%
++ test workers
+| total      calls 4   prompt 28k  completion 7k  ctx peak 33%
++ verifiers / scorekeepers
+| total      calls 3   prompt 11k  completion 2k  thinking max
 + worker detail
 | deepseek-local   calls 9  prompt 118k completion 27k retry 2
 | qwen-local       calls 3  prompt 44k  completion 10k retry 0
++ derived
+| total_system_tokens 309k   # optional rollup; never controller cost
 ```
 
 ## Rules
@@ -53,6 +59,13 @@ Output is split into two layers:
   notepad, attempts, phase history, steering, or AIMemory.
 - Controller and worker totals MUST remain separate. Do not add them
   into one blended "total tokens" number.
+- Benchmark reports may show `total_system_tokens` as a derived rollup
+  after all role sections. It must never replace controller/worker/test/
+  verifier columns or be described as controller context usage.
+- Split delegated spend by role when known: implementation worker,
+  test-program worker, verifier, scorekeeper, and plain/direct
+  baseline. If the role is unknown, show it under `worker detail` with
+  `role: unknown`.
 - Do not double-count controller dispatch-prep estimates from both
   `controller-usage-run-NNN.md` and worker ctx files. Prefer the
   controller ledger; use ctx controller fields only for backward
@@ -127,6 +140,8 @@ phase: 2
 phase_name: backend
 context_pattern: fresh
 sampling: "temp=0.0 top_p=1 samples=1"
+worker_role: implementation           # implementation | test_program | verifier | scorekeeper | plain_baseline | unknown
+provider_thinking: disabled           # disabled | low | medium | high | max | omitted | unknown
 dispatched_at: 2026-05-05T14:32:11Z
 returned_at:   2026-05-05T14:33:42Z
 elapsed_ms: 91234
@@ -135,6 +150,8 @@ controller_completion_estimate_tokens: 1410
 controller_ctx_peak_pct: 42
 worker_prompt_tokens_provider: 7902     # null if provider did not report
 worker_completion_tokens_provider: 1287
+worker_reasoning_tokens_provider: 0      # null if provider did not report
+content_empty_reasoning_present: false   # true => WORKER_EMPTY_CONTENT_REASONING_ONLY
 worker_ctx_pct_self_report: 38          # from worker's ::ctx:: line, if present; advisory
 status: done                            # done | failed | blocked
 retry_of: null                          # attempt id of the prior failed attempt, if retry

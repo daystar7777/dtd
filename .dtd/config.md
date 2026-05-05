@@ -364,6 +364,26 @@
 - expose_chain_of_thought: false
 - max_reasoning_summary_lines: 5
 
+## provider-thinking policy (real-use benchmark follow-up)
+
+# Provider thinking/reasoning level is a transport hint, not a DTD reasoning
+# utility. Apply it only when the selected provider/model explicitly supports
+# the field. Unsupported providers omit it entirely.
+#
+# Defaults reflect real-use testing: file-output calls can fail with empty
+# `content` when hidden reasoning consumes the completion budget. DTD therefore
+# disables provider thinking for file-output workers and uses high thinking only
+# for rare scorekeeping/review calls that do not need `===FILE:===` output.
+
+- provider_thinking_apply_only_when_supported: true
+- provider_thinking_unsupported_action: omit     # omit | warn | block
+- controller_provider_thinking_default: low      # supported controllers only
+- scorekeeper_provider_thinking_default: max     # supported scorekeeper only
+- file_output_worker_provider_thinking_default: disabled
+- test_program_worker_provider_thinking_default: disabled
+- parse_reasoning_content_as_output: false
+- empty_content_with_reasoning_is_failure: true
+
 ## tool-runtime (v0.2.0f Codex R0 addendum)
 
 # Worker tool access must be explicit. Default relay keeps tool transcripts out

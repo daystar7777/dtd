@@ -59,6 +59,8 @@
 - stream: false                       # v0.1 always false. v0.2 will support SSE streaming.
 - reasoning_effort: low|medium|high   # OpenAI o1/o3/gpt-5 reasoning models only. Ignored by others.
                                       # See "Reasoning / Thinking models" section below.
+- provider_thinking: disabled         # disabled|low|medium|high|max|null; provider-specific.
+                                      # Apply only when supported. File-output workers default disabled.
 - frequency_penalty: 0.0              # rare; usually leave default
 - presence_penalty: 0.0               # rare; usually leave default
 - extra_body: <inline JSON>           # any provider-specific param controller passes through verbatim
@@ -213,6 +215,7 @@ you need transitional support.
 - cost_tier: paid
 - tier: 2
 - temperature: 0.0
+- provider_thinking: disabled
 - enabled: true
 - permission_profile: code-write
 ```
@@ -258,12 +261,23 @@ the exact endpoint hostname. Set `model` to whatever the provider lists.
 Some workers emit internal reasoning distinct from the final answer:
 
 - **OpenAI o1 / o3 / gpt-5 (reasoning)**: pass `reasoning_effort: low|medium|high` per worker. Provider returns standard `content`; you don't see the chain of thought.
-- **DeepSeek-R1 / V3**: response may include both `reasoning_content` and `content` fields. Controller extracts ONLY `content` for `===FILE:===` parsing; `reasoning_content` may be saved to `.dtd/log/exec-*-task-*-reasoning.md` for debugging.
+- **DeepSeek reasoning/thinking models**: response may include both `reasoning_content` and `content` fields. Controller extracts ONLY `content` for `===FILE:===` parsing. Raw `reasoning_content` is never saved; log only that reasoning was present and any provider token counts.
 - **Anthropic extended thinking** (via shim): depends on the shim's response shape; most map back to `content` only.
 
 For DTD purposes all are treated as standard chat completions — extract
 `choices[0].message.content`, ignore extra reasoning fields, parse `===FILE:===`
 blocks + `::done::` line.
+
+If `content` is empty but hidden reasoning is present, the attempt is a
+protocol failure, not a partial success. Retry file-output workers with
+provider thinking disabled. Use `low` / `max` thinking levels only when the
+provider or host explicitly supports them; otherwise omit the field.
+
+`/dtd workers test <id>` should probe optional capabilities such as JSON
+response format, provider thinking disabled/low/max, streaming, and provider
+usage tokens. Unsupported optional features are recorded as capability metadata
+and omitted at runtime; they are not setup failures unless the selected task
+role requires them.
 
 Recommended `temperature: 0.0` for code-write workers (reasoning or not).
 
