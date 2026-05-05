@@ -19,11 +19,11 @@ Released:
 - **v0.1** — first lock; 18/18 acceptance smoke (2026-05-05).
 - **v0.1.1** — 5 R-rounds; ops hardening hooks (2026-05-05).
 - **v0.2.0a** — Incident Tracking; TAGGED 2026-05-05 (`41f8c7d`).
-
-Release-ready (release-contract-passing; tag pending user auth):
-- **v0.2.0d** — Self-Update + `/dtd help`.
-- **v0.2.0f** — Autonomy & Attention + persona/reasoning/tool-runtime.
-- **v0.2.3** — Spec modularization + Lazy-Load Profile.
+- **v0.2.0d** — Self-Update + `/dtd help`; TAGGED 2026-05-06 (`44567c8`).
+- **v0.2.0f** — Autonomy & Attention + persona/reasoning/tool-runtime;
+  TAGGED 2026-05-06 (`f7341b9`).
+- **v0.2.3** — Spec modularization + Lazy-Load Profile;
+  TAGGED 2026-05-06 (`a29d083`).
 
 R0 + R1 complete (Codex GO accepted; tag pending user auth):
 - **v0.2.0e** — Locale Packs (English-only core + opt-in /ㄷㅌㄷ pack).
