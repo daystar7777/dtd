@@ -95,6 +95,22 @@
 - profile_transition_log_path: .dtd/log/profile-transitions.md
 - aggressive_unload: false                # if true, hosts that support unload may evict non-profile sections (advanced)
 
+## quota (v0.3.0b)
+
+# Token-rate-aware predictive routing. See dtd.md §/dtd workers test
+# (--quota flag) and reference/run-loop.md §"Quota predictive check
+# (v0.3.0b R0)". Per Codex P1.2/P1.3: paid fallback preserved through
+# permission ledger, never bypassed.
+
+- quota_predictive_routing_enabled: true     # global on/off
+- quota_safety_margin_default: 1.5           # default if worker doesn't specify
+- cross_run_quota_persist: false             # save quota usage across runs (default off; opt-in)
+- quota_warn_threshold_pct: 80               # WARN when usage > N%
+- quota_block_threshold_pct: 95              # capsule when > N%
+- quota_provider_headers_capture: true       # capture x-ratelimit-* response headers (advisory)
+- quota_persist_path: .dtd/log/worker-quota-tracker.md   # cross-run persistence file (gitignored under log/)
+- quota_paid_fallback_silent_defer: true     # in silent mode, defer paid-fallback unless explicit allow rule
+
 ## locale (v0.2.0e)
 
 # Optional locale-pack support. Core operational prompts stay English-only;

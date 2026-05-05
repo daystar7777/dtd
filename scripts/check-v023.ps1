@@ -87,11 +87,14 @@ foreach ($topic in $referenceTopics) {
         $size = (Get-Item -LiteralPath $path).Length
         Add-Result "v023.reference.$topic.exists" "reference/$topic.md exists" $true "size=$size"
         # Cross-cutting consolidation refs (doctor-checks, run-loop) absorb
-        # per-sub-release R1 wiring for every v0.2.x sub-release; they get a
-        # higher 32 KB cap. Topic-specific refs keep the typical 24 KB.
+        # per-sub-release R1 wiring across v0.2 + R0 wiring for v0.3+.
+        # Bumped 24→32 (v0.2 R1), 32→48 (v0.3 R0 absorbing quota contract).
+        # Future v0.3+ work should split into per-sub-release reference
+        # topics (e.g. v030b-quota-scheduling.md) rather than expand
+        # cross-cutting refs further. Topic-specific refs keep 24 KB.
         $crossCutting = @("doctor-checks", "run-loop")
-        $cap = if ($crossCutting -contains $topic) { 32768 } else { 24576 }
-        $capLabel = if ($crossCutting -contains $topic) { "32 KB" } else { "24 KB" }
+        $cap = if ($crossCutting -contains $topic) { 49152 } else { 24576 }
+        $capLabel = if ($crossCutting -contains $topic) { "48 KB" } else { "24 KB" }
         Add-Result "v023.reference.$topic.budget" "reference/$topic.md <= $capLabel" ($size -le $cap) "size=$size"
         Add-Result "v023.reference.$topic.summary" "reference/$topic.md has Summary" ($text -match "## Summary")
         Add-Result "v023.reference.$topic.anchor" "reference/$topic.md has Anchor" ($text -match "## Anchor")

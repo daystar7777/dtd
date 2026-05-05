@@ -283,6 +283,36 @@ Sections:
   `silent_window_transient_expired_unrevoked` (rule effectively
   inactive but tombstone not added; cosmetic).
 
+### v0.3.0b Token-rate-aware scheduling checks
+
+- For workers with `daily_token_quota: <int>`, the per-run
+  worker-usage ledger should have a row for the current day;
+  ELSE INFO `quota_no_data_today` (acceptable for fresh runs).
+- Per-worker daily usage > `quota_warn_threshold_pct`
+  (default 80%): WARN `quota_warn_<worker>`.
+- Per-worker daily usage > `quota_block_threshold_pct`
+  (default 95%): WARN `quota_block_pending_<worker>` (next
+  dispatch will trigger predictive capsule).
+- `state.md.pending_quota_capsule` non-null AND
+  `awaiting_user_decision: false`: WARN `quota_pending_orphan`.
+- `.dtd/log/worker-usage-run-NNN.md` rows should have only
+  redacted advisory data (no raw token values, no auth
+  headers): ERROR `quota_audit_secret_leak`.
+- Provider-header capture: if
+  `worker.quota_provider_header_prefix` is set, response
+  rows from that worker should populate `provider_remaining`;
+  ELSE INFO `quota_provider_header_unused`.
+- Cross-run quota tracker file size > 64 KB: WARN
+  `quota_tracker_oversized` recommending purge of old daily
+  rows.
+- `pause_overnight` capsule prompts MUST include exact local
+  reset time + timezone; ELSE WARN
+  `quota_pause_overnight_tz_missing` (Codex P1.3).
+- Paid-fallback in silent mode: if a `WORKER_QUOTA_EXHAUSTED_PREDICTED`
+  capsule auto-resolved to `switch_to_paid` without an explicit
+  user `allow task scope: paid_fallback` rule: ERROR
+  `quota_paid_fallback_unauthorized` (Codex P1.3).
+
 ### v0.3.0e Time-limited permissions checks
 
 - For every `## Active rules` row with `until` field in
@@ -566,8 +596,10 @@ Sections:
 - Reference files ≤ 24 KB each (R1 full-extraction files grow to
   ~6-23 KB; workers.md ~23 KB). Exception: cross-cutting
   consolidation refs (`doctor-checks.md`, `run-loop.md`) cap is
-  32 KB — they absorb per-sub-release R1 wiring (run-loop step
-  hooks, doctor checks). ELSE WARN `reference_oversized: <topic>`.
+  48 KB (was 32 KB; bumped at v0.3.0b R0 to absorb quota
+  predictive routing contract). Future v0.3+ work should split
+  per-sub-release reference topics rather than continue
+  expanding these refs. ELSE WARN `reference_oversized: <topic>`.
 - `.dtd/reference/index.md` marks every topic as `canonical`; ELSE INFO
   `reference_status_missing`.
 - Each reference file has an "Anchor" section saying the reference file is

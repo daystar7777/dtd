@@ -40,6 +40,16 @@
 - native_tool_sandbox: false          # must be true before worker_native/hybrid native tools are allowed
 - supports_session_resume: false      # v0.2.1: provider exposes session continuation? Default false → controller uses `fresh` resume strategy. true → controller may use `same-worker` strategy on retry after interruption-class failures (TIMEOUT/NETWORK/RATE_LIMIT/5xx).
 
+# v0.3.0b token-rate-aware scheduling fields (all optional; null = no
+# client-side quota tracking; per-Codex P1: workers.example.md ships
+# nullable defaults; user-specific values stay in local workers.md).
+- daily_token_quota: null              # null | <int>; user-declared per-day budget for predictive routing
+- monthly_token_quota: null            # null | <int>; user-declared rolling 30-day budget
+- quota_safety_margin: 1.5             # next-task estimate × this; default 1.5×
+- quota_reset_local_time: "00:00"      # local time of day for daily reset; UTC if "Z" suffix
+- quota_reset_window_days: 30          # for monthly: rolling N days from oldest tracked
+- quota_provider_header_prefix: null   # null | "x-ratelimit-" | "ratelimit-"; capture provider rate-limit headers as advisory observations
+
 # Tuning parameters (optional — all have sensible defaults; override only when needed):
 - temperature: 0.0                    # 0.0 = deterministic, 0.5 = balanced, 1.0+ = creative. 0.0-0.2 for code.
 - top_p: 1.0                          # nucleus sampling

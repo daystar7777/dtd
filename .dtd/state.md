@@ -77,6 +77,16 @@
 
 - pending_permission_request: null   # null | {key, scope, worker, dec_id, asked_at}
 
+## Quota state (v0.3.0b)
+
+# Token-rate-aware scheduling. See dtd.md §/dtd workers test (--quota)
+# and reference/run-loop.md §"Quota predictive check (v0.3.0b R0)".
+
+- pending_quota_capsule: null               # null | {worker, used, quota, reset_at_local, reset_tz}
+- last_quota_check_at: null
+- last_quota_reset_local_at: null           # ts when daily reset boundary crossed
+- last_quota_reset_tz: null                 # timezone tag at last reset
+
 ## Permission time-limited rules (v0.3.0e)
 
 # Time-limited permission rule tracking. See dtd.md §/dtd permission
@@ -244,6 +254,7 @@
                                   #       | RESUME_STRATEGY_REQUIRED
                                   #       | WORKER_TOOL_RELAY_FABRICATED
                                   #       | WORKER_NATIVE_TOOL_SANDBOX_INVALID
+                                  # v0.3.0b: WORKER_QUOTA_EXHAUSTED_PREDICTED
 - decision_id: null               # e.g. "dec-001" — monotonic per run
 - decision_prompt: null           # one-line user-facing question
 - decision_options: []            # list of {id, label, effect, risk}

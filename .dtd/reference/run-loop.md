@@ -90,6 +90,39 @@ run loop, summarized:
 3. Check `pending_patch` (refuse new dispatch until resolved).
 4. Pick next ready batch (topo + parallel-group).
 5. Pre-dispatch lock partitioning.
+5.5.0. **Quota predictive check** (v0.3.0b R0): BEFORE permission
+   gate. For the assigned worker:
+   - Read `.dtd/log/worker-usage-run-NNN.md` (in-run) AND
+     `.dtd/log/worker-quota-tracker.md` (cross-run, if
+     `config.quota.cross_run_quota_persist: true`).
+   - Compute `estimated_remaining_quota` against
+     `worker.daily_token_quota` / `worker.monthly_token_quota`
+     (whichever is set; if both set, use whichever is more
+     restrictive).
+   - Compute `next_task_estimate` from plan task's
+     `<context-files>` + system prompt + estimated completion,
+     using historical per-task averages from
+     `.dtd/log/exec-*-ctx.md` (v0.2.0f data) when available;
+     fall back to conservative multiplier per worker spec.
+   - If
+     `estimated_remaining_quota < next_task_estimate * worker.quota_safety_margin`:
+     - Route to fallback worker per existing chain logic.
+     - **Paid-fallback transition** (Codex P1.3): if next
+       worker is paid AND user has no explicit `allow task
+       scope: paid_fallback` rule, fill capsule
+       `awaiting_user_reason: WORKER_QUOTA_EXHAUSTED_PREDICTED`
+       (do NOT auto-route to paid). In silent mode (per
+       `quota_paid_fallback_silent_defer: true` default):
+       defer per silent algorithm; continue independent
+       non-paid work meanwhile.
+   - If ALL workers in fallback chain are near-empty: fill
+     capsule `WORKER_QUOTA_EXHAUSTED_PREDICTED` with
+     `pause_overnight` option showing exact local reset time
+     + timezone (e.g. "until 2026-05-06 00:00 KST [Asia/Seoul]").
+   - This step is observational for run state — quota check
+     does NOT mutate state.md or attempts/run-NNN.md; only
+     `.dtd/log/worker-usage-run-NNN.md` may be appended (per
+     dispatch).
 5.5. **Permission ledger gate** (v0.2.0b R1): for the next task,
    resolve `task` key against `.dtd/permissions.md`. If `deny` →
    abort task (auto-deny audit row); if `ask` → fill
@@ -445,6 +478,128 @@ deferred to v0.3.
 ## Loop guard (v0.2.1) — R1 addition
 - loop_guard_signature_first_seen_at: null   # ts when current signature first matched; used for window staleness check
 ```
+
+## Quota predictive check + ledger discipline (v0.3.0b R0)
+
+R0 wiring for v0.3.0b token-rate-aware scheduling. Two integration
+points:
+
+### 1. Per-worker usage ledger (separate from controller ledger)
+
+Per Codex P1.2: keep `.dtd/log/controller-usage-run-NNN.md`
+(v0.2.0f) controller-only — no per-worker rows. Add a SEPARATE
+file for per-worker token usage:
+
+`.dtd/log/worker-usage-run-NNN.md` (NEW; gitignored under
+log/):
+
+```markdown
+# Worker usage run-NNN
+
+| seq | ts | phase | task | worker | prompt_actual | completion_actual | provider_remaining | source |
+|---:|---|---:|---|---|---:|---:|---:|---|
+| 1 | 2026-05-05T14:11:05Z | 2 | 2.1 | deepseek-local | 8400 | 900 | 91600 | dispatch_response |
+| 2 | 2026-05-05T14:18:44Z | 2 | 2.1 | deepseek-local | 2100 | 350 | 89150 | dispatch_response (retry) |
+```
+
+- `prompt_actual` / `completion_actual`: from response's
+  `usage` block when provider exposes it; else from
+  `.dtd/log/exec-<run>-task-<id>-att-<n>-ctx.md` v0.2.0f data.
+- `provider_remaining`: optional, from `x-ratelimit-remaining`
+  / `ratelimit-remaining` response header (per
+  `worker.quota_provider_header_prefix` setting). Advisory only;
+  redacted (no token values, only counts).
+- `source`: `dispatch_response | provider_header | estimate`.
+
+### 2. Cross-run worker quota tracker (optional)
+
+`.dtd/log/worker-quota-tracker.md` (gitignored). Updated at
+finalize_run if `config.quota.cross_run_quota_persist: true`.
+
+```markdown
+# Worker quota tracker
+
+> Cross-run aggregate from per-run worker-usage-run-NNN.md
+> files. SUMMARY only — never source of truth for controller
+> cost (per Codex P1.2).
+
+## Per-worker daily
+
+| worker | date | tokens_used | quota | remaining | reset_local | reset_tz |
+|---|---|---:|---:|---:|---|---|
+| deepseek-local | 2026-05-05 | 12400 | 100000 | 87600 | 00:00 | Asia/Seoul |
+
+## Per-worker monthly (rolling)
+
+| worker | window_start | tokens_used | quota | window_days |
+|---|---|---:|---:|---:|
+| deepseek-local | 2026-04-06 | 380000 | 1000000 | 30 |
+```
+
+Reset:
+- Daily: at `worker.quota_reset_local_time` boundary; old day
+  rows archived to `.dtd/runs/`.
+- Monthly: rolling 30 days (or `worker.quota_reset_window_days`)
+  from oldest tracked.
+
+### 3. Predictive routing semantics
+
+Triggered at run-loop step 5.5.0 (BEFORE permission gate).
+Algorithm details in step 5.5.0; this section documents the
+full contract:
+
+**Estimation source priority** (per Codex P1 additional
+amendments):
+1. Recent per-worker per-task averages from
+   `.dtd/log/exec-*-ctx.md` (v0.2.0f).
+2. Plan task's `<context-files>` + system prompt size +
+   completion estimate.
+3. Conservative fallback multiplier (do NOT overload
+   `context-budget.default_failure_threshold` for this).
+
+**Paid-fallback contract** (per Codex P1.3):
+- Predictive routing is observational for state; routing
+  to a paid fallback IS a permission/cost transition gated
+  by the v0.2.0b ledger.
+- In silent mode + no explicit `allow` rule on paid worker:
+  defer (per `quota_paid_fallback_silent_defer: true`
+  default); continue independent non-paid work.
+- Status display for `pause_overnight` option MUST show
+  exact local reset time + timezone (e.g.
+  "until 2026-05-06 00:00 KST [Asia/Seoul]") for unambiguous
+  user UX.
+
+**Provider-header capture** (advisory, per Codex P1
+additional):
+- When response has `x-ratelimit-*` / `ratelimit-*` headers
+  AND `worker.quota_provider_header_prefix` is set:
+  - Capture remaining-tokens count + reset timestamp.
+  - Append to worker-usage-run-NNN.md row as
+    `provider_remaining`.
+  - Treat as ADVISORY: provider header is more accurate
+    than client-side estimate, but request-time round-trip
+    delay means it's a snapshot, not real-time.
+- NEVER capture or log raw token values, auth headers, or
+  any provider-specific secret material from these headers.
+
+### 4. Decision capsule schema
+
+```yaml
+awaiting_user_reason: WORKER_QUOTA_EXHAUSTED_PREDICTED
+decision_id: dec-NNN
+decision_prompt: "All assigned workers near quota. <worker_a> 95% used; <worker_b> 99% used. How to proceed?"
+decision_options:
+  - {id: extend_quota,    label: "user extends quota out-of-band",       effect: "PAUSED waiting for user; resume on /dtd run", risk: "blocks until extension"}
+  - {id: switch_to_paid,  label: "use paid fallback worker",             effect: "advance fallback chain; consume paid quota", risk: "incurs cost"}
+  - {id: continue_unsafe, label: "ignore prediction; try anyway",        effect: "dispatch despite prediction",                risk: "may fail mid-task; wastes tokens"}
+  - {id: pause_overnight, label: "PAUSED until next quota reset",        effect: "wait for daily/monthly reset (until <tz_aware_ts>)", risk: "waits hours"}
+  - {id: stop,            label: "stop the run",                         effect: "finalize_run(STOPPED)",                      risk: "lose run progress"}
+decision_default: pause_overnight
+decision_resume_action: "controller acts on chosen effect; if extend_quota, await /dtd run after user updates worker config"
+```
+
+`pause_overnight` displays EXACT local reset time + timezone
+in capsule prompt (Codex P1.3).
 
 ## Snapshot mode resolution (v0.2.0c R1)
 

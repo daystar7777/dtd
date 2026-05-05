@@ -60,11 +60,13 @@ Sections:
 - Notepad schema (v0.2.2) — schema v1/v2 detect, 8-heading
   presence, per-heading budget, Reasoning Notes content
   discipline (no chain-of-thought leak)
+- Quota state (v0.3.0b) — per-worker usage ledger, predictive
+  routing thresholds, paid-fallback authorization, redaction
 - Locale state (v0.2.0e) — locale pack existence, required sections,
   bootstrap-alias presence, ≤ 12 KB pack budget
 - Spec modularization (v0.2.3 R1) — reference dir, 13 canonical topics,
   Summary + Anchor sections, ≤ 24 KB (doctor-checks + run-loop
-  ≤ 32 KB cross-cutting exception)
+  ≤ 48 KB cross-cutting exception; bumped at v0.3.0b R0 from 32 KB)
 - Path policy (BLOCK patterns, `..` paths, relative/absolute)
 - `.gitignore` + secret leak (regex scan for known key patterns)
 
@@ -592,7 +594,7 @@ Worker registry management. Backed by `.dtd/workers.md`.
   Only on `yes` does controller append to `workers.md`. The wizard does NOT write `.dtd/.env` in v0.1.1 (chat-host hosts) — user sets the value out-of-band per step 5.
 
   **Wizard isolation**: wizard turns are setup-context, not run-context. Don't mutate notepad/steering/attempts/phase-history. Don't include wizard Q/A in future worker prompts.
-- `test [<id|alias>] [--all|--quick|--full|--connectivity|--assigned|--json]` (v0.2.1):
+- `test [<id|alias>] [--all|--quick|--full|--connectivity|--assigned|--json|--quota]` (v0.2.1 + v0.3.0b):
   multi-stage health probe per `.dtd/reference/workers.md` §"Worker
   Health Check" (full canonical spec for the 17-stage diagnostic).
   Compact summary:
@@ -620,6 +622,14 @@ Worker registry management. Backed by `.dtd/workers.md`.
   Standalone `/dtd workers test` is observational and creates no incident
   or decision capsule. Decision capsule reason `WORKER_HEALTH_FAILED` fires
   only when `/dtd run` preflight detects an assigned worker is unhealthy.
+  **`--quota` flag (v0.3.0b)**: observational; reports per-worker daily +
+  monthly token usage against quota declarations (workers.md
+  `daily_token_quota` / `monthly_token_quota`). Output shows remaining
+  quota + predictive routing impact for next-task estimates. Worker
+  rate-limit headers (`x-ratelimit-*` / `ratelimit-*`) captured advisory-only
+  per `worker.quota_provider_header_prefix`. See
+  `.dtd/reference/run-loop.md` §"Quota predictive check + ledger
+  discipline (v0.3.0b R0)" for full contract.
 - `rm <id>`: remove (warn if any plan references this worker; offer to remap)
 - `alias add <id> <alias>` / `alias rm <id> <alias>`: manage aliases
 - `role set <role> <id>` / `role unset <role>`: manage role mapping in `config.md`

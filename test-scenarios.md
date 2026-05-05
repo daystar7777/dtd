@@ -2949,6 +2949,164 @@ journey content is `examples/user-journeys.md` (tracked in repo).
 
 ---
 
+## v0.3.0b — Token-rate-aware scheduling
+
+### 118. /dtd workers test --quota shows accurate remaining
+
+**Setup**: registry with `claude-api` (daily_token_quota: 50000,
+49500 used today) and `qwen-remote` (no quota set).
+
+**Steps**: `/dtd workers test --quota`.
+
+**Expected**:
+- Output table shows per-worker daily + monthly columns:
+  - `claude-api`: `49500/50000 (99%)` daily.
+  - `qwen-remote`: `--` (no quota set).
+- Predictive routing summary lists each worker's status for
+  next typical task estimate.
+- `state.md` NOT mutated (observational read).
+- `.dtd/log/worker-usage-run-NNN.md` may be empty if no
+  prior dispatches.
+
+**Pass**: per-worker quota status accurate; no state mutation;
+`--quota` is purely observational.
+
+### 119. Predictive routing skips worker at >95% quota
+
+**Setup**: `claude-api` 99% used. APPROVED plan task 2.1
+assigned to `claude-api`. Fallback chain:
+`claude-api → deepseek-local`.
+
+**Steps**: `/dtd run`.
+
+**Expected**:
+- Step 5.5.0: predictive check sees `claude-api` over
+  `quota_block_threshold_pct: 95`.
+- Routes to `deepseek-local` per fallback chain.
+- Permission gate (step 5.5) runs on `deepseek-local`.
+- Dispatch proceeds with `deepseek-local`.
+- `attempts/run-NNN.md` row notes
+  `routed_from: claude-api (quota_predictive)`.
+
+**Pass**: predictive routing happens BEFORE permission gate;
+fallback chain advances cleanly.
+
+### 120. WORKER_QUOTA_EXHAUSTED_PREDICTED fires when all near-empty
+
+**Setup**: ALL workers in fallback chain are above
+`quota_block_threshold_pct: 95`.
+
+**Steps**: `/dtd run`.
+
+**Expected**:
+- Capsule `awaiting_user_reason: WORKER_QUOTA_EXHAUSTED_PREDICTED`
+  fires with 5 options:
+  `[extend_quota, switch_to_paid, continue_unsafe, pause_overnight, stop]`.
+- `decision_default: pause_overnight`.
+- `pause_overnight` prompt shows EXACT local reset time +
+  timezone (e.g.
+  "until 2026-05-06 00:00 KST [Asia/Seoul]").
+- `state.md.pending_quota_capsule: <fields>`.
+
+**Pass**: capsule fires only when entire chain is exhausted;
+local reset time is unambiguous.
+
+### 121. Paid fallback in silent mode defers (Codex P1.3)
+
+**Setup**: `attention_mode: silent`. `claude-api` (free) at
+99% used. `gpt-4-paid` (paid) is fallback. User has no
+explicit `allow task scope: paid_fallback` rule.
+`config.quota.quota_paid_fallback_silent_defer: true` (default).
+
+**Steps**: `/dtd run` mid-silent-window.
+
+**Expected**:
+- Predictive check identifies paid_fallback as the next chain
+  step.
+- Per silent + no-explicit-allow rule: defer the
+  `WORKER_QUOTA_EXHAUSTED_PREDICTED` capsule.
+- `deferred_decision_refs` gains entry.
+- Controller continues with independent non-paid ready work
+  per silent algorithm.
+
+**Pass**: silent mode never auto-routes to paid worker without
+explicit user authorization (Codex P1.3).
+
+### 122. Provider rate-limit headers captured advisory-only
+
+**Setup**: `claude-api` configured with
+`quota_provider_header_prefix: "x-ratelimit-"`. Dispatch
+returns response with header
+`x-ratelimit-remaining-tokens: 87600`.
+
+**Steps**: post-dispatch.
+
+**Expected**:
+- `.dtd/log/worker-usage-run-NNN.md` row populates
+  `provider_remaining: 87600`, `source: provider_header`.
+- No raw token values logged.
+- No auth header content logged.
+
+**Pass**: header capture is advisory + redacted.
+
+### 123. Cross-run quota persistence (when enabled) carries forward
+
+**Setup**: `config.quota.cross_run_quota_persist: true`. Run 1
+uses 12000 tokens of `claude-api`. Run 1 finalizes.
+
+**Steps**: start Run 2. `/dtd workers test --quota` early in
+Run 2.
+
+**Expected**:
+- `.dtd/log/worker-quota-tracker.md` shows `claude-api` daily
+  row updated by Run 1's finalize_run.
+- `/dtd workers test --quota` reflects 12000 tokens used
+  carrying over from Run 1.
+- Predictive routing uses cross-run total.
+
+**Pass**: cross-run quota tracking is opt-in but works
+end-to-end when enabled.
+
+### 124. Daily quota reset at quota_reset_local_time boundary
+
+**Setup**: `claude-api` `quota_reset_local_time: "00:00"`.
+Local timezone Asia/Seoul. Run 1 ends at 23:55 KST with
+40000 used. Run 2 starts at 00:05 KST next day.
+
+**Steps**: Run 2 `/dtd workers test --quota`.
+
+**Expected**:
+- Per-day reset boundary detected (00:00 KST crossed).
+- Old day row archived to `.dtd/runs/`.
+- Run 2's daily counter starts at 0.
+- `state.md.last_quota_reset_local_at: <ts>`,
+  `last_quota_reset_tz: Asia/Seoul`.
+
+**Pass**: daily reset is timezone-aware; archive preserves
+audit; new day starts clean.
+
+### 125. workers.example.md ships nullable quota defaults (Codex P1)
+
+**Setup**: fresh install.
+
+**Steps**: read `.dtd/workers.example.md`.
+
+**Expected**:
+- 6 quota fields present with `null` / default values:
+  - `daily_token_quota: null`
+  - `monthly_token_quota: null`
+  - `quota_safety_margin: 1.5`
+  - `quota_reset_local_time: "00:00"`
+  - `quota_reset_window_days: 30`
+  - `quota_provider_header_prefix: null`
+- Fresh installs ship with no quota tracking until user
+  declares a quota in their local `workers.md`.
+
+**Pass**: example file is the schema reference; user-specific
+values stay local.
+
+---
+
 ## v0.3.0e — Time-limited permissions UX
 
 ### 109. /dtd permission allow ... for 1h sets resolved_until = now + 1h
