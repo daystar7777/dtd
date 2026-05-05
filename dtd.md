@@ -2339,10 +2339,8 @@ Outputs one `r2_0_decision` row:
 
 ## v0.1.1 / v0.2 / v0.3 Roadmap
 
-Released: v0.1, v0.1.1, v0.2.0a (TAGGED 2026-05-05).
-
-Release-ready (release-contract-passing; tag pending user auth):
-v0.2.0d, v0.2.0f, v0.2.3.
+Released: v0.1, v0.1.1, v0.2.0a (TAGGED 2026-05-05),
+v0.2.0d / v0.2.0f / v0.2.3 (TAGGED 2026-05-06).
 
 R0 + R1 complete (Codex GO; tag pending user auth):
 v0.2.0e, v0.2.0b, v0.2.0c, v0.2.1, v0.2.2.
