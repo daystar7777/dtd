@@ -967,60 +967,26 @@ capability fuzzy → ambiguous (confirm).
 
 ## Plan Schema (XML)
 
-```xml
-<plan-status>DRAFT</plan-status>
+Plans live at `.dtd/plans/plan-NNN.md`. Top-level XML:
+`<plan-status>` + `<brief>` + `<phases>` (with `<task>` rows
+containing `<worker>`, `<capability>`, `<work-paths>`,
+`<output-paths>`, `<context-files>`, `<resources>`, `<done>`) +
+`<patches>`.
 
-<brief>
-goal: <2-4 sentences>
-approach: <high-level shape>
-non-goals: <if relevant>
-</brief>
+Completed tasks compact to one-line form. v0.2.0f adds optional
+`context-pattern`/`persona`/`reasoning-utility`/`tool-runtime`
+attributes on `<phase>` or `<task>`.
 
-<phases>
-  <phase id="1" name="planning" target-grade="GOOD" max-iterations="5">
-    <task id="1.1" parallel-group="A">
-      <goal>schema 작성</goal>
-      <worker>qwen-remote</worker>
-      <worker-resolved-from>role:planner</worker-resolved-from>
-      <capability>planning</capability>
-      <work-paths>docs/, src/types/</work-paths>
-      <output-paths predicted="true">docs/schema.md</output-paths>
-      <context-files>src/types/api.ts</context-files>
-      <resources>
-        <resource mode="write">files:project:docs/schema.md</resource>
-      </resources>
-      <done>false</done>
-    </task>
-    <!-- ...more tasks... -->
-  </phase>
-  <!-- ...more phases... -->
-</phases>
+Size budget:
+- `plan-NNN.md` preferred ≤ 12 KB; hard cap 24 KB.
+- `<patches>`: ≤ 5 patches AND ≤ 4 KB inline; exceed → spill to
+  `plan-NNN-patches.md`.
+- `<brief>` ≤ 2 KB.
 
-<patches>
-  <!-- empty until steering creates one -->
-</patches>
-```
-
-Completed tasks are compacted to one-line form to save context:
-
-```xml
-<task id="1.1" worker="qwen-remote" status="done" grade="GREAT" dur="18s" log="exec-001-task-1.1.qwen-remote.md"/>
-```
-
-Original full task body is archived to `plan-NNN-history.md` if compaction loses important detail. Compaction trigger: any task transitioning to `done` AND plan size > 8 KB.
-
-### Plan size budget & spill
-
-- **Preferred**: `plan-NNN.md` ≤ 12 KB
-- **Hard cap**: 24 KB (`/dtd doctor` ERRORs above this)
-
-Patches policy:
-
-- ≤ 5 patches AND ≤ 4 KB → keep in `<patches>` section
-- exceed → spill: keep latest 1 patch summary inline, full history → `plan-NNN-patches.md`
-- Applied patches → migrated to `phase-history.md` or `log/run-NNN-summary.md` with pointer
-
-Brief: bounded (≤ 2 KB) — large rationale belongs in `PROJECT.md`.
+> Full canonical reference: see `.dtd/reference/plan-schema.md`
+> (full XML example, compaction rule, v0.2.0f attribute spec,
+> patches spill policy).
+> Lazy-load via `/dtd help plan-schema --full`.
 
 ---
 
