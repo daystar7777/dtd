@@ -18,6 +18,14 @@ eval/
 attempts/
 runs/
 
+# v0.2.0b permission audit log (gitignored under log/) — explicit for clarity
+log/permissions.md
+
+# v0.2.0c snapshots — local pre-apply file content. Never committed.
+# index.md template is tracked; per-apply snap-*/ dirs and archived/ are not.
+snapshots/snap-*/
+snapshots/archived/
+
 # Backups from /dtd uninstall
 ../.dtd.uninstalled-*/
 

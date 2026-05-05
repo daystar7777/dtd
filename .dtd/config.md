@@ -108,6 +108,20 @@
 - pack_size_budget_kb: 8          # WARN reference_oversized above this
 - merge_policy: pack_wins_on_conflict   # pack_wins_on_conflict | core_wins_on_conflict
 
+## snapshot (v0.2.0c)
+
+# Pre-apply file snapshots for safe revert. Mode chosen per file based on
+# size + tracked status + permissions. See dtd.md §/dtd snapshot.
+
+- enabled: true                    # global enable; false = no snapshots, no revert
+- preimage_size_threshold: 65536   # bytes; files <= this prefer preimage; larger prefer patch
+- patch_max_size: 4194304          # bytes; files > this fall back to preimage even in patch mode
+- binary_extensions: [.png, .jpg, .gif, .pdf, .zip, .tar, .gz, .bin, .so, .exe, .dll]
+- retention_days: 30               # snapshots older than this can be auto-rotated
+- auto_rotate: false               # auto-move to archived/ after retention_days; off by default
+- max_total_size_mb: 512           # snapshots dir size limit; doctor warns
+- on_snapshot_fail: refuse_apply   # refuse_apply | proceed_unsafe (default refuse)
+
 ## update (v0.2.0d)
 
 # Self-Update settings. See dtd.md §/dtd update.

@@ -26,6 +26,17 @@
 - loaded_profile_set_at: null      # timestamp; debug aid for profile transitions
 - loaded_profile_reason: null      # null | mode_off | no_plan | draft_or_approved | running_or_paused | active_blocker | pending_patch
 
+## Snapshot state (v0.2.0c)
+
+# Pre-apply snapshot tracking. See dtd.md §/dtd snapshot.
+
+- last_snapshot_id: null           # latest snap-<run>-<task>-<attempt>
+- last_snapshot_at: null
+- snapshots_total: 0               # total snapshots in .dtd/snapshots/ (incl. archived)
+- snapshots_size_bytes: 0          # total size; for doctor display
+- last_revert_id: null             # latest reverted snap-id; null if none
+- last_revert_at: null
+
 ## Permission ledger (v0.2.0b)
 
 # Active permission request capsule (denormalized from awaiting_user_decision

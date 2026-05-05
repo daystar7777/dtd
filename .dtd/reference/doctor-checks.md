@@ -254,6 +254,41 @@ Sections:
 - `.dtd/log/permissions.md` (audit log) exists when any active rule
   exists; ELSE INFO (audit log lazy-created on first decision).
 
+## Snapshot state (v0.2.0c)
+
+- `.dtd/snapshots/` directory exists if
+  `config.snapshot.enabled: true`; ELSE INFO `snapshot_dir_missing`
+  (creates on next apply).
+- `.dtd/snapshots/index.md` exists with `## Active snapshots` section;
+  ELSE WARN `snapshot_index_missing`.
+- All `index.md` rows have matching `snap-<run>-<task>-<att>/`
+  directories under `.dtd/snapshots/` or
+  `.dtd/snapshots/archived/`; ELSE WARN `snapshot_index_drift`.
+- All `snap-*/` directories have a valid `manifest.md` with required
+  fields (`run`, `task`, `attempt`, `worker`, `applied_at`,
+  `mode_default`); ELSE WARN `snapshot_manifest_missing`.
+- Total snapshot dir size ≤
+  `config.snapshot.max_total_size_mb` (default 512 MB); ELSE WARN
+  `snapshot_size_exceeded` and recommend `/dtd snapshot rotate` or
+  `purge --before <date>`.
+- Snapshots older than `retention_days * 2` and not in `archived/`:
+  INFO `snapshot_rotation_overdue`.
+- Each `preimage` artifact's SHA-256 matches its manifest entry;
+  ELSE ERROR `snapshot_preimage_corrupted`.
+- Each `patch` artifact applies cleanly to current working state via
+  dry-run; ELSE WARN `snapshot_patch_drift` (means another process
+  modified the file after apply; revert may not produce expected
+  state).
+- `state.md.last_snapshot_id` matches the most recent
+  `snap-*/manifest.md` `applied_at` row; ELSE WARN
+  `snapshot_state_drift`.
+- `state.md.last_revert_id` (when non-null) corresponds to a
+  snapshot whose status is `reverted` in `index.md`; ELSE WARN
+  `revert_state_drift`.
+- Permission ledger interaction: surface INFO if
+  `revert: deny` rule covers most paths (revert flow effectively
+  disabled).
+
 ## Locale state (v0.2.0e)
 
 - `.dtd/locales/` directory exists; ELSE INFO `locale_dir_missing`

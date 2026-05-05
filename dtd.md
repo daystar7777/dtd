@@ -52,6 +52,8 @@ Sections:
 - Help system (v0.2.0d) — 9 canonical topics, size budgets
 - Permission ledger (v0.2.0b) — `.dtd/permissions.md` parses, no
   overly-broad bash allow, expired `until` rules, ledger size cap
+- Snapshot state (v0.2.0c) — `.dtd/snapshots/` size, manifest
+  integrity, preimage SHA, patch dry-run cleanliness
 - Locale state (v0.2.0e) — locale pack existence, required sections,
   bootstrap-alias presence, ≤ 8 KB pack budget
 - Spec modularization (v0.2.3 R1) — reference dir, 13 canonical topics,
@@ -115,6 +117,91 @@ Output is `observational_read`: never writes `state.md`, `notepad.md`,
 > (resolution algorithm, topic file structure, NL routing table,
 > v0.2.3 reference-topic extension, output discipline).
 > Lazy-load via `/dtd help help-system --full`.
+
+### `/dtd snapshot [list|show|purge|rotate]` (v0.2.0c)
+
+Pre-apply file snapshots stored under `.dtd/snapshots/`. Three modes
+per file (chosen by policy at apply-time):
+
+| Mode | Contents | Revertable | When |
+|---|---|---|---|
+| `metadata-only` | SHA-256 + size + git diff metadata | NO (audit-only) | tracked text files within size threshold |
+| `preimage` | byte-for-byte pre-apply copy | YES | binaries OR untracked OR `revert_required: true` rule |
+| `patch` | forward + reverse unified diff | YES | text files larger than `preimage_size_threshold` |
+
+Forms:
+
+```text
+/dtd snapshot list [--task <id>|--run <id>|--all]   # observational
+/dtd snapshot show <snap-id>                        # observational; manifest
+/dtd snapshot purge <snap-id>                       # destructive; tombstone in index
+/dtd snapshot purge --before <date>                 # bulk purge
+/dtd snapshot rotate                                # move retention-aged snaps to archived/
+```
+
+Snapshot creation hooks into run-loop step 6.g.0 (BEFORE temp-write):
+mode chosen per file → snapshot artifact written to
+`.dtd/snapshots/snap-<run>-<task>-<att>/files/<encoded-path>.<mode>`
+→ `manifest.md` + `index.md` rows appended → THEN proceed to phase 1.
+
+If snapshot phase fails (DISK_FULL / FS_PERMISSION_DENIED): per
+`config.snapshot.on_snapshot_fail` (default `refuse_apply`). Decision
+capsule offers `proceed_unsafe` option (marks attempt
+`unrevertable: true`).
+
+### `/dtd revert <last|attempt <id>|task <id>>` (v0.2.0c)
+
+Restore files from a snapshot. **Destructive** — always confirms
+explicitly per `instructions.md` §Confidence & Confirmation.
+
+Forms:
+
+```text
+/dtd revert last                # undo most recent apply
+/dtd revert attempt <id>        # undo specific attempt's apply
+/dtd revert task <id>           # undo all attempts for a task in reverse order
+/dtd revert --dry-run last      # preview only; no file writes
+```
+
+Revert algorithm:
+
+1. Permission gate: per v0.2.0b ledger, `revert: allow` required.
+   `ask` fires `awaiting_user_reason: PERMISSION_REQUIRED` first;
+   `deny` aborts.
+2. Find target snapshot(s) by scope. For `task <id>`, gather all
+   attempts marked `applied: true` for that task; superseded
+   attempts skipped.
+3. Validate every listed file:
+   - `preimage`: snapshot file exists AND its SHA matches manifest.
+   - `patch`: snapshot patch applies cleanly to current state
+     (dry-run check).
+   - `metadata-only`: NOT revertable; surface
+     `revert_unavailable_metadata_only`.
+4. If ANY listed file is metadata-only: fill capsule
+   `awaiting_user_reason: PARTIAL_REVERT` with options
+   `revert_revertable_only / inspect / cancel`.
+5. If ALL revertable AND user confirmed:
+   - Acquire write locks per §Resource Locks (same as fresh apply).
+   - Phase 1: write reverted content to temp files.
+   - Phase 2: atomic rename over current files.
+   - Append `attempts/run-NNN.md` row: `reverted: snap-<id>`.
+   - Append `phase-history.md` row.
+   - Update `state.md.last_revert_id`, `last_revert_at`.
+
+Conflict resolution for `task <id>`: revert applies in REVERSE order
+(most recent attempt first). Files modified across multiple attempts
+restore correctly because each snapshot captured pre-apply state.
+
+NL routing (English):
+
+| Phrase | Canonical |
+|---|---|
+| "revert last", "undo last change" | `/dtd revert last` |
+| "undo task 3" | `/dtd revert task 3` |
+| "show snapshots" | `/dtd snapshot list` |
+| "rotate snapshots" | `/dtd snapshot rotate` |
+
+Korean / Japanese NL routing in respective locale packs.
 
 ### `/dtd permission [list|show|allow|deny|ask|revoke|rules]` (v0.2.0b)
 

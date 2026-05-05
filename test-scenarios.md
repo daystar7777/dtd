@@ -1078,6 +1078,181 @@ follow normal confidence rules; no silent run termination via NL.
 
 ---
 
+## v0.2.0c — Snapshot / Revert
+
+### 60. Snapshot created at apply for each output file with mode-per-policy
+
+**Setup**: APPROVED plan, task 2.1 writes 3 files: `src/api/users.ts`
+(text, 4 KB, git-tracked), `src/build/icon.png` (binary, 12 KB,
+git-tracked), `tests/fixtures/big.json` (text, 200 KB, untracked).
+
+**Steps**: `/dtd run --until task:2.1`.
+
+**Expected**:
+- After apply, `.dtd/snapshots/snap-001-task-2.1-att-1/` exists with:
+  * `manifest.md` listing all 3 files.
+  * `files/src__api__users.ts.metadata` (tracked text under threshold).
+  * `files/src__build__icon.png.preimage` (binary).
+  * `files/tests__fixtures__big.json.patch` (text > preimage threshold).
+- `.dtd/snapshots/index.md` `## Active snapshots` row appended.
+- `state.md.last_snapshot_id: snap-001-task-2.1-att-1`,
+  `last_snapshot_at: <ts>`.
+
+**Pass**: per-file mode follows policy (tracked text → metadata-only,
+binary → preimage, large text → patch).
+
+### 61. /dtd revert last restores files atomically (temp + rename)
+
+**Setup**: scenario 60's snapshot exists. Permission `revert: allow`
+or default ask resolved.
+
+**Steps**: `/dtd revert last` and confirm.
+
+**Expected**:
+- All revertable files (preimage + patch) restored atomically:
+  Phase 1 writes temps; Phase 2 renames over current.
+- `state.md.last_revert_id: snap-001-task-2.1-att-1`,
+  `last_revert_at: <ts>`.
+- `attempts/run-NNN.md` row appended: `reverted: snap-001-task-2.1-att-1`.
+- `phase-history.md` row appended.
+
+**Pass**: revert is atomic + recorded; metadata-only file is
+NOT touched (audit-only).
+
+### 62. /dtd revert task <id> undoes all attempts in reverse order
+
+**Setup**: task 3.1 has 3 attempts (att-1 failed, att-2 superseded by
+att-3, att-3 applied successfully). Snapshots exist for att-1 and
+att-3 (att-2 was superseded before apply, so no snapshot).
+
+**Steps**: `/dtd revert task 3.1` and confirm.
+
+**Expected**:
+- Revert iterates attempts in reverse: att-3 first, then att-1.
+- Superseded att-2 skipped (no `applied: true` flag).
+- Files restored to pre-att-1 state.
+- `attempts/run-NNN.md` rows appended for each revert.
+
+**Pass**: superseded attempts skipped; revert order is reverse;
+final state is pre-task baseline.
+
+### 63. metadata-only files surface revert_unavailable_metadata_only
+
+**Setup**: snapshot exists where `docs/schema.md` is `metadata-only`
+mode.
+
+**Steps**: `/dtd revert last`.
+
+**Expected**:
+- Capsule `awaiting_user_reason: PARTIAL_REVERT` fired.
+- `decision_options` include `revert_revertable_only`, `inspect`,
+  `cancel`.
+- Output mentions `revert_unavailable_metadata_only: docs/schema.md`.
+
+**Pass**: capsule surfaces clearly; user can choose to skip the
+non-revertable file or cancel.
+
+### 64. PARTIAL_REVERT capsule when some files revertable, some not
+
+**Setup**: same snapshot from scenario 63 (mixed modes).
+
+**Steps**:
+1. `/dtd revert last` → PARTIAL_REVERT capsule.
+2. Choose `revert_revertable_only`.
+
+**Expected**:
+- Only preimage/patch files restored.
+- Metadata-only files left untouched; controller logs the skip.
+- `attempts/run-NNN.md` row notes partial revert.
+
+**Pass**: partial revert is explicit user choice; never silent.
+
+### 65. Snapshot mode selection: small text → preimage, large text → patch, binary → preimage
+
+**Setup**: synthetic apply with one file per mode trigger:
+- `small.txt` (text, 2 KB, untracked) → preimage (untracked rule).
+- `large.go` (text, 200 KB, untracked) → patch (>threshold + text).
+- `image.png` (binary, 8 KB) → preimage (binary).
+
+**Steps**: trigger snapshot creation; inspect `manifest.md`.
+
+**Expected**: each file's mode column matches its trigger.
+
+**Pass**: policy is deterministic and documented in manifest's
+"Reason for mode choices" section.
+
+### 66. DISK_FULL during snapshot creation: decision capsule with proceed_unsafe option
+
+**Setup**: simulate disk full when writing
+`.dtd/snapshots/snap-001-task-2.1-att-1/files/...`.
+
+**Steps**: dispatch task whose apply would trigger snapshot.
+
+**Expected**:
+- Snapshot phase fails; per `config.snapshot.on_snapshot_fail`
+  (default `refuse_apply`):
+  * Decision capsule `awaiting_user_reason: DISK_FULL`.
+  * Options include the existing v0.1.1 set PLUS new
+    `proceed_unsafe` (default NO).
+- If user chooses `proceed_unsafe`: apply proceeds; attempt marked
+  `unrevertable: true` in attempts log.
+- If user chooses default refuse: dispatch aborts; no apply.
+
+**Pass**: snapshot failure surfaces explicitly; proceed_unsafe is an
+informed override.
+
+### 67. Permission ledger revert: ask fires PERMISSION_REQUIRED before revert
+
+**Setup**: scenario 60's snapshot exists. `permissions.md` has no
+explicit revert rule (default `ask`).
+
+**Steps**: `/dtd revert last`.
+
+**Expected**:
+- BEFORE entering the revert algorithm: capsule
+  `awaiting_user_reason: PERMISSION_REQUIRED` fires for `revert`
+  key.
+- User chooses `allow_once` → revert proceeds.
+- User chooses `deny_always` → revert aborts AND new ledger row
+  `deny | revert` added.
+
+**Pass**: revert is gated by ledger; v0.2.0b integration works.
+
+### 68. Doctor catches preimage SHA corruption and patch drift
+
+**Setup**:
+1. Snapshot exists with `users.ts.preimage`.
+2. Manually corrupt the preimage file (flip a byte).
+3. Snapshot exists with `products.ts.patch`. Manually edit current
+   working `products.ts` so the reverse patch wouldn't apply
+   cleanly.
+
+**Steps**: `/dtd doctor`.
+
+**Expected**:
+- ERROR `snapshot_preimage_corrupted` for users.ts.preimage.
+- WARN `snapshot_patch_drift` for products.ts.patch.
+
+**Pass**: doctor catches both corruption modes; user can re-snapshot
+or accept partial revertability.
+
+### 69. /dtd snapshot rotate moves old snapshots to archived/; doesn't delete
+
+**Setup**: 5 snapshots exist; 2 are older than `retention_days`
+(default 30). `auto_rotate: false`.
+
+**Steps**: `/dtd snapshot rotate`.
+
+**Expected**:
+- 2 old snapshots moved to `.dtd/snapshots/archived/`.
+- `index.md` rows updated with status `rotated` (not deleted).
+- 3 active snapshots remain in `.dtd/snapshots/`.
+- No file content lost.
+
+**Pass**: rotate preserves audit; only archive flag and path move.
+
+---
+
 ## v0.2.0b — Permission Ledger
 
 ### 50. Default rules allow todowrite, ask everything else
