@@ -304,10 +304,9 @@ v0.2 / v0.1.1 のロードマップに含まれます。
 
 ## v0.2 ライン — 運用強化 + ライフサイクル
 
-仕様完成。**9 sub-release 中 4 個タグ完了**
-(v0.2.0a / v0.2.0d / v0.2.0f / v0.2.3); 残り 5 個
-(v0.2.0e / v0.2.0b / v0.2.0c / v0.2.1 / v0.2.2) は Codex-GO で
-ユーザーのタグ承認待ち。incident tracking、permission
+**9 sub-release 全部タグ完了 (2026-05-06)** —
+v0.2.0a / v0.2.0d / v0.2.0f / v0.2.3 / v0.2.0e / v0.2.0b /
+v0.2.0c / v0.2.1 / v0.2.2。incident tracking、permission
 ledger、snapshot/revert、runtime resilience (worker health-check +
 session resume + loop guard)、notepad v2 + reasoning-utility 後処理、
 autonomy & attention モード、locale パック、マイグレーション付き
@@ -315,9 +314,11 @@ self-update、モジュール化された spec 抽出が含まれます。
 
 ## v0.3 ライン — マルチ-LLM 高度実行
 
-R0 (設計) + R1 (ランタイム) 5 sub-release 全部 GO (Codex 最終
-レビュー通過 2026-05-06; R2 plan + R2-0 entry gate も GO)。
-タグはユーザー認可待ち。R2 ライブ実行は
+**5 sub-release 全部タグ完了 (2026-05-06)** —
+v0.3.0e / v0.3.0b / v0.3.0a / v0.3.0c / v0.3.0d。
+R0 (設計) + R1 (ランタイム) 全部 GO (Codex 最終レビュー通過
+2026-05-06); R2 plan + R2-0 entry gate + realuse-benchmark
+開発フェーズも定義済み。R2 ライブ実行は
 `/dtd r2 readiness` から開始。5 sub-release:
 
 - **v0.3.0a Cross-run loop guard** — 安定シグネチャ ledger が

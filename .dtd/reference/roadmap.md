@@ -6,17 +6,17 @@
 
 ## Summary
 
-v0.1 / v0.1.1 / v0.2.0a / v0.2.0d / v0.2.0f / v0.2.3 tagged.
-Remaining v0.2 sub-releases are R0+R1 complete pending user tag
-authorization.
-v0.3 line **GO at R0 + R1 across all 5 sub-releases**.
-Codex final review pass accepted (handoff
+**v0.1 / v0.1.1 / all 9 v0.2 sub-releases / all 5 v0.3
+sub-releases tagged 2026-05-06.** Codex final review pass
+accepted (handoff
 `handoff_dtd-v030c-v030d-r1-codex-review.gpt-5-codex.md` 2026-05-06
-01:20). All R0 + R1 patches integrated through `07fc465`. Tagging
-pending user authorization. Residual risk: R2 = live DTD run
-against a nontrivial test project.
+01:20). All R0 + R1 patches integrated through `07fc465`.
+Realuse benchmark dev-phase deliverables shipped
+(`v030-realuse-benchmark.md`); execution awaits explicit user
+start. R2 live execution awaits user-provided worker/sync
+infrastructure.
 
-Released:
+Released (TAGGED):
 - **v0.1** — first lock; 18/18 acceptance smoke (2026-05-05).
 - **v0.1.1** — 5 R-rounds; ops hardening hooks (2026-05-05).
 - **v0.2.0a** — Incident Tracking; TAGGED 2026-05-05 (`41f8c7d`).
@@ -25,32 +25,27 @@ Released:
   TAGGED 2026-05-06 (`f7341b9`).
 - **v0.2.3** — Spec modularization + Lazy-Load Profile;
   TAGGED 2026-05-06 (`a29d083`).
+- **v0.2.0e** — Locale Packs; TAGGED 2026-05-06 (`19ce00b`).
+- **v0.2.0b** — Permission Ledger; TAGGED 2026-05-06 (`3b21828`).
+- **v0.2.0c** — Snapshot/Revert; TAGGED 2026-05-06 (`3b21828`).
+- **v0.2.1** — Runtime Resilience; TAGGED 2026-05-06 (`3b21828`).
+- **v0.2.2** — Compaction UX; TAGGED 2026-05-06 (`3b21828`).
 
-R0 + R1 complete (Codex GO accepted; tag pending user auth):
-- **v0.2.0e** — Locale Packs (English-only core + opt-in /ㄷㅌㄷ pack).
-- **v0.2.0b** — Permission Ledger (`.dtd/permissions.md` 10-key set
-  with `tool_relay_*`; specificity-first resolution).
-- **v0.2.0c** — Snapshot/Revert (3-mode taxonomy: metadata-only /
-  preimage / patch; revert is permission-gated).
-- **v0.2.1** — Runtime Resilience (worker health check 17-stage +
-  session resume 4-strategy + loop guard with window staleness).
-- **v0.2.2** — Compaction UX (notepad v2 8-heading + Reasoning Notes
-  + chain-of-thought leak filter).
-
-v0.3 line — Path A (e → b → a → c → d) execution status —
-**ALL FIVE GO at R0 + R1**:
-- **v0.3.0e** — Time-limited permissions UX. R0 GO (`19bf3f1`);
-  R1 (`ea5fd09`) review-passed (Codex `1ab11f3`).
-- **v0.3.0b** — Token-rate-aware scheduling. R0 GO (`19bf3f1`);
-  R1 (`d431c57`) review-passed (Codex `1ab11f3`).
-- **v0.3.0a** — Cross-run loop guard. R0 with P1.1 + P1.7 inline
-  (`0681088`); R1 (`e67b10b`) review-passed (Codex `1ab11f3`).
-- **v0.3.0c** — Multi-worker consensus dispatch. R0 with P1.4 +
-  P1.5 inline (`be948b5`) review-passed (Codex `1ab11f3`);
-  R1 (`257210a`) review-passed (Codex `07fc465`).
-- **v0.3.0d** — Cross-machine session affinity. R0 with P1.6 + P1.7
-  inline (`6013ac2`) review-passed (Codex `1ab11f3`);
-  R1 (`0aacd5a`) review-passed (Codex `07fc465`).
+v0.3 line — Path A (e → b → a → c → d) — **ALL FIVE TAGGED**:
+- **v0.3.0e** — Time-limited permissions UX; TAGGED 2026-05-06
+  (`1ab11f3`). R0 GO (`19bf3f1`); R1 (`ea5fd09`) review-passed
+  (Codex `1ab11f3`).
+- **v0.3.0b** — Token-rate-aware scheduling; TAGGED 2026-05-06
+  (`1ab11f3`). R0 GO (`19bf3f1`); R1 (`d431c57`) review-passed.
+- **v0.3.0a** — Cross-run loop guard; TAGGED 2026-05-06
+  (`ad4aec7`). R0 with P1.1 + P1.7 inline (`0681088`); R1
+  (`e67b10b`) review-passed.
+- **v0.3.0c** — Multi-worker consensus dispatch; TAGGED 2026-05-06
+  (`07fc465`). R0 with P1.4 + P1.5 inline (`be948b5`); R1
+  (`257210a`) review-passed.
+- **v0.3.0d** — Cross-machine session affinity; TAGGED 2026-05-06
+  (`07fc465`). R0 with P1.6 + P1.7 inline (`6013ac2`); R1
+  (`0aacd5a`) review-passed.
 
 Per-sub-release reference topic pattern (Codex's recommendation):
 catalog grew from 13 to 18 across v0.3 R0/R1, with R2 adding the
@@ -218,14 +213,16 @@ placeholders); v0.2 implements the full systems.
 
 ## Historical v0.2 implementation order (per dependency graph)
 
+All 9 v0.2 sub-releases tagged. Order:
+
 1. v0.2.0a — TAGGED
 2. v0.2.0d — Self-Update (migration runway for v0.2.0e+) — TAGGED
 3. v0.2.0f — Autonomy & Attention (uses v0.2.0d migration) — TAGGED
-4. v0.2.0e — Locale Packs (after v0.2.0d) — Codex GO; tag pending
-5. v0.2.0b — Permission Ledger (foundation for v0.2.0c) — Codex GO; tag pending
-6. v0.2.0c — Snapshot/Revert (uses v0.2.0b permission gating) — Codex GO; tag pending
-7. v0.2.1 — Runtime Resilience — Codex GO; tag pending
-8. v0.2.2 — Compaction UX — Codex GO; tag pending
+4. v0.2.0e — Locale Packs (after v0.2.0d) — TAGGED
+5. v0.2.0b — Permission Ledger (foundation for v0.2.0c) — TAGGED
+6. v0.2.0c — Snapshot/Revert (uses v0.2.0b permission gating) — TAGGED
+7. v0.2.1 — Runtime Resilience — TAGGED
+8. v0.2.2 — Compaction UX — TAGGED
 9. v0.2.3 — Spec modularization (parallelizable with v0.2.2) — TAGGED
 
 ## Anchor

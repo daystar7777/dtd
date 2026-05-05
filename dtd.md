@@ -2349,16 +2349,15 @@ Outputs one `r2_0_decision` row:
 
 ## v0.1.1 / v0.2 / v0.3 Roadmap
 
-Released: v0.1, v0.1.1, v0.2.0a (TAGGED 2026-05-05),
-v0.2.0d / v0.2.0f / v0.2.3 (TAGGED 2026-05-06).
+Released: v0.1, v0.1.1, v0.2.0a (TAGGED 2026-05-05).
 
-R0 + R1 complete (Codex GO; tag pending user auth):
-v0.2.0e, v0.2.0b, v0.2.0c, v0.2.1, v0.2.2.
+All 9 v0.2 line sub-releases TAGGED 2026-05-06: v0.2.0d / v0.2.0f
+/ v0.2.3 / v0.2.0e / v0.2.0b / v0.2.0c / v0.2.1 / v0.2.2 (plus
+v0.2.0a from 2026-05-05).
 
-v0.3 line GO at R0 + R1 across all 5 sub-releases (Codex final
+All 5 v0.3 line sub-releases TAGGED 2026-05-06 (Codex final
 review pass `handoff_dtd-v030c-v030d-r1-codex-review.gpt-5-codex.md`
-2026-05-06; tag pending user auth):
-v0.3.0e, v0.3.0b, v0.3.0a, v0.3.0c, v0.3.0d.
+2026-05-06): v0.3.0e, v0.3.0b, v0.3.0a, v0.3.0c, v0.3.0d.
 
 R2 (live execution verification) plan defined in
 `.dtd/reference/v030-r2-live-test-plan.md`; user-driven setup

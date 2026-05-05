@@ -333,10 +333,9 @@ These are on the v0.2 / v0.1.1 roadmap.
 
 ## v0.2 line — Operations hardening + lifecycle
 
-Spec-complete. **4 of 9 sub-releases tagged**
-(v0.2.0a / v0.2.0d / v0.2.0f / v0.2.3); remaining 5
-(v0.2.0e / v0.2.0b / v0.2.0c / v0.2.1 / v0.2.2) Codex-GO with
-tag pending user authorization. Adds incident
+**All 9 sub-releases tagged 2026-05-06** (v0.2.0a / v0.2.0d /
+v0.2.0f / v0.2.3 / v0.2.0e / v0.2.0b / v0.2.0c / v0.2.1 /
+v0.2.2). Adds incident
 tracking, permission ledger, snapshot/revert, runtime resilience
 (worker health-check + session resume + loop guard), notepad v2
 + reasoning-utility post-processing, autonomy & attention modes,
@@ -345,10 +344,11 @@ extraction.
 
 ## v0.3 line — Multi-LLM advanced execution
 
-R0 (design) + R1 (runtime) GO across all 5 sub-releases (Codex
-final review pass 2026-05-06; R2 plan + R2-0 entry gate also
-GO). Tag pending user authorization. R2 live execution starts
-with `/dtd r2 readiness`. 5 sub-releases:
+**All 5 sub-releases tagged 2026-05-06** (v0.3.0e / v0.3.0b /
+v0.3.0a / v0.3.0c / v0.3.0d). R0 (design) + R1 (runtime) GO
+(Codex final review pass 2026-05-06); R2 plan + R2-0 entry
+gate + realuse-benchmark dev phase also defined. R2 live
+execution starts with `/dtd r2 readiness`. 5 sub-releases:
 
 - **v0.3.0a Cross-run loop guard** — stable signature ledger
   catches long-term failure patterns the within-run guard misses.

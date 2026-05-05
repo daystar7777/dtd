@@ -267,17 +267,17 @@ Add-Result "v023.roadmap.anchor_current_v03" "roadmap anchor includes v0.3 and R
     (($roadmapRefText -match 'v0\.1\.1 / v0\.2 / v0\.3') -and
      ($roadmapRefText -match 'R2 live-test status') -and
      ($roadmapRefText -match 'v030-r2-live-test-plan'))
-Add-Result "v023.roadmap.v02_partial_tag_status" "roadmap/README/dtd reflect partial v0.2 tag state" `
-    (($roadmapRefText -match 'v0\.2\.0a / v0\.2\.0d / v0\.2\.0f / v0\.2\.3 tagged') -and
-     ($roadmapRefText -match 'Remaining v0\.2 sub-releases are R0\+R1 complete') -and
+Add-Result "v023.roadmap.v02_full_tag_status" "roadmap/README/dtd reflect ALL v0.2 sub-releases tagged" `
+    (($roadmapRefText -match 'all 9 v0\.2 sub-releases') -and
      ($roadmapRefText -match 'v0\.2\.0d[\s\S]*?TAGGED 2026-05-06[\s\S]*?44567c8') -and
      ($roadmapRefText -match 'v0\.2\.0f[\s\S]*?TAGGED 2026-05-06[\s\S]*?f7341b9') -and
      ($roadmapRefText -match 'v0\.2\.3[\s\S]*?TAGGED 2026-05-06[\s\S]*?a29d083') -and
-     ($roadmapRefText -match 'v0\.2\.0e.*Codex GO; tag pending') -and
-     ($dtdMd -match 'v0\.2\.0d / v0\.2\.0f / v0\.2\.3 \(TAGGED 2026-05-06\)') -and
-     ($readmeText -match '4 of 9 sub-releases tagged') -and
-     (($readmeText + $readmeKoText + $readmeJaText) -match 'v0\.2\.0a / v0\.2\.0d / v0\.2\.0f / v0\.2\.3') -and
-     (($roadmapRefText + $dtdMd + $readmeText) -notmatch 'Release-ready \(release-contract-passing; tag pending user auth\)'))
+     ($roadmapRefText -match 'v0\.2\.0e[\s\S]*?TAGGED 2026-05-06[\s\S]*?19ce00b') -and
+     ($roadmapRefText -match 'v0\.2\.0b[\s\S]*?TAGGED 2026-05-06[\s\S]*?3b21828') -and
+     ($readmeText -match 'All 9 sub-releases tagged') -and
+     ($readmeText -match 'All 5 sub-releases tagged 2026-05-06') -and
+     (($roadmapRefText + $dtdMd + $readmeText) -notmatch 'Release-ready \(release-contract-passing; tag pending user auth\)') -and
+     (($roadmapRefText + $dtdMd) -notmatch 'R0 \+ R1 complete \(Codex GO accepted; tag pending user auth\)'))
 Add-Result "v023.scenarios.header_current" "test-scenarios header spans v0.1/v0.2/v0.3 current state" `
     (($scenariosMd -match '# DTD Test Scenarios \(v0\.1 / v0\.2 / v0\.3\)') -and
      ($scenariosMd -match 'Tagged: v0\.1 / v0\.1\.1 / v0\.2\.0a / v0\.2\.0d / v0\.2\.0f / v0\.2\.3') -and
@@ -324,16 +324,17 @@ Add-Result "v023.r2_0.localized_readme_discovery" "localized READMEs expose /dtd
      ($readmeJaText -match '/dtd r2 readiness') -and
      ($readmeKoText -match 'v0\.2\.1\+') -and
      ($readmeJaText -match 'v0\.2\.1\+'))
-Add-Result "v023.r2_0.readme_v03_status_current" "READMEs state v0.3 final GO, tag pending, and R2 readiness entry" `
-    (($readmeText -match 'R0 \(design\) \+ R1 \(runtime\) GO across all 5 sub-releases') -and
+Add-Result "v023.r2_0.readme_v03_status_current" "READMEs state v0.3 all-tagged + R2 readiness entry" `
+    (($readmeText -match 'All 5 sub-releases tagged 2026-05-06') -and
      ($readmeText -match 'Codex\s+final\s+review\s+pass\s+2026-05-06') -and
-     ($readmeText -match 'R2 plan \+ R2-0 entry gate also\s+GO') -and
-     ($readmeText -match 'Tag pending user authorization') -and
-     ($readmeKoText -match 'R2 plan \+ R2-0 entry gate.*GO') -and
-     ($readmeJaText -match 'R2 plan \+ R2-0 entry gate.*GO') -and
-     ($readmeKoText -match '2026-05-06') -and
-     ($readmeJaText -match '2026-05-06') -and
-     (($readmeText + $readmeKoText + $readmeJaText) -notmatch 'pending Codex final GO'))
+     ($readmeText -match '(?s)R2 plan \+ R2-0 entry\s+gate \+ realuse-benchmark') -and
+     ($readmeText -match '/dtd r2 readiness') -and
+     ($readmeKoText -match 'sub-release.{0,40}\(2026-05-06\)') -and
+     ($readmeJaText -match 'sub-release.{0,40}\(2026-05-06\)') -and
+     ($readmeKoText -match '/dtd r2 readiness') -and
+     ($readmeJaText -match '/dtd r2 readiness') -and
+     (($readmeText + $readmeKoText + $readmeJaText) -notmatch 'pending Codex final GO') -and
+     (($readmeText + $readmeKoText + $readmeJaText) -notmatch 'tag pending user authorization\.\s*R2 live'))
 Add-Result "v023.r2_0.help_observe_v03_discovery" "observe help exposes v0.3 observational commands within line budget" `
     (($helpObserveText -match '/dtd consensus show <task_id\|--active>') -and
      ($helpObserveText -match '/dtd session-sync show') -and

@@ -299,10 +299,9 @@ v0.2 / v0.1.1 로드맵에 있습니다.
 
 ## v0.2 라인 — 운영 강화 + 라이프사이클
 
-스펙 완성. **9개 sub-release 중 4개 태그 완료**
-(v0.2.0a / v0.2.0d / v0.2.0f / v0.2.3); 나머지 5개
-(v0.2.0e / v0.2.0b / v0.2.0c / v0.2.1 / v0.2.2) Codex-GO이며
-사용자 태그 권한 대기 중. incident tracking, permission
+**9개 sub-release 전부 태그 완료 (2026-05-06)** —
+v0.2.0a / v0.2.0d / v0.2.0f / v0.2.3 / v0.2.0e / v0.2.0b /
+v0.2.0c / v0.2.1 / v0.2.2. incident tracking, permission
 ledger, snapshot/revert, runtime resilience (워커 health-check +
 session resume + loop guard), notepad v2 + reasoning-utility 후처리,
 autonomy & attention 모드, locale 팩, 마이그레이션 가능한
@@ -310,9 +309,11 @@ self-update, 모듈화된 spec 추출이 포함됩니다.
 
 ## v0.3 라인 — 멀티-LLM 고급 실행
 
-R0 (설계) + R1 (런타임) 5개 sub-release 전부 GO (Codex 최종
-리뷰 통과 2026-05-06; R2 plan + R2-0 entry gate도 GO).
-태그는 사용자 권한 대기 중. R2 라이브 실행은
+**5개 sub-release 전부 태그 완료 (2026-05-06)** —
+v0.3.0e / v0.3.0b / v0.3.0a / v0.3.0c / v0.3.0d.
+R0 (설계) + R1 (런타임) 전부 GO (Codex 최종 리뷰 통과
+2026-05-06); R2 plan + R2-0 entry gate + realuse-benchmark
+개발 단계도 정의됨. R2 라이브 실행은
 `/dtd r2 readiness`로 시작. 5개 sub-release:
 
 - **v0.3.0a Cross-run loop guard** — 안정 시그니처 ledger가
