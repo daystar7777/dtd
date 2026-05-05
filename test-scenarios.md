@@ -3712,6 +3712,144 @@ originals.
 
 ---
 
+## v0.3.0a R1 — Cross-run loop guard runtime
+
+### 166. Match algorithm (read-time)
+
+**Setup**: ledger has signature `a3f1b9...` with `run_count: 1`.
+`config.cross_run_threshold: 2`. Failed attempt computes
+`a3f1b9...` again.
+
+**Steps**: step 6 fail-path triggers cross-run match.
+
+**Expected**:
+- `match_cross_run` returns `status="watching"`,
+  `projected_count=2`.
+- `state.md.cross_run_loop_guard_status: watching`.
+- Capsule does NOT fire (threshold not yet met).
+- finalize_run step 5d will increment `run_count` to 2 if this
+  is the run's last failure for that signature.
+
+**Pass**: match algorithm distinguishes watching vs hit by
+threshold; no premature capsule.
+
+### 167. Tombstone precedence
+
+**Setup**: signature `a3f1b9...` first appended 2026-05-01.
+User runs `/dtd loop-guard prune a3f1b9` on 2026-05-03.
+Failed attempt produces same signature on 2026-05-05.
+
+**Expected**:
+- Tombstone row from 2026-05-03 takes precedence.
+- `match_cross_run` returns `status="no_match"`.
+- finalize_run step 5d appends a NEW non-tombstone row for the
+  signature with `first_seen: 2026-05-05` (newer than tombstone
+  → revives the signature).
+
+**Pass**: tombstone precedence is by recency; user can revive
+a signature via new attempt.
+
+### 168. Retention pruning at finalize_run step 5d
+
+**Setup**: ledger has 5 active signatures. 2 have
+`last_seen < now - cross_run_retention_days` (default 30d).
+
+**Steps**: any plan run reaches finalize_run.
+
+**Expected**:
+- step 5d.prune appends 2 tombstones with
+  `by: finalize_run_retention_prune`.
+- 3 remaining signatures untouched.
+- Original 2 rows preserved (audit).
+
+**Pass**: retention pruning is non-destructive; tombstones
+not physical removal (Codex P1).
+
+### 169. Migration via /dtd loop-guard rehash
+
+**Setup**:
+- `state.md.project_id: null`, no git remote.
+- Ledger has rows with TERTIARY (absolute-path) repo_identity_hash.
+- User sets `state.md.project_id: <new UUID>` via /dtd update.
+
+**Steps**: `/dtd loop-guard rehash`.
+
+**Expected**:
+- Each active signature recomputed using new project_id.
+- Old signature row tombstoned with `by: rehash_admin`.
+- New signature row appended with `copied_from: <orig signature>`
+  preserving `first_seen` of the original.
+- INFO `cross_run_migration_required` no longer fires.
+
+**Pass**: migration preserves audit trail; new signatures
+durable across machines.
+
+### 170. Concurrent finalize_run handling
+
+**Setup**: 2 controllers (A and B) both reach finalize_run step
+5d at approximately the same time (within 60 seconds), both
+appending the same signature for similar failures.
+
+**Expected**:
+- Both append rows; ledger has 2 rows for the signature with
+  `first_seen` within 60s of each other.
+- INFO `cross_run_concurrent_finalize_detected` logged.
+- `match_cross_run` uses MAX of `run_count` across the 2 rows.
+- Append-only discipline: no rollback / no overwrite.
+
+**Pass**: concurrent appends preserved; match algorithm handles
+ambiguity by max-run_count.
+
+### 171. /dtd loop-guard show R1 output format
+
+**Setup**: ledger has 47 total rows: 3 active, 44 tombstoned.
+
+**Steps**: `/dtd loop-guard show`.
+
+**Expected output**:
+- Active table with 3 rows showing Signature / Count / First seen
+  / Last seen / Last resolution.
+- Tombstoned summary showing last 5 tombstones.
+- Total counts summary line: "3 of 47 total; 44 tombstoned".
+- `--full` flag lists all rows including signatures.
+
+**Pass**: R1 format is informational dashboard, not raw
+ledger dump.
+
+### 172. /dtd loop-guard rehash --dry-run
+
+**Setup**: 5 active signatures using TERTIARY identity.
+
+**Steps**: `/dtd loop-guard rehash --dry-run`.
+
+**Expected**:
+- Output shows each signature's would-be transformation:
+  `<old_sig> → <new_sig>`.
+- NO tombstones written.
+- NO new rows appended.
+- `state.md.cross_run_rehash_in_progress` returns to `false`
+  after dry-run completes.
+
+**Pass**: dry-run is observational; no ledger mutation.
+
+### 173. Signature collision (synthetic test)
+
+**Setup**: test fixture forces 2 active rows to have identical
+`signature` but different underlying
+`(task_goal, worker, output_path_scope)`.
+
+**Steps**: `/dtd doctor`.
+
+**Expected**:
+- ERROR `cross_run_signature_collision` flags the colliding rows.
+- Ledger NOT corrupted (no auto-removal).
+- User must investigate (likely a signature computation bug).
+
+**Pass**: collision detected as ERROR; controller does NOT
+auto-resolve a contract violation.
+
+---
+
 ## v0.3.0b — Token-rate-aware scheduling
 
 ### 118. /dtd workers test --quota shows accurate remaining

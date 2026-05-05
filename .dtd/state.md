@@ -58,6 +58,8 @@
 - pending_cross_run_signature: null    # current run's stable signature flagged for cross-run match
 - last_cross_run_check_at: null        # ts of last ledger read
 - last_cross_run_finalize_at: null     # ts of last finalize_run capture-before-clear
+- last_cross_run_rehash_at: null       # R1; ts of last /dtd loop-guard rehash
+- cross_run_rehash_in_progress: false  # R1; true while /dtd loop-guard rehash mid-execution
 
 ## Consensus state (v0.3.0c)
 

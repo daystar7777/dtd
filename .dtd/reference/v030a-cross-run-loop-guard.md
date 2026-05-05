@@ -303,12 +303,241 @@ Korean / Japanese NL routing in respective locale packs (R1+).
 - Cross-run row references unknown failure_class enum: WARN
   `cross_run_failure_class_unknown`.
 
+## R1 runtime contract
+
+R0 (commit `0681088`) shipped the stable signature formula, ledger
+format, finalize_run step 5d capture-before-clear, decision
+capsule, and 8 doctor checks.
+
+R1 ships the runtime algorithms that turn the ledger into a
+working detector at dispatch time:
+
+### R1.1 — Match algorithm (read-time, step 6 fail-path)
+
+Triggered when a within-run failed attempt is recorded AND the
+within-run loop guard has not yet fired (i.e. signature_count < 3).
+
+```
+match_cross_run(failed_attempt, ledger):
+  # 1. Compute the new attempt's stable signature.
+  sig_new = compute_stable_signature(failed_attempt)
+
+  # 2. Apply tombstones first (Codex: tombstone, never physical removal).
+  active_rows = ledger.rows.filter(r => not r.is_tombstoned())
+
+  # 3. Look up by signature (sha256 prefix-match safe; full match required).
+  match = active_rows.find(r => r.signature == sig_new)
+  if not match:
+    return MatchResult(status="no_match")
+
+  # 4. Inspect run_count and last_resolution.
+  if match.run_count + 1 < config.cross_run_threshold:
+    # Will be incremented at finalize_run step 5d if attempt is the last failure of the run.
+    return MatchResult(status="watching", row=match, projected_count=match.run_count+1)
+
+  # 5. Threshold met -> fill capsule.
+  return MatchResult(status="hit", row=match, capsule_payload={
+    signature: match.signature,
+    run_count: match.run_count + 1,
+    first_seen: match.first_seen,
+    last_resolution: match.last_resolution,
+    failure_class: failed_attempt.failure_class,
+  })
+```
+
+When `status="hit"`: fill capsule
+`awaiting_user_reason: LOOP_GUARD_CROSS_RUN_HIT` per R0 spec.
+
+When `status="watching"`: append `cross_run_loop_guard_status:
+watching` annotation to `state.md`; do NOT fire capsule. Capture
+happens at finalize_run step 5d.
+
+When `status="no_match"`: signature is novel; capture at
+finalize_run step 5d will create a new row with `run_count: 1`.
+
+### R1.2 — Tombstone precedence
+
+Tombstones are append-only audit records. A tombstone row format:
+
+```text
+<ts> | tombstone | <signature> | revokes: <orig first_seen ts> | by: <user|finalize_run|prune-cmd> | reason: <free-form>
+```
+
+Active row resolution:
+1. Read all rows in chronological order.
+2. For each `signature`, find the latest `tombstone` row that
+   references that signature (by `revokes:` field).
+3. If a tombstone exists AND it is newer than the latest non-tombstone
+   row for that signature: the signature is INACTIVE.
+4. Else: the signature is ACTIVE; use the latest non-tombstone row.
+
+A user can "untombstone" by appending a NEW non-tombstone row with
+the same signature (which becomes the new active row, since it's
+newer than the tombstone). This is the audit-friendly way to revive
+a signature.
+
+### R1.3 — Pruning at finalize_run (step 5d sub-step)
+
+After capture-before-clear (per R0), before step 6 WORK_END:
+
+```
+finalize_run_step_5d_prune():
+  retention_cutoff = now_utc - config.cross_run_retention_days
+  for row in ledger.active_rows():
+    if row.last_seen < retention_cutoff:
+      append_tombstone(
+        signature = row.signature,
+        revokes = row.first_seen,
+        by = "finalize_run_retention_prune",
+        reason = "last_seen older than retention",
+      )
+```
+
+R1 doctor check `cross_run_retention_prune_unrun` (INFO) fires if
+a row's `last_seen < retention_cutoff` AND no matching tombstone
+exists — indicates step 5d.prune did not run since the cutoff
+moved.
+
+### R1.4 — Migration from v0.2.1 within-run only
+
+R1 doctor check `cross_run_migration_required` (INFO) fires when:
+- `state.md.project_id` is null AND no git remote AND
+- The ledger has rows referring to an absolute-path-based
+  `repo_identity_hash` (TERTIARY fallback).
+
+Recommended action: user sets `project_id` via `/dtd update` OR
+configures git remote — then runs `/dtd loop-guard rehash` (R1 NEW
+admin command) to recompute signatures with the now-stable
+identity. Old rows tombstoned with `by: rehash_admin`.
+
+### R1.5 — Concurrent run handling
+
+If 2 controllers run against the same project simultaneously
+(rare; possible in CI / multi-machine workflows):
+- Both finalize_run step 5d's append to the same ledger.
+- Append-only discipline avoids data loss.
+- Duplicate `first_seen` rows for the same signature are valid
+  (each represents a finalize event); `match_cross_run` treats
+  them as one active signature (uses MAX of `run_count`).
+- R1 doctor check `cross_run_concurrent_finalize_detected` (INFO)
+  fires when 2+ rows for the same signature have `first_seen`
+  within 60 seconds — informational; not a contract violation.
+
+### R1.6 — `/dtd loop-guard show` R1 output format
+
+R0 specified the command exists; R1 specifies output format:
+
+```
+$ /dtd loop-guard show
+
+Active cross-run signatures (3 of 47 total; 44 tombstoned):
+
+| Signature  | Count | First seen     | Last seen      | Last resolution      |
+|---|---:|---|---|---|
+| a3f1b9...  | 3 (HIT) | 2026-04-15 | 2026-05-05 | LOOP_GUARD_CROSS_RUN_HIT (open) |
+| 7c2e8d...  | 2     | 2026-04-22 | 2026-05-04 | user_chose: retry_with_diff_worker |
+| 5d91f4...  | 1     | 2026-05-04 | 2026-05-04 | (single hit; not yet matched) |
+
+Tombstoned (last 5):
+- 2026-05-03 | b1c2d3... | by: user prune | reason: false-positive
+- 2026-04-30 | e4f5a6... | by: finalize_run_retention_prune | reason: last_seen older than retention
+- ...
+
+Use `/dtd loop-guard show --full` for all rows + signatures.
+```
+
+R1 doctor check `cross_run_show_no_active_signatures_after_hit` (INFO)
+fires if `state.md.cross_run_loop_guard_status: hit` but
+`/dtd loop-guard show` would render zero active rows — capsule
+state and ledger state diverged.
+
+### R1.7 — `/dtd loop-guard rehash` (R1 admin command, NEW)
+
+Recomputes all active signatures using current `repo_identity_hash`.
+Used after migrating from absolute-path tertiary to git-remote or
+project_id identity.
+
+```text
+/dtd loop-guard rehash               # rehash all active signatures
+/dtd loop-guard rehash --dry-run     # show what would change without writing
+```
+
+Effect:
+- Each active signature is recomputed with current
+  `repo_identity_hash`.
+- Old signature row tombstoned with `by: rehash_admin`.
+- New signature row appended with `first_seen: <orig first_seen>`
+  preserved in audit (`copied_from: <orig signature>`).
+
+This command is permission-gated under existing
+`tool_relay_mutating` (no new key).
+
+## R1 doctor checks (additional)
+
+```
+- cross_run_retention_prune_unrun (INFO)
+    Row's last_seen < retention_cutoff AND no matching tombstone.
+    finalize_run step 5d.prune didn't run since cutoff moved.
+
+- cross_run_migration_required (INFO)
+    project_id null AND no git remote AND ledger has TERTIARY
+    repo_identity_hash rows. Recommends /dtd loop-guard rehash.
+
+- cross_run_concurrent_finalize_detected (INFO)
+    2+ rows for the same signature with first_seen within 60s.
+    Informational; append-only discipline preserves audit trail.
+
+- cross_run_show_no_active_signatures_after_hit (INFO)
+    state.md.cross_run_loop_guard_status: hit but /dtd loop-guard
+    show renders zero active rows. Capsule state and ledger state
+    diverged.
+
+- cross_run_rehash_in_progress (WARN)
+    /dtd loop-guard rehash detected ongoing finalize_run capture.
+    Recommends waiting for run completion before rehashing.
+
+- cross_run_signature_collision (ERROR — extreme rare)
+    2+ rows have identical signature but different (task_goal,
+    worker, output_path_scope) at row creation time. Indicates
+    sha256 collision (cosmically unlikely) or signature
+    computation bug. Demands investigation.
+```
+
+## R1 acceptance scenarios
+
+> Scenario numbers 166-173 (next free range after v0.3.0b R1
+> 158-165). See `test-scenarios.md` ## v0.3.0a R1 — Cross-run loop
+> guard runtime.
+
+```
+166. Match algorithm: signature match in active_rows -> watching
+     state if count<threshold; HIT capsule if count>=threshold.
+167. Tombstone precedence: appended tombstone (newer) deactivates
+     a signature; user can revive via NEW non-tombstone row.
+168. Retention pruning at finalize_run step 5d: rows older than
+     cross_run_retention_days get tombstones; original rows
+     preserved (audit).
+169. Migration: TERTIARY repo_identity_hash -> /dtd loop-guard
+     rehash recomputes signatures using project_id; old tombstoned
+     with by: rehash_admin.
+170. Concurrent finalize_run: 2 controllers append same-signature
+     rows within 60s; doctor INFO; match algorithm uses MAX run_count.
+171. /dtd loop-guard show R1 output: active table + tombstoned
+     summary + total counts; --full lists all rows.
+172. /dtd loop-guard rehash --dry-run: shows would-be changes
+     without writing; --dry-run flag respected.
+173. Signature collision (forced via test fixture): ERROR
+     cross_run_signature_collision; ledger NOT corrupted.
+```
+
 ## Anchor
 
 This file IS the canonical source for v0.3.0a Cross-run Loop
-Guard. Stable signature formula (P1.1) + ledger format +
-finalize_run capture-before-clear + decision capsule + pruning
-+ doctor checks all live here. Run-loop wiring stays in
+Guard (R0 + R1). Stable signature formula (P1.1) + ledger format +
+finalize_run capture-before-clear + decision capsule + R0 pruning
++ R1 match algorithm + R1 tombstone precedence + R1 retention
+pruning + R1 migration + R1 concurrent handling + R1 show/rehash
+output + doctor checks all live here. Run-loop wiring stays in
 `run-loop.md` step 6 fail-path; finalize_run capture is
 documented in run-loop.md step 5d (NEW; below v0.3.0e step 5c).
 
@@ -319,5 +548,6 @@ documented in run-loop.md step 5d (NEW; below v0.3.0e step 5c).
 - `incidents.md` — failure_class taxonomy enumeration.
 - `workers.md` — worker provider+model fields used in stable
   signature.
-- `index.md` (this dir) — v0.2.3 reference catalog (now 14 topics
-  after v0.3.0a R0).
+- `index.md` (this dir) — v0.2.3 reference catalog (now 19 topics
+  after v0.3.0a R0 + v0.3.0c R0 + v0.3.0d R0 + v0.3.0e R1 +
+  v0.3.0b R1).

@@ -387,6 +387,36 @@ Sections:
   `project_id_unset_using_fallback` (using git remote OR path
   fallback per `repo_identity_hash` priority).
 
+### v0.3.0a R1 runtime checks (additional)
+
+> Full R1 runtime contract — match algorithm, tombstone
+> precedence, retention pruning, migration, concurrent handling,
+> /dtd loop-guard show + rehash — lives in
+> `.dtd/reference/v030a-cross-run-loop-guard.md` ## R1 runtime
+> contract.
+
+- Active row's `last_seen < retention_cutoff` AND no matching
+  tombstone: INFO `cross_run_retention_prune_unrun`
+  (finalize_run step 5d.prune didn't run since cutoff moved).
+- `state.md.project_id` null AND no git remote AND ledger has
+  TERTIARY (absolute-path) repo_identity_hash rows: INFO
+  `cross_run_migration_required` recommending
+  `/dtd loop-guard rehash`.
+- 2+ rows for the same signature with `first_seen` within 60s:
+  INFO `cross_run_concurrent_finalize_detected`
+  (informational; append-only discipline preserves audit trail).
+- `state.md.cross_run_loop_guard_status: hit` but
+  `/dtd loop-guard show` would render zero active rows: INFO
+  `cross_run_show_no_active_signatures_after_hit` (capsule
+  state and ledger state diverged).
+- `/dtd loop-guard rehash` invoked while finalize_run capture is
+  in progress: WARN `cross_run_rehash_in_progress`.
+- 2+ active rows have identical `signature` but different
+  underlying `(task_goal, worker, output_path_scope)` at row
+  creation: ERROR `cross_run_signature_collision` (cosmically
+  unlikely sha256 collision OR signature computation bug —
+  demands investigation).
+
 ### v0.3.0b Token-rate-aware scheduling checks
 
 - For workers with `daily_token_quota: <int>`, the per-run

@@ -177,6 +177,60 @@ foreach ($n in 126..133) {
     Add-Result "v030a.scenarios.$n" "test-scenarios.md has scenario $n" `
         ($scenariosMd -match "### $n\.")
 }
+Add-Result "v030a.scenarios.r1_section_header" "test-scenarios.md has v0.3.0a R1 section header" `
+    ($scenariosMd -match "## v0\.3\.0a R1 .* Cross-run loop guard runtime")
+foreach ($n in 166..173) {
+    Add-Result "v030a.scenarios.r1_$n" "test-scenarios.md has R1 scenario $n" `
+        ($scenariosMd -match "### $n\.")
+}
+
+# ─── reference/v030a-cross-run-loop-guard.md (R1 sections) ──────────────────
+
+$v030aRef = Read-Text ".dtd/reference/v030a-cross-run-loop-guard.md"
+
+Add-Result "v030a.r1_ref.section" "v030a ref has ## R1 runtime contract section" `
+    ($v030aRef -match "(?m)^## R1 runtime contract")
+Add-Result "v030a.r1_ref.match_algo" "v030a R1 ref documents match algorithm" `
+    (($v030aRef -match "Match algorithm") -and ($v030aRef -match "match_cross_run\("))
+Add-Result "v030a.r1_ref.tombstone_precedence" "v030a R1 ref documents tombstone precedence" `
+    ($v030aRef -match "Tombstone precedence")
+Add-Result "v030a.r1_ref.retention_pruning" "v030a R1 ref documents retention pruning" `
+    (($v030aRef -match "Pruning at finalize_run") -and `
+     ($v030aRef -match "finalize_run_step_5d_prune"))
+Add-Result "v030a.r1_ref.migration" "v030a R1 ref documents migration via rehash" `
+    (($v030aRef -match "Migration from v0\.2\.1") -and `
+     ($v030aRef -match "/dtd loop-guard rehash"))
+Add-Result "v030a.r1_ref.concurrent" "v030a R1 ref documents concurrent run handling" `
+    ($v030aRef -match "Concurrent run handling")
+Add-Result "v030a.r1_ref.show_format" "v030a R1 ref documents /dtd loop-guard show format" `
+    ($v030aRef -match "/dtd loop-guard show.*R1 output format")
+Add-Result "v030a.r1_ref.rehash_command" "v030a R1 ref documents /dtd loop-guard rehash command" `
+    ($v030aRef -match "/dtd loop-guard rehash.*admin command")
+Add-Result "v030a.r1_ref.r1_scenarios" "v030a R1 ref lists scenarios 166-173" `
+    ($v030aRef -match "(?s)R1 acceptance scenarios.*?166.*?173")
+
+# v030a R1 doctor codes
+$v030aR1DoctorCodes = @(
+    "cross_run_retention_prune_unrun",
+    "cross_run_migration_required",
+    "cross_run_concurrent_finalize_detected",
+    "cross_run_show_no_active_signatures_after_hit",
+    "cross_run_rehash_in_progress",
+    "cross_run_signature_collision"
+)
+foreach ($code in $v030aR1DoctorCodes) {
+    Add-Result "v030a.doctor.r1_code.$code" "doctor-checks ref defines R1 $code" `
+        ($doctorRef -match [regex]::Escape($code))
+}
+Add-Result "v030a.doctor.r1_section" "doctor-checks ref has v0.3.0a R1 runtime checks header" `
+    ($doctorRef -match "v0\.3\.0a R1 runtime checks")
+
+# v030a R1 state fields
+$v030aR1StateKeys = @("last_cross_run_rehash_at", "cross_run_rehash_in_progress")
+foreach ($key in $v030aR1StateKeys) {
+    Add-Result "v030a.state.r1_key.$key" "state.md cross-run section has R1 $key" `
+        ($stateMd -match "(?m)^- $([regex]::Escape($key)):")
+}
 
 # ─── build-manifest.ps1 ───────────────────────────────────────────────────────
 
