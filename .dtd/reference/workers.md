@@ -428,6 +428,104 @@ PowerShell:
 
 Both produce a valid OpenAI-compatible request body.
 
+## Worker Health Check (v0.2.1)
+
+`/dtd workers test [<id|alias>] [--quick|--full|--connectivity|
+--all|--assigned|--json]`. Multi-stage diagnostic with redacted
+artifacts logged to `.dtd/log/worker-checks/<ts>.md`.
+
+### Probe levels and stages
+
+| Level | Stages | Use |
+|---|---|---|
+| `--quick` (default) | 1-3 | schema + secret/env + connectivity |
+| `--connectivity` | 3 only | network reachability + TLS handshake |
+| `--full` | 1-17 | quick + protocol probe + tool relay + native sandbox |
+
+17 stages (in order):
+
+1. `worker_registry_parse` — `.dtd/workers.md` parses; entry exists.
+2. `worker_schema_validate` — required fields present, types valid.
+3. `secret_env_check` — `api_key_env` value resolvable from env (no
+   raw value logged).
+4. `endpoint_url_validate` — URL syntax + scheme acceptable.
+5. `network_reachability` — TCP/TLS handshake succeeds.
+6. `tls_certificate_validate` — cert chain + expiry (HTTPS only).
+7. `auth_handshake` — small `models` or no-op probe; expect 2xx
+   (or 401 for AUTH_FAILED clarity).
+8. `model_id_check` — provider lists target model id (or accept
+   silently).
+9. `rate_limit_probe` — non-blocking sniff of `Retry-After`.
+10. `protocol_probe` (--full only) — send canonical 5-token prompt
+    asking for `::done:: ok`. Verify response shape.
+11. `sentinel_match` — verify response contains expected sentinel.
+12. `output_discipline_check` — verify worker uses `===FILE:===`
+    + `::done::` correctly.
+13. `protocol_violation_log` — record any deviation.
+14. `tool_request_relay_probe` (--full only; for
+    `tool_runtime: controller_relay|hybrid`) — verify worker emits
+    `::tool_request::` and does NOT fabricate tool results.
+15. `native_tool_sandbox_check` (for
+    `tool_runtime: worker_native|hybrid`) — verify
+    `native_tool_sandbox: true` claim matches reality (sandbox
+    boundary intact).
+16. `health_cache_write` — append redacted summary to
+    `.dtd/log/worker-checks/<ts>.md`.
+17. `incident_decision` — emit incident row if any stage failed
+    blocking.
+
+### Failure taxonomy (`WORKER_*`)
+
+`WORKER_REGISTRY_PARSE_FAILED`, `WORKER_NOT_FOUND`,
+`WORKER_SCHEMA_INVALID`, `WORKER_ENV_MISSING`,
+`WORKER_ENDPOINT_INVALID`, `WORKER_NETWORK_UNREACHABLE`,
+`WORKER_TLS_FAILED`, `WORKER_AUTH_FAILED`, `WORKER_FORBIDDEN`,
+`WORKER_RATE_LIMITED`, `WORKER_TIMEOUT`, `WORKER_MODEL_NOT_FOUND`,
+`WORKER_PROVIDER_ERROR`, `WORKER_BAD_RESPONSE_JSON`,
+`WORKER_SENTINEL_MISMATCH`, `WORKER_PROTOCOL_VIOLATION`,
+`WORKER_TOOL_RELAY_BAD_FORMAT`, `WORKER_TOOL_RELAY_FABRICATED_RESULT`,
+`WORKER_TOOL_RELAY_REFUSED`, `WORKER_NATIVE_TOOL_SANDBOX_INVALID`,
+`WORKER_NATIVE_TOOL_NOT_SUPPORTED`, `WORKER_NATIVE_TOOL_HOST_LEAK`,
+`WORKER_HEALTH_LOG_WRITE_FAILED`.
+
+### Decision capsule integration
+
+`/dtd run` preflight runs `--quick` on assigned workers (config
+`worker_test_auto_before_run: assigned_only` default). Failure fills:
+
+```yaml
+awaiting_user_decision: true
+awaiting_user_reason: WORKER_HEALTH_FAILED
+decision_options:
+  - {id: edit_worker,  label: "fix worker config",      effect: "open editor / wizard", risk: "user must know what to fix"}
+  - {id: switch_worker, label: "use fallback worker",   effect: "advance fallback chain", risk: "different cost/quality"}
+  - {id: retry_check,   label: "retry health check",     effect: "rerun --quick",         risk: "may fail same way"}
+  - {id: stop,          label: "stop the run",           effect: "finalize_run(STOPPED)", risk: "lose run"}
+decision_default: edit_worker
+```
+
+### Redaction model
+
+Diagnostic log includes:
+- Stage name + timing + outcome (PASS/WARN/FAIL).
+- Failure code (WORKER_*).
+- HTTP status, response shape (no body content for AUTH_FAILED).
+- Redacted summary: endpoint host (no path), model id, request
+  fingerprint (hash of body, not body).
+
+NEVER logged: env values, auth headers, full request body, full
+response body for failed auth/forbidden, any string ≥ 20 chars
+matching key patterns.
+
+### Observational discipline
+
+Health check is observational for run state — does NOT mutate
+`state.md`/`notepad.md`/`attempts/run-NNN.md`. Writes ONLY to
+`.dtd/log/worker-checks/<ts>.md` (gitignored). Network calls are
+external (similar to a worker dispatch but for diagnostic). Doctor
+asserts retention `worker_test_history_retention` (default 20 most
+recent files kept).
+
 ## Anchor
 
 This file IS the canonical source for worker registry schema, routing

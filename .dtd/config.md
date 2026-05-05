@@ -108,6 +108,29 @@
 - pack_size_budget_kb: 8          # WARN reference_oversized above this
 - merge_policy: pack_wins_on_conflict   # pack_wins_on_conflict | core_wins_on_conflict
 
+## worker-test (v0.2.1)
+
+# /dtd workers test settings. See dtd.md §/dtd workers + reference/workers.md
+# §Worker Health Check (v0.2.1).
+
+- worker_test_timeout_sec: 30                    # per-stage probe timeout
+- worker_test_history_retention: 20              # rolling .dtd/log/worker-checks/ count
+- worker_test_auto_before_run: assigned_only     # off | assigned_only | all
+- worker_test_full_requires_confirm: false       # --full sends real prompts; require explicit y?
+- worker_test_tool_relay_probe: full_only        # off | full_only | always (Amendment 1)
+- worker_test_native_sandbox_check: true         # always run for native/hybrid (Amendment 1)
+- worker_test_sandbox_leak_action: refuse_native # refuse_native | warn | allow
+
+## loop-guard (v0.2.1)
+
+# Doom-loop detection via attempt-signature hashing. See dtd.md §/dtd workers
+# (Loop guard subsection) + reference/run-loop.md.
+
+- loop_guard_enabled: true                  # global on/off
+- loop_guard_threshold: 3                   # consecutive same-signature attempts trigger capsule
+- loop_guard_threshold_action: ask          # ask | worker_swap | controller (auto-action when threshold hit)
+- loop_guard_signature_window_min: 30       # signature stales after N min (avoids old replays)
+
 ## snapshot (v0.2.0c)
 
 # Pre-apply file snapshots for safe revert. Mode chosen per file based on

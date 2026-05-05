@@ -1078,6 +1078,244 @@ follow normal confidence rules; no silent run termination via NL.
 
 ---
 
+## v0.2.1 — Runtime Resilience
+
+### 70. /dtd workers test --all --quick returns OK / FAIL / WARN per worker
+
+**Setup**: registry with 3 workers — one healthy, one with bad
+`api_key_env` (env var unset), one with unreachable endpoint.
+
+**Steps**: `/dtd workers test --all --quick`.
+
+**Expected**:
+- Stages 1-3 run for each worker.
+- Healthy worker: PASS.
+- Unset env: FAIL stage 3 with `WORKER_ENV_MISSING`.
+- Unreachable: FAIL stage 5 with `WORKER_NETWORK_UNREACHABLE`.
+- One row per worker in `.dtd/log/worker-checks/<ts>.md` (redacted —
+  no env values, no auth headers).
+- `state.md` NOT mutated (observational read).
+
+**Pass**: per-worker outcomes are independent; redaction enforced.
+
+### 71. /dtd workers test <id> --full runs protocol probe; sentinel match required
+
+**Setup**: a real worker that responds to OpenAI-compatible chat
+completions.
+
+**Steps**: `/dtd workers test deepseek-local --full`.
+
+**Expected**:
+- All 17 stages run.
+- Stage 10 (protocol_probe) sends a small canonical prompt asking
+  for `::done:: ok`.
+- Stage 11 (sentinel_match) verifies response contains
+  `::done::` exactly.
+- Worker that fabricates response (e.g. wraps in markdown):
+  FAIL stage 11 with `WORKER_SENTINEL_MISMATCH`.
+
+**Pass**: full mode enforces protocol contract that workers must
+satisfy for DTD dispatch.
+
+### 72. Preflight check fires WORKER_HEALTH_FAILED capsule on /dtd run
+
+**Setup**: APPROVED plan whose task 2.1 assigns `qwen-local`. That
+worker has bad endpoint URL. `worker_test_auto_before_run:
+assigned_only` (default).
+
+**Steps**: `/dtd run`.
+
+**Expected**:
+- Before dispatching task 2.1, controller runs `--quick` on
+  `qwen-local`.
+- Stage 4 fails with `WORKER_ENDPOINT_INVALID`.
+- Capsule `awaiting_user_reason: WORKER_HEALTH_FAILED` fires;
+  options: `edit_worker | switch_worker | retry_check | stop`,
+  default `edit_worker`.
+- `/dtd run` does NOT dispatch the task until capsule is resolved.
+
+**Pass**: preflight catches setup errors before they become
+dispatch errors.
+
+### 73. Worker session resume: same-worker after timeout
+
+**Setup**: worker `claude-api` with `supports_session_resume: true`.
+Task 3.1 dispatched; first attempt times out (TIMEOUT_BLOCKED).
+
+**Steps**: `/dtd run` resumes from PAUSED.
+
+**Expected**:
+- Controller computes resume strategy: prior failure was TIMEOUT
+  (interruption-class) AND worker supports sessions →
+  `same-worker`.
+- Second attempt: same provider, passes prior `session_id`,
+  appends "continue" prompt.
+- `attempts/run-NNN.md` row: `resume_of: att-1`,
+  `resume_strategy: same-worker`,
+  `worker_session_id: <provider-session-id>`.
+- `state.md.last_resume_strategy: same-worker`.
+
+**Pass**: provider session continuation reused; lost work avoided.
+
+### 74. Worker session resume: protocol violation forces fresh strategy
+
+**Setup**: worker `local-llm` failed prior attempt with
+`MALFORMED_RESPONSE` or `WORKER_PROTOCOL_VIOLATION`.
+
+**Steps**: retry.
+
+**Expected**:
+- Strategy resolution: prior failure was protocol-violation class →
+  `fresh`.
+- Second attempt: brand-new prompt assembly, no
+  `worker_session_id`, full GSD-style reset.
+- `attempts/run-NNN.md` row: `resume_strategy: fresh`.
+
+**Pass**: tainted sessions never reused; protocol violations get
+clean slate.
+
+### 75. Loop guard: 3 consecutive same-signature failures fire LOOP_GUARD_HIT
+
+**Setup**: task 4.1 dispatched 3 times; each fails with the same
+`worker_id + task_id + prompt_hash + failure_hash`.
+
+**Steps**: observe controller after the 3rd consecutive failure.
+
+**Expected**:
+- After failure 1: `loop_guard_signature` set, count=1.
+- After failure 2: count=2.
+- After failure 3: count=3 ≥ threshold → `loop_guard_status: hit`.
+- Capsule `awaiting_user_reason: LOOP_GUARD_HIT` fires; options:
+  `ask_user | worker_swap | controller | stop`, default `ask_user`.
+
+**Pass**: doom loops short-circuit before the failure_threshold
+ladder fires; user gets early signal.
+
+### 76. Loop guard: signature window expiry resets counter
+
+**Setup**: signature set 35 minutes ago (window default 30 min).
+Two failed attempts have hit it. Now a new failed attempt with the
+same signature.
+
+**Steps**: observe.
+
+**Expected**:
+- `loop_guard_signature_window_min: 30` evaluation: prior signature
+  is stale.
+- New failure resets `loop_guard_signature` to current hash; count
+  reset to 1.
+- No LOOP_GUARD_HIT capsule fires.
+
+**Pass**: stale signatures never accumulate across long gaps.
+
+### 77. Loop guard auto-action: worker_swap (when configured)
+
+**Setup**: `loop_guard_threshold_action: worker_swap`. Three
+consecutive same-signature failures.
+
+**Steps**: observe.
+
+**Expected**:
+- At threshold hit, controller does NOT fill user-prompted capsule;
+  instead advances `current_fallback_index` and dispatches the next
+  worker.
+- `state.md.loop_guard_status` returns to `idle`; signature reset.
+- `attempts/run-NNN.md` row notes `auto_action: worker_swap`.
+
+**Pass**: auto-action skips user prompt only when explicitly
+configured; default `ask` always asks.
+
+### 78. /dtd attempts show <id> displays resume strategy lineage
+
+**Setup**: task 5.1 has 3 attempts: att-1 (fresh), att-2 (resumed
+same-worker from att-1), att-3 (resumed new-worker from att-2).
+
+**Steps**: `/dtd attempts show 5.1-att-3`.
+
+**Expected**:
+- Output shows lineage:
+  ```
+  att-3: resumed new-worker from att-2
+  att-2: resumed same-worker from att-1
+  att-1: fresh start
+  ```
+
+**Pass**: resume history is auditable and human-readable.
+
+### 79. Doctor catches loop_guard_orphan when capsule unfilled despite hit
+
+**Setup**: `state.md.loop_guard_status: hit` but
+`awaiting_user_decision: false` (controller crashed mid-capsule
+fill or hand-edited state).
+
+**Steps**: `/dtd doctor`.
+
+**Expected**: WARN `loop_guard_orphan` with hint to clear via
+`/dtd doctor --takeover` or manually reset state.
+
+**Pass**: orphan detection prevents stuck-state mysteries.
+
+### 79b. /dtd workers test --full probes tool-relay (controller_relay)
+
+**Setup**: worker `gpt-4o-relay` with
+`tool_runtime: controller_relay`. Healthy provider.
+
+**Steps**: `/dtd workers test gpt-4o-relay --full`.
+
+**Expected**:
+- Stage 14 (`tool_request_relay_probe`) runs.
+- Probe sends a small DTD-shaped prompt asking worker to emit
+  `::tool_request::` for `read_file pattern: "package.json"`.
+- Worker returns `::tool_request::` as terminal status (does NOT
+  pretend to have run the tool).
+- Tool name + args well-formed.
+- Stage 14 PASS.
+
+**Pass**: relay protocol verified at health-check time, before
+real dispatch.
+
+### 79c. Worker fabricates tool result; flagged WORKER_TOOL_RELAY_FABRICATED_RESULT
+
+**Setup**: worker that ignores relay protocol and instead writes
+fake tool result text.
+
+**Steps**: `/dtd workers test <id> --full`.
+
+**Expected**:
+- Stage 14 detects fabricated result (worker did not return
+  `::tool_request::`; instead returned a "result" string).
+- Stage 14 FAIL with `WORKER_TOOL_RELAY_FABRICATED_RESULT`.
+- This is security-relevant: fill capsule
+  `awaiting_user_reason: WORKER_TOOL_RELAY_FABRICATED` if mid-run;
+  options `[switch_worker, stop]`, default `switch_worker`.
+
+**Pass**: fabrication caught before it can damage state.
+
+### 79d. Worker registry claims native_tool_sandbox: true but probe finds no sandbox
+
+**Setup**: worker `claude-native` with `tool_runtime: worker_native`
+and `native_tool_sandbox: true` in registry. Provider does NOT
+expose tools.
+
+**Steps**: `/dtd workers test claude-native --full`.
+
+**Expected**:
+- Stage 15 (`native_tool_sandbox_check`) runs.
+- Probe asks worker to run a trivial native tool (list current dir).
+- Response has no sandbox markers (no tool_use blocks, no function
+  calls).
+- Stage 15 FAIL with `WORKER_NATIVE_TOOL_NOT_SUPPORTED`.
+- Per `worker_test_sandbox_leak_action: refuse_native` (default),
+  controller refuses to use this worker for native/hybrid tool
+  modes; capsule
+  `awaiting_user_reason: WORKER_NATIVE_TOOL_SANDBOX_INVALID`
+  with options `[switch_to_relay, fix_registry, switch_worker, stop]`.
+
+**Pass**: registry claims about sandbox are runtime-verified; bad
+configs cannot silently use unsafe modes.
+
+---
+
 ## v0.2.0c — Snapshot / Revert
 
 ### 60. Snapshot created at apply for each output file with mode-per-policy

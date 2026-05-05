@@ -26,6 +26,27 @@
 - loaded_profile_set_at: null      # timestamp; debug aid for profile transitions
 - loaded_profile_reason: null      # null | mode_off | no_plan | draft_or_approved | running_or_paused | active_blocker | pending_patch
 
+## Worker session resume (v0.2.1)
+
+# Provider session continuation hint for in-flight retry decisions.
+# See dtd.md §/dtd workers (Worker session resume).
+
+- last_worker_session_id: null         # provider session token, if known
+- last_worker_session_provider: null   # which provider issued the session id
+- last_resume_strategy: null           # null | fresh | same-worker | new-worker | controller-takeover
+- last_resume_at: null
+
+## Loop guard (v0.2.1)
+
+# Doom-loop detection signature. Reset to idle on finalize_run terminal exits.
+# See dtd.md §/dtd workers (Loop guard subsection).
+
+- loop_guard_status: idle              # idle | watching | hit
+- loop_guard_signature: null           # sha256 of recent attempt
+- loop_guard_signature_count: 0        # consecutive matches
+- loop_guard_threshold: 3              # mirrors config.loop_guard_threshold
+- loop_guard_last_check_at: null
+
 ## Snapshot state (v0.2.0c)
 
 # Pre-apply snapshot tracking. See dtd.md §/dtd snapshot.
@@ -189,6 +210,11 @@
                                   # v0.2: LOOP_GUARD | RESOURCE_TAKEOVER | DESTRUCTIVE_ACTION
                                   #     | EXTERNAL_DIRECTORY_ACCESS | INCIDENT_BLOCKED
                                   #     | PERMISSION_REQUIRED | CONTROLLER_TOKEN_EXHAUSTED
+                                  # v0.2.0c: PARTIAL_REVERT
+                                  # v0.2.1: WORKER_HEALTH_FAILED | LOOP_GUARD_HIT
+                                  #       | RESUME_STRATEGY_REQUIRED
+                                  #       | WORKER_TOOL_RELAY_FABRICATED
+                                  #       | WORKER_NATIVE_TOOL_SANDBOX_INVALID
 - decision_id: null               # e.g. "dec-001" — monotonic per run
 - decision_prompt: null           # one-line user-facing question
 - decision_options: []            # list of {id, label, effect, risk}

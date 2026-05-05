@@ -256,6 +256,60 @@ Sections:
 - `.dtd/log/permissions.md` (audit log) exists when any active rule
   exists; ELSE INFO (audit log lazy-created on first decision).
 
+## Worker health + runtime resilience (v0.2.1)
+
+### Worker health check freshness
+
+- `.dtd/log/worker-checks/` directory exists if any `--quick`/`--full`
+  has been run; ELSE INFO `worker_check_history_missing` (acceptable
+  for fresh installs).
+- Worker check history retention ≤
+  `config.worker-test.worker_test_history_retention` (default 20);
+  ELSE INFO `worker_check_history_overflow` recommending purge.
+- Each worker-check log has redacted artifacts only — no env values,
+  no auth headers, no full request/response body for failed auth;
+  ELSE ERROR `worker_check_secret_leak`.
+- If `config.worker-test.worker_test_auto_before_run: assigned_only`:
+  every `/dtd run` start should produce a worker-check log entry
+  for assigned workers; if no entry within the last 24 h: INFO
+  `worker_check_preflight_overdue`.
+- Worker registry entries with `tool_runtime: worker_native|hybrid`
+  AND `native_tool_sandbox: true` should have a recent
+  `native_tool_sandbox_check` PASS in `.dtd/log/worker-checks/`;
+  ELSE WARN `worker_native_sandbox_unverified`.
+
+### Worker session resume
+
+- `state.md.last_resume_strategy` (when non-null) MUST be one of
+  `fresh | same-worker | new-worker | controller-takeover`; ELSE
+  ERROR `resume_strategy_invalid`.
+- If `state.md.last_worker_session_id` non-null:
+  `last_worker_session_provider` MUST also be non-null; ELSE WARN
+  `resume_session_orphan`.
+- Worker registry entries with `supports_session_resume: true` MUST
+  declare a known provider family; ELSE INFO
+  `resume_provider_unknown` (default `fresh` strategy will apply).
+
+### Loop guard
+
+- `state.md.loop_guard_status` is one of `idle|watching|hit`; ELSE
+  ERROR `loop_guard_status_invalid`.
+- If `loop_guard_status: hit`: `awaiting_user_decision: true` AND
+  `awaiting_user_reason: LOOP_GUARD_HIT` MUST be set; ELSE WARN
+  `loop_guard_orphan` (controller did not fill capsule; resume
+  hint: `/dtd doctor --takeover` or manual reset).
+- `state.md.loop_guard_signature_count` ≤
+  `config.loop-guard.loop_guard_threshold` while
+  `loop_guard_status: watching`; ELSE WARN
+  `loop_guard_count_overflow`.
+- `state.md.loop_guard_last_check_at` not older than
+  `config.loop-guard.loop_guard_signature_window_min`; staler
+  signatures should have been reset; ELSE INFO
+  `loop_guard_signature_stale`.
+- `loop_guard_signature_count` matches actual consecutive same-signature
+  attempts in `attempts/run-NNN.md`; ELSE WARN
+  `loop_guard_count_drift`.
+
 ## Snapshot state (v0.2.0c)
 
 - `.dtd/snapshots/` directory exists if

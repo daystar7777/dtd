@@ -438,12 +438,91 @@ Worker registry management. Backed by `.dtd/workers.md`.
   Only on `yes` does controller append to `workers.md`. The wizard does NOT write `.dtd/.env` in v0.1.1 (chat-host hosts) — user sets the value out-of-band per step 5.
 
   **Wizard isolation**: wizard turns are setup-context, not run-context. Don't mutate notepad/steering/attempts/phase-history. Don't include wizard Q/A in future worker prompts.
-- `test <id>`: send a no-op probe (echo prompt) to that worker, report latency + auth status
+- `test [<id|alias>] [--all|--quick|--full|--connectivity|--assigned|--json]` (v0.2.1):
+  multi-stage health probe per `.dtd/reference/workers.md` §"Worker
+  Health Check" (full canonical spec for the 17-stage diagnostic).
+  Compact summary:
+  - `--quick` (default): stages 1-3 (schema → secret/env → connectivity).
+  - `--full`: all 17 stages, including stage 4 protocol probe + stages
+    14-15 tool-relay + native-sandbox checks (when worker has
+    `tool_runtime: controller_relay | worker_native | hybrid`).
+  - `--connectivity`: just stage 3 (network reachability + TLS).
+  - `--all`: every registered worker.
+  - `--assigned`: every worker assigned to the active plan.
+  - `--json`: machine-readable summary.
+  Failure taxonomy: `WORKER_REGISTRY_PARSE_FAILED`, `WORKER_NOT_FOUND`,
+  `WORKER_SCHEMA_INVALID`, `WORKER_ENV_MISSING`,
+  `WORKER_ENDPOINT_INVALID`, `WORKER_NETWORK_UNREACHABLE`,
+  `WORKER_TLS_FAILED`, `WORKER_AUTH_FAILED`, `WORKER_FORBIDDEN`,
+  `WORKER_RATE_LIMITED`, `WORKER_TIMEOUT`, `WORKER_MODEL_NOT_FOUND`,
+  `WORKER_PROVIDER_ERROR`, `WORKER_BAD_RESPONSE_JSON`,
+  `WORKER_SENTINEL_MISMATCH`, `WORKER_PROTOCOL_VIOLATION`,
+  `WORKER_TOOL_RELAY_BAD_FORMAT`, `WORKER_TOOL_RELAY_FABRICATED_RESULT`,
+  `WORKER_TOOL_RELAY_REFUSED`, `WORKER_NATIVE_TOOL_SANDBOX_INVALID`,
+  `WORKER_NATIVE_TOOL_NOT_SUPPORTED`, `WORKER_NATIVE_TOOL_HOST_LEAK`,
+  `WORKER_HEALTH_LOG_WRITE_FAILED`. Diagnostic log written to
+  `.dtd/log/worker-checks/<ts>.md` (gitignored; redacted artifacts
+  only — no raw env values, no auth headers).
+  Decision capsule reason `WORKER_HEALTH_FAILED` fires when `/dtd run`
+  preflight detects an assigned worker is unhealthy.
 - `rm <id>`: remove (warn if any plan references this worker; offer to remap)
 - `alias add <id> <alias>` / `alias rm <id> <alias>`: manage aliases
 - `role set <role> <id>` / `role unset <role>`: manage role mapping in `config.md`
 
 NL equivalents: see `instructions.md`.
+
+#### Worker session resume (v0.2.1)
+
+When a dispatch is interrupted (timeout / 5xx / stream cut / lease
+takeover), controller picks a `resume_strategy` for the next attempt:
+
+| Strategy | When | Effect |
+|---|---|---|
+| `fresh` | Default; provider has no session, OR prior failed with AUTH/MALFORMED/PROTOCOL_VIOLATION | Brand-new prompt assembly + fresh worker context |
+| `same-worker` | `worker.supports_session_resume: true` AND prior was TIMEOUT / NETWORK / RATE_LIMIT / 5xx | Same provider, pass `session_id`, append "continue" prompt |
+| `new-worker` | After 2 consecutive `same-worker` resume failures | Tier-escalate per fallback chain; fresh context |
+| `controller-takeover` | All workers in chain exhausted OR explicit user request | Controller acts; REVIEW_REQUIRED gate |
+
+State additions (state.md `## Active Run Capsule`):
+`last_worker_session_id`, `last_worker_session_provider`,
+`last_resume_strategy`, `last_resume_at`. Per-attempt
+`worker_session_id`, `resume_of`, `resume_strategy` rows in
+`.dtd/attempts/run-NNN.md`.
+
+Worker registry gains optional `supports_session_resume: true|false`
+(default false). `RESUME_STRATEGY_REQUIRED` capsule fires when
+controller cannot pick automatically.
+
+#### Loop guard / doom-loop detection (v0.2.1)
+
+After each failed attempt:
+
+```
+loop_signature = sha256(worker_id + task_id + prompt_hash + failure_hash)
+```
+
+Algorithm:
+1. Compute `loop_signature` for the just-failed attempt.
+2. If equal to `state.md.loop_guard_signature`: increment
+   `loop_guard_signature_count`.
+3. Else: set new signature; reset count to 1.
+4. When count ≥ `loop_guard_threshold` (default 3): set
+   `loop_guard_status: hit`; fill capsule
+   `awaiting_user_reason: LOOP_GUARD_HIT` with options
+   `[ask_user, worker_swap, controller, stop]`
+   (default `ask_user`).
+5. After resolve: reset signature/count/status.
+
+Signature stales after `loop_guard_signature_window_min` (default
+30 min) — old patterns don't confuse new failures.
+
+Loop guard scope is per-run; `finalize_run` resets to idle. Cross-run
+loop detection deferred.
+
+> Full canonical reference for worker health check (17-stage diagnostic
+> with redacted evidence model): see `.dtd/reference/workers.md`
+> §"Worker Health Check (v0.2.1)".
+> Lazy-load via `/dtd help workers --full`.
 
 ### `/dtd plan <goal>`
 
