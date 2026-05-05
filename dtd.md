@@ -318,7 +318,7 @@ amendment: connectivity ≠ conflict).
 > migration): see `.dtd/reference/v030d-cross-machine-session-sync.md`.
 > Lazy-load via `/dtd help v030d-cross-machine-session-sync --full`.
 
-### `/dtd loop-guard [show|prune]` (v0.3.0a)
+### `/dtd loop-guard [show|prune|rehash]` (v0.3.0a)
 
 Cross-run loop guard ledger management. Within-run loop guard
 remains in `/dtd workers` (v0.2.1).
@@ -329,6 +329,7 @@ Forms:
 /dtd loop-guard show [--all|--recent|--full]   # observational
 /dtd loop-guard prune <signature>               # mutating; tombstone
 /dtd loop-guard prune --before <date>           # bulk tombstone
+/dtd loop-guard rehash [--dry-run]              # admin; recompute signatures after project identity stabilizes
 ```
 
 Cross-run signature is STABLE across runs (per Codex P1.1
@@ -2333,7 +2334,8 @@ required (test project + 3 worker slots + optional sync target).
 
 > Full canonical reference: see `.dtd/reference/roadmap.md`
 > (per-sub-release scope, v0.1.1 features, v0.2 detailed feature notes,
-> orthogonal earlier roadmap items, AIMemory archive index).
+> v0.3 line status, R2 live-test plan, orthogonal earlier roadmap items,
+> AIMemory archive index).
 > Lazy-load via `/dtd help roadmap --full`.
 
 ---

@@ -159,6 +159,10 @@ Add-Result "v023.roadmap.no_stale_notepad_v1" "roadmap no longer says notepad v2
     (-not ($roadmapRefText -match '7-heading `<handoff>`'))
 Add-Result "v023.roadmap.no_stale_snapshot_vcs_default" "roadmap no longer says metadata-only defaults for version control" `
     (-not ($roadmapRefText -match 'default\s+for\s+files\s+within\s+version\s+control'))
+Add-Result "v023.roadmap.anchor_current_v03" "roadmap anchor includes v0.3 and R2 status" `
+    (($roadmapRefText -match 'v0\.1\.1 / v0\.2 / v0\.3') -and
+     ($roadmapRefText -match 'R2 live-test status') -and
+     ($roadmapRefText -match 'v030-r2-live-test-plan'))
 
 $r2LivePlanText = Read-Text ".dtd/reference/v030-r2-live-test-plan.md"
 Add-Result "v023.r2_live_plan.rehash_scenario" "R2 live plan covers loop-guard rehash admin path" `

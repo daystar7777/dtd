@@ -198,6 +198,7 @@ After v0.2.1 within-run signature computation, ALSO:
 /dtd loop-guard prune <signature>           # adds tombstone row; doesn't physically remove
 /dtd loop-guard prune --before <date>        # bulk tombstone old rows
 /dtd loop-guard show [--all|--recent|--full] # observational (Codex P1 additional: compact default)
+/dtd loop-guard rehash [--dry-run]           # admin migration after repo identity stabilizes
 ```
 
 Per Codex P1 additional amendment: `prune_signature` action in
@@ -260,10 +261,12 @@ The within-run loop guard fields (v0.2.1 R1) remain unchanged.
 /dtd loop-guard show [--all|--recent|--full]   # observational; show cross-run ledger (compact default; --full for prior resolutions)
 /dtd loop-guard prune <signature>               # mutating; tombstone a signature
 /dtd loop-guard prune --before <date>           # mutating; bulk tombstone old entries
+/dtd loop-guard rehash [--dry-run]              # admin migration; --dry-run is observational
 ```
 
-`show` is observational read; `prune` is mutating but
-non-destructive (tombstones, not deletions).
+`show` is observational read. `rehash --dry-run` is also
+observational. `prune` and non-dry-run `rehash` are mutating but
+non-destructive (tombstones/appends, not deletions).
 
 NL routing (English):
 
@@ -272,6 +275,7 @@ NL routing (English):
 | "show loop history", "loop guard ledger" | `/dtd loop-guard show` |
 | "prune that loop signature" | `/dtd loop-guard prune <signature>` |
 | "purge old loop signatures" | `/dtd loop-guard prune --before <date>` |
+| "rehash loop guard" | `/dtd loop-guard rehash` |
 
 Korean / Japanese NL routing in respective locale packs (R1+).
 

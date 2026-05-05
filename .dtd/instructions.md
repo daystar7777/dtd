@@ -149,6 +149,7 @@ classification, confidence, and any assumptions in your turn output (briefly).
 | `history` | `/dtd status --history` or `phase-history.md` read | informational |
 | `incident` | `/dtd incident [list\|show\|resolve]` (v0.2.0a) | list/show are observational reads; resolve is a mutating decision action — see below |
 | `locale` | `/dtd locale [enable\|disable\|list\|show]` (v0.2.0e) | list/show are observational; enable/disable mutate locale state |
+| `loop_guard` | `/dtd loop-guard [show\|prune\|rehash]` (v0.3.0a) | show and rehash --dry-run are observational; prune/rehash mutate the cross-run ledger |
 | `update` | `/dtd update [check\|--dry-run\|<version>\|--rollback]` (v0.2.0d) | check/--dry-run are observational; apply/rollback ALWAYS confirms (mutating) |
 | `help` | `/dtd help [topic]` (v0.2.0d) | observational; reads `.dtd/help/<topic>.md`; never mutates state |
 | `explain` | answer in chat using `dtd.md` / `instructions.md` | meta — explain DTD itself |
@@ -208,6 +209,8 @@ English canonical examples:
 | "silent for 4h" | `/dtd run --silent=4h` or `/dtd silent on --for 4h` | APPROVED / PAUSED / RUNNING |
 | "interactive mode" | `/dtd interactive` | any |
 | "token usage" | `/dtd perf --tokens` | any |
+| "loop history" | `/dtd loop-guard show` | any |
+| "rehash loop guard" | `/dtd loop-guard rehash` | PAUSED / no active run preferred; confirm before mutating |
 | "use explore pattern" | set `context-pattern="explore"` | DRAFT = edit plan; else steer patch |
 
 Silent mode defers blockers and continues independent ready work. It never
@@ -532,6 +535,8 @@ Classify these as `observational_read`:
 - `/dtd incident show <id>` (v0.2.0a)
 - `/dtd locale list` (v0.2.0e)
 - `/dtd locale show` (v0.2.0e)
+- `/dtd loop-guard show` (v0.3.0a) — any flag
+- `/dtd loop-guard rehash --dry-run` (v0.3.0a)
 - `/dtd perf` (v0.2.0f) — any flag
 - `/dtd silent` (v0.2.0f) — bare form (no args) shows current attention mode
 - `/dtd mode decision` (v0.2.0f) — bare form (no args) shows current decision mode

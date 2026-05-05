@@ -3353,12 +3353,12 @@ file.
 **Expected**:
 - Commit on `dtd-session-sync` branch contains
   `.dtd/session-sync.md` (metadata) + `.dtd/session-sync.encrypted`
-  (binary blob).
+  (encrypted base64url row file).
 - Commit uses an isolated sync branch/worktree and force-adds
   ignored sync ledgers only there; project working branch has no
   staged `.dtd/session-sync.*` files.
 - `git log -p dtd-session-sync` for the committed file shows NO
-  raw `session_id` strings — only hashes and encrypted blob.
+  raw `session_id` strings — only hashes and encrypted base64url rows.
 - Push to `origin` happens; failure logged as
   `session_sync_unreachable` WARN, not ERROR.
 

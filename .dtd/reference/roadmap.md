@@ -212,7 +212,7 @@ placeholders); v0.2 implements the full systems.
 - **Distributed lock guarantees** across DTD instances for `global:`
   namespace.
 
-## Implementation order (per dependency graph)
+## Historical v0.2 implementation order (per dependency graph)
 
 1. v0.2.0a — TAGGED ✓
 2. v0.2.0d — Self-Update (migration runway for v0.2.0e+)
@@ -226,14 +226,16 @@ placeholders); v0.2 implements the full systems.
 
 ## Anchor
 
-This file IS the canonical source for v0.1.1 / v0.2 sub-release tree,
-detailed feature notes, dependency order, and AIMemory archive
-references.
-v0.2.3 R1 extraction completed; `dtd.md` §v0.1.1 / v0.2 Roadmap now
-points here.
+This file IS the canonical source for the v0.1.1 / v0.2 / v0.3
+roadmap summary, detailed feature notes, historical dependency order,
+R2 live-test status, and AIMemory archive references.
+v0.2.3 R1 extraction completed; `dtd.md`
+§v0.1.1 / v0.2 / v0.3 Roadmap now points here.
 
 ## Related topics
 
 - `self-update.md` — v0.2.0d migration runway.
 - `autonomy.md` — v0.2.0f sleep-friendly autonomy.
+- `v030a-cross-run-loop-guard.md` — v0.3.0a cross-run guard.
+- `v030-r2-live-test-plan.md` — v0.3 R2 user-driven live test.
 - `index.md` (this dir) — v0.2.3 scaffold structure.

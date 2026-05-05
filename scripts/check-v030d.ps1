@@ -208,6 +208,9 @@ foreach ($n in 142..149) {
     Add-Result "v030d.scenarios.$n" "test-scenarios.md has scenario $n" `
         ($scenariosMd -match "### $n\.")
 }
+Add-Result "v030d.scenarios.encrypted_base64url_rows" "test-scenarios describes session-sync.encrypted as base64url rows, not binary blob" `
+    (($scenariosMd -match 'encrypted base64url row') -and
+     (-not ($scenariosMd -match 'binary blob')))
 Add-Result "v030d.scenarios.r1_section_header" "test-scenarios.md has v0.3.0d R1 section header" `
     ($scenariosMd -match "## v0\.3\.0d R1 .* Cross-machine session sync runtime")
 foreach ($n in 182..189) {

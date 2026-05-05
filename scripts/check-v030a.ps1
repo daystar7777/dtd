@@ -82,19 +82,35 @@ Add-Result "v030a.index.expansion_note" "index.md mentions v0.3.0a expansion (13
 # ─── dtd.md ──────────────────────────────────────────────────────────────────
 
 $dtdMd = Read-Text "dtd.md"
+$instructionsMd = Read-Text ".dtd/instructions.md"
+$loopGuardIntentLine = @($instructionsMd -split "`r?`n" |
+    Where-Object { $_ -match '^\| `loop_guard` \|' } |
+    Select-Object -First 1)
 
 Add-Result "v030a.dtdmd.command_body" "dtd.md has /dtd loop-guard command body" `
-    ($dtdMd -match '### `/dtd loop-guard \[show\|prune\]`')
+    ($dtdMd -match '### `/dtd loop-guard \[show\|prune\|rehash\]`')
 Add-Result "v030a.dtdmd.show_form" "dtd.md documents loop-guard show form" `
     ($dtdMd -match "/dtd loop-guard show")
 Add-Result "v030a.dtdmd.prune_form" "dtd.md documents loop-guard prune form" `
     ($dtdMd -match "/dtd loop-guard prune")
+Add-Result "v030a.dtdmd.rehash_form" "dtd.md documents loop-guard rehash form" `
+    ($dtdMd -match "/dtd loop-guard rehash")
 Add-Result "v030a.dtdmd.stable_p11_pointer" "dtd.md mentions Codex P1.1 stable signature amendment" `
     ($dtdMd -match "P1\.1")
 Add-Result "v030a.dtdmd.capture_before_clear" "dtd.md mentions capture-before-clear" `
     ($dtdMd -match "[Cc]apture-before-clear|capture.*BEFORE")
 Add-Result "v030a.dtdmd.doctor_lists_v030a" "dtd.md doctor lists Cross-run loop guard (v0.3.0a)" `
     ($dtdMd -match "Cross-run loop guard \(v0\.3\.0a\)")
+Add-Result "v030a.instructions.loop_guard_intent" "instructions route loop_guard intent" `
+    (($loopGuardIntentLine.Count -gt 0) -and
+     ($loopGuardIntentLine[0] -match '/dtd loop-guard') -and
+     ($loopGuardIntentLine[0] -match 'show') -and
+     ($loopGuardIntentLine[0] -match 'prune') -and
+     ($loopGuardIntentLine[0] -match 'rehash') -and
+     ($loopGuardIntentLine[0] -match 'rehash --dry-run'))
+Add-Result "v030a.instructions.loop_guard_observational" "instructions keep loop-guard reads isolated" `
+    (($instructionsMd -match '/dtd loop-guard show') -and
+     ($instructionsMd -match '/dtd loop-guard rehash --dry-run'))
 
 # ─── state.md ─────────────────────────────────────────────────────────────────
 
