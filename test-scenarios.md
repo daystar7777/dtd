@@ -2949,6 +2949,167 @@ journey content is `examples/user-journeys.md` (tracked in repo).
 
 ---
 
+## v0.3.0c — Multi-worker consensus dispatch
+
+### 134. Plan with consensus="3" dispatches to 3 workers in parallel into staged dirs
+
+**Setup**: APPROVED plan with task 3.1 attribute
+`consensus="3" consensus-strategy="reviewer_consensus"
+consensus-reviewer="codex-review"` and
+`<consensus-workers>deepseek-local, qwen-remote, claude-api</consensus-workers>`.
+`task_consensus` permission rule = `allow scope: *`.
+
+**Steps**: `/dtd run --until task:3.1`.
+
+**Expected** (Codex P1.4 — staged outputs only):
+- Step 5.5.5: consensus check; permission gate passes.
+- Step 6.consensus.b: single output-path lock acquired for the
+  consensus group (NOT per-worker).
+- Step 6.consensus.c: 3 dispatches in parallel; each writes to
+  its own staging dir
+  `.dtd/tmp/consensus-001-3.1-att-1-<worker>.staged/`.
+- NO worker writes directly to project files.
+- Other tasks blocked from same paths until consensus completes.
+
+**Pass**: staged isolation enforced; group lock semantics
+prevent racing.
+
+### 135. first_passing strategy: first ::done:: wins; late results never apply
+
+**Setup**: consensus task with `consensus-strategy="first_passing"`.
+3 workers dispatch. Worker A returns `::done::` at T=15s.
+Workers B + C still in flight at T=15s.
+
+**Steps**: observe controller after Worker A's response.
+
+**Expected**:
+- A's output validated, snapshot created (v0.2.0c step 6.g.0
+  ONCE on winner), applied.
+- Controller attempts provider-side cancel for B + C (HTTP cancel,
+  stream close per provider).
+- If B / C return late: marked `consensus_late_stale: true`,
+  `applied: false` (Codex P1.4: late results NEVER apply).
+- `attempts/run-NNN.md` shows: A `consensus_winner: true,
+  applied: true`; B/C `consensus_late_stale: true,
+  applied: false`.
+
+**Pass**: late-result-never-apply invariant holds; Codex P1.4.
+
+### 136. reviewer_consensus: reviewer must be distinct from candidates
+
+**Setup**: plan task with
+`consensus-strategy="reviewer_consensus"
+consensus-reviewer="claude-api"` AND
+`<consensus-workers>` includes `claude-api`.
+
+**Steps**: `/dtd doctor` (plan-XML validation).
+
+**Expected**:
+- ERROR `plan_consensus_reviewer_in_candidate_set` (no
+  self-review per Codex P1 additional).
+- Plan rejected at plan-XML doctor check, not at dispatch.
+
+**Pass**: reviewer-candidate distinction enforced at plan
+validation.
+
+### 137. vote_unanimous: 3 agreeing outputs apply; 1 disagreement fires CONSENSUS_DISAGREEMENT
+
+**Setup**: consensus task with `consensus-strategy="vote_unanimous"`.
+
+**Sub-A**: 3 workers all produce identical file content
+(after whitespace normalization).
+**Sub-B**: 3 workers produce 2 distinct file contents.
+
+**Steps**: observe each.
+
+**Expected**:
+- Sub-A: all match; controller applies (single snapshot +
+  apply per Codex P1.4).
+- Sub-B: capsule
+  `awaiting_user_reason: CONSENSUS_DISAGREEMENT` fires with 4
+  options `[reviewer_pick, controller_pick, retry_all, stop]`,
+  default `reviewer_pick`.
+- All 3 attempt outputs preserved in staging dirs until user
+  resolves capsule.
+
+**Pass**: vote_unanimous applies on full match; disagreement
+surfaces capsule.
+
+### 138. CONSENSUS_PARTIAL_FAILURE: 2 of 3 succeed; user picks accept_majority
+
+**Setup**: consensus N=3. Worker C times out
+(WORKER_TIMEOUT). Workers A + B return `::done::`.
+
+**Steps**: observe controller.
+
+**Expected**:
+- Capsule `awaiting_user_reason: CONSENSUS_PARTIAL_FAILURE`
+  fires with 3 options `[accept_majority, retry_failed, stop]`,
+  default `accept_majority`.
+- User picks `accept_majority`: controller applies selection
+  strategy on the 2 successful candidates (A + B).
+- Failed C is logged; not retried.
+
+**Pass**: partial-failure handling explicit; user picks
+recovery path.
+
+### 139. Cost confirm in assisted host mode shows N× per-worker estimate
+
+**Setup**: `host.mode: assisted` AND
+`config.consensus.consensus_confirm_each_call: true`.
+Consensus N=3 task with estimated 5000 tokens per worker.
+
+**Steps**: `/dtd run` reaches step 5.5.5.
+
+**Expected**:
+- Confirm prompt: "About to dispatch consensus task 3.1 to
+  3 workers (~15000 tokens total, 3× single-worker cost).
+  Proceed? (y/n)".
+- User can decline; consensus aborts; no dispatch.
+
+**Pass**: cost transparency surfaces N× multiplier; user
+gates explicitly in assisted mode.
+
+### 140. Permission `task_consensus deny` blocks consensus dispatch
+
+**Setup**: user previously ran
+`/dtd permission deny task_consensus scope: *`.
+Plan has consensus task 3.1.
+
+**Steps**: `/dtd run`.
+
+**Expected**:
+- Step 5.5.5 resolves `task_consensus` key → `deny`.
+- Audit row: `auto-deny task_consensus`.
+- Consensus dispatch aborted.
+- Controller does NOT silently fall back to single-worker; user
+  must edit plan to remove consensus or grant permission.
+
+**Pass**: ledger gates consensus opt-in cleanly; no silent
+fallback to single-worker.
+
+### 141. Group lock prevents racing on same output paths
+
+**Setup**: 2 plan tasks BOTH writing to `src/api/users.ts`.
+- Task 3.1: `consensus="3"`.
+- Task 3.2: regular single-worker.
+
+Both tasks become ready at the same time.
+
+**Steps**: `/dtd run`.
+
+**Expected**:
+- Task 3.1 acquires consensus group lock for `src/api/users.ts`.
+- Task 3.2 BLOCKED on the lock; waits.
+- Other tasks NOT writing to that path proceed normally.
+- After 3.1 completes (winner applied + lock released): 3.2
+  proceeds.
+
+**Pass**: group lock semantics consistent with v0.1 §Resource
+Locks; consensus group treated as one lock-holder, not N.
+
+---
+
 ## v0.3.0a — Cross-run loop guard
 
 ### 126. Stable cross-run signature differs from within-run signature

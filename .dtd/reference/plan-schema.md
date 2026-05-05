@@ -67,6 +67,44 @@ On `<phase>` or `<task>`:
   `config.md reasoning_utilities`)
 - `tool-runtime="none|controller_relay|worker_native|hybrid"`
 
+## v0.3.0c optional attributes (multi-worker consensus)
+
+On `<task>` (typically; can also annotate `<phase>` for
+phase-wide consensus):
+
+- `consensus="<N>"`: number of workers to dispatch in parallel
+  for this task. Default `1` (no consensus). Hard cap per
+  `config.consensus.max_consensus_n` (default 5).
+- `consensus-strategy="<id>"`: selection strategy. One of
+  `first_passing | quality_rubric | reviewer_consensus |
+  vote_unanimous`. Required when `consensus > 1`.
+- `consensus-reviewer="<worker_id>"`: only required when
+  strategy is `reviewer_consensus`. MUST be distinct from all
+  candidate workers (no self-review).
+
+New child element on `<task>` when `consensus > 1`:
+
+- `<consensus-workers>worker_a, worker_b, worker_c</consensus-workers>`:
+  comma-list of worker_ids. If fewer than N supplied, fallback
+  chain fills the rest.
+
+Example:
+
+```xml
+<task id="3.1" consensus="3"
+      consensus-strategy="reviewer_consensus"
+      consensus-reviewer="codex-review">
+  <goal>review src/auth/jwt.ts for OWASP issues</goal>
+  <consensus-workers>deepseek-local, qwen-remote, claude-api</consensus-workers>
+  <work-paths>src/auth/**</work-paths>
+  <output-paths predicted="true">docs/security-review-3.1.md</output-paths>
+</task>
+```
+
+See `.dtd/reference/v030c-consensus.md` for full algorithm,
+group-lock semantics, late-result cancellation, and decision
+capsules.
+
 ## Plan size budget & spill
 
 - **Preferred**: `plan-NNN.md` ≤ 12 KB

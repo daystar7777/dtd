@@ -95,6 +95,23 @@
 - profile_transition_log_path: .dtd/log/profile-transitions.md
 - aggressive_unload: false                # if true, hosts that support unload may evict non-profile sections (advanced)
 
+## consensus (v0.3.0c)
+
+# Multi-worker consensus dispatch. Per-task opt-in via plan XML
+# `consensus="N"` attribute. See .dtd/reference/v030c-consensus.md.
+
+- default_strategy: reviewer_consensus    # first_passing | quality_rubric | reviewer_consensus | vote_unanimous
+- consensus_confirm_each_call: true       # always confirm N× cost in assisted host mode
+- max_consensus_n: 5                      # hard cap per task; doctor ERRORs above
+- consensus_lock_acquire_timeout_sec: 30  # how long to wait for output-path lock
+- whitespace_normalization_for_vote: true # for vote_unanimous strategy
+- late_result_action: discard             # discard | log_and_discard
+- rubric:                                 # for quality_rubric strategy
+    - {key: output_paths_match, weight: 0.4}
+    - {key: sentinel_match,     weight: 0.3}
+    - {key: line_count_match,   weight: 0.2}
+    - {key: no_protocol_violation, weight: 0.1}
+
 ## cross-run loop guard (v0.3.0a)
 
 # Persist loop guard signatures across runs to detect long-term

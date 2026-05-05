@@ -59,6 +59,18 @@
 - last_cross_run_check_at: null        # ts of last ledger read
 - last_cross_run_finalize_at: null     # ts of last finalize_run capture-before-clear
 
+## Consensus state (v0.3.0c)
+
+# Multi-worker consensus dispatch tracking. Cleared at task
+# completion or finalize_run. See
+# .dtd/reference/v030c-consensus.md.
+
+- active_consensus_task: null              # null | <task_id>; non-null during 6.consensus
+- active_consensus_n: 0                    # how many workers dispatched
+- active_consensus_strategy: null          # null | first_passing | quality_rubric | reviewer_consensus | vote_unanimous
+- active_consensus_group_lock: null        # null | <output-path-set hash>; held during dispatch
+- consensus_outcomes: []                   # per-attempt rows: {worker, status, score, winner, late_stale}
+
 ## Project identity (v0.3.0a)
 
 # Stable project identifier for cross-run / cross-machine signature
@@ -274,6 +286,7 @@
                                   #       | WORKER_TOOL_RELAY_FABRICATED
                                   #       | WORKER_NATIVE_TOOL_SANDBOX_INVALID
                                   # v0.3.0b: WORKER_QUOTA_EXHAUSTED_PREDICTED
+                                  # v0.3.0c: CONSENSUS_DISAGREEMENT | CONSENSUS_PARTIAL_FAILURE
 - decision_id: null               # e.g. "dec-001" — monotonic per run
 - decision_prompt: null           # one-line user-facing question
 - decision_options: []            # list of {id, label, effect, risk}

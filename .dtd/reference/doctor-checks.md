@@ -231,8 +231,9 @@ Sections:
   ELSE ERROR `permission_rule_invalid` with line ref.
 - Permission keys MUST be one of
   `edit | bash | external_directory | task | snapshot | revert |
-  tool_relay_read | tool_relay_mutating | todowrite | question`; ELSE
-  ERROR `permission_key_unknown`.
+  tool_relay_read | tool_relay_mutating | todowrite | question |
+  task_consensus` (11-key set as of v0.3.0c; was 10-key in
+  v0.2.0b R1); ELSE ERROR `permission_key_unknown`.
 - Decisions MUST be one of `allow | deny | ask`; ELSE ERROR
   `permission_decision_invalid`.
 - No active rule allows `bash` with overly-broad scope (`*`, `/**`,
@@ -282,6 +283,41 @@ Sections:
   `until` timestamp: INFO
   `silent_window_transient_expired_unrevoked` (rule effectively
   inactive but tombstone not added; cosmetic).
+
+### v0.3.0c Consensus state checks
+
+- Plan XML `consensus="<N>"` attributes: N >= 1; ELSE ERROR
+  `plan_consensus_invalid`.
+- Plan XML `consensus="<N>"` AND N > `config.max_consensus_n`
+  (default 5): ERROR `plan_consensus_exceeds_max`.
+- `consensus-strategy` ∈
+  `first_passing | quality_rubric | reviewer_consensus |
+  vote_unanimous`; ELSE ERROR `plan_consensus_strategy_invalid`.
+- `consensus-strategy="reviewer_consensus"` requires
+  `consensus-reviewer="<worker>"`; ELSE ERROR
+  `plan_consensus_reviewer_missing`.
+- `consensus-reviewer` MUST be DISTINCT from all
+  `<consensus-workers>` entries (no self-review per Codex P1
+  additional); ELSE ERROR
+  `plan_consensus_reviewer_in_candidate_set`.
+- `<consensus-workers>` entries must exist in registry; ELSE
+  ERROR `plan_consensus_unknown_worker`.
+- `state.md.active_consensus_task` non-null AND no
+  `attempts/run-NNN.md` rows match the active consensus group:
+  WARN `consensus_state_drift`.
+- Consensus loser attempt rows have `applied: true`: ERROR
+  `consensus_loser_applied_violation` (Codex P1.4: only
+  winner may apply; losers MUST NOT).
+- Late-stale attempt rows have `applied: true`: ERROR
+  `consensus_late_stale_applied_violation` (Codex P1.4: late
+  results MUST NEVER apply).
+- 11-key permission set: `task_consensus` present in
+  `.dtd/permissions.md` `## Default rules`; ELSE ERROR
+  `permission_task_consensus_missing` (v0.3.0c invariant).
+- Consensus group lock held during 6.consensus dispatch (single
+  lock for N workers; not per-worker); ELSE WARN
+  `consensus_per_worker_lock_violation` (acquired wrong lock
+  shape).
 
 ### v0.3.0a Cross-run loop guard checks
 

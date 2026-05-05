@@ -61,6 +61,9 @@ if ($permissionsExists) {
     Add-Result "v020b.permissions.resolution_section" "permissions.md has ## Resolution algorithm" `
         ($permText -match "## Resolution algorithm")
 
+    # v0.2.0b 10-key set + v0.3.0c task_consensus = 11 keys total.
+    # check-v020b validates the v0.2.0b base set (10 keys) is present;
+    # check-v030c validates the 11th key (task_consensus) is present.
     $permKeys = @("edit", "bash", "external_directory", "task",
                   "snapshot", "revert", "tool_relay_read",
                   "tool_relay_mutating", "todowrite", "question")

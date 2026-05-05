@@ -28,6 +28,7 @@ latest timestamp for ties.)
 - ask   | revert             | scope: *
 - ask   | tool_relay_read    | scope: *
 - ask   | tool_relay_mutating | scope: *
+- ask   | task_consensus     | scope: *           # v0.3.0c (NEW; cost-multiplier dispatch)
 - allow | todowrite          | scope: *           # always-safe; never blocks
 - ask   | question           | scope: *           # questions to user; user choice
 

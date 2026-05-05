@@ -9,10 +9,11 @@
 > `dtd.md` keeps compact summaries and action routing; full topic detail
 > lives in this directory.
 >
-> v0.3.0a expansion: catalog grew from 13 to 14 topics. Per Codex v0.3
-> review, v0.3+ sub-release runtime contracts use NEW lazy-loaded
-> reference topics (e.g. `v030a-cross-run-loop-guard.md`) rather than
-> expanding cross-cutting `run-loop.md` past its typical 32 KB cap.
+> v0.3.0a / v0.3.0c expansion: catalog grew from 13 → 14 → 15 topics.
+> Per Codex v0.3 review, v0.3+ sub-release runtime contracts use NEW
+> lazy-loaded reference topics (e.g. `v030a-cross-run-loop-guard.md`,
+> `v030c-consensus.md`) rather than expanding cross-cutting
+> `run-loop.md` past its typical 32 KB cap.
 
 ## Topics
 
@@ -32,6 +33,7 @@
 | `roadmap` | v0.2 sub-release tree | canonical | `.dtd/reference/roadmap.md` |
 | `load-profile` | v0.2.3 controller cognitive scoping | canonical | `.dtd/reference/load-profile.md` |
 | `v030a-cross-run-loop-guard` | v0.3.0a stable cross-run signature + ledger + finalize_run capture-before-clear | canonical | `.dtd/reference/v030a-cross-run-loop-guard.md` |
+| `v030c-consensus` | v0.3.0c multi-worker consensus dispatch + 4 strategies + group lock + late-result cancellation | canonical | `.dtd/reference/v030c-consensus.md` |
 
 ## Extraction Rationale
 

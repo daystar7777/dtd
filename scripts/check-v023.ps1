@@ -49,7 +49,8 @@ $referenceTopics = @(
     "autonomy", "incidents", "persona-reasoning-tools", "perf", "workers",
     "plan-schema", "status-dashboard", "self-update", "help-system",
     "run-loop", "doctor-checks", "roadmap", "load-profile",
-    "v030a-cross-run-loop-guard"
+    "v030a-cross-run-loop-guard",
+    "v030c-consensus"
 )
 $canonicalReferenceTopics = $referenceTopics
 
@@ -60,7 +61,7 @@ if (Test-Path -LiteralPath $referenceDir) {
 }
 
 Add-Result "v023.reference.dir" ".dtd/reference directory exists" (Test-Path -LiteralPath $referenceDir)
-Add-Result "v023.reference.count" ".dtd/reference has 15 markdown files (14 topics + index after v0.3.0a)" ($referenceFiles.Count -eq 15) "count=$($referenceFiles.Count)"
+Add-Result "v023.reference.count" ".dtd/reference has 16 markdown files (15 topics + index after v0.3.0c)" ($referenceFiles.Count -eq 16) "count=$($referenceFiles.Count)"
 
 $indexPath = Join-Path $referenceDir "index.md"
 Add-Result "v023.reference.index" "reference index.md exists" (Test-Path -LiteralPath $indexPath)

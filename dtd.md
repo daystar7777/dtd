@@ -64,6 +64,9 @@ Sections:
   routing thresholds, paid-fallback authorization, redaction
 - Cross-run loop guard (v0.3.0a) — stable signature ledger
   format, capture-before-clear at finalize_run, retention prune
+- Consensus state (v0.3.0c) — staged-output isolation, group
+  lock semantics, late-result-never-apply invariant, 11-key
+  permission set
 - Locale state (v0.2.0e) — locale pack existence, required sections,
   bootstrap-alias presence, ≤ 12 KB pack budget
 - Spec modularization (v0.2.3 R1) — reference dir, 13 canonical topics,
@@ -205,6 +208,49 @@ Korean / Japanese NL routing in respective locale packs.
 `/dtd notepad compact` is mutating but not destructive (it
 reorganizes, never deletes audit trail — older entries roll into
 the free-form `## learnings` section).
+
+### `/dtd consensus show [<task_id>|--active]` (v0.3.0c)
+
+Multi-worker consensus dispatch inspection. Read-only; consensus
+dispatch itself is opted-in via plan XML `consensus="<N>"`
+attribute on `<task>` or `<phase>`.
+
+Forms:
+
+```text
+/dtd consensus show <task_id>          # observational; show all N outcomes for that task
+/dtd consensus show --active           # observational; show currently-active consensus group
+```
+
+Selection strategies (4): `first_passing | quality_rubric |
+reviewer_consensus | vote_unanimous`. Each consensus task
+dispatches N workers in parallel into ISOLATED staging dirs
+(`.dtd/tmp/consensus-<run>-<task>-<att>-<worker>.staged/`); only
+the winner applies to project files (Codex P1.4: late results
+NEVER apply).
+
+Permission gate: `task_consensus` key (NEW v0.3.0c; expands
+v0.2.0b 10-key set to 11 keys per Codex P1.5). Default `ask`;
+user opts in via `/dtd permission allow task_consensus scope: *`.
+
+Decision capsules:
+- `CONSENSUS_DISAGREEMENT` (vote_unanimous strategy with
+  divergent outputs): options `[reviewer_pick, controller_pick,
+  retry_all, stop]`.
+- `CONSENSUS_PARTIAL_FAILURE` (some N workers failed): options
+  `[accept_majority, retry_failed, stop]`.
+
+Cost multiplier: consensus tasks consume N× tokens. In
+`host.mode: assisted` AND
+`consensus_confirm_each_call: true` (default): controller
+surfaces explicit confirm before each dispatch.
+`/dtd plan show` annotates consensus tasks: `[consensus=N
+<strategy>] [N× cost]`.
+
+> Full canonical reference (algorithm + run-loop step 5.5.5 +
+> 6.consensus + group lock + late-result cancellation + doctor
+> checks): see `.dtd/reference/v030c-consensus.md`.
+> Lazy-load via `/dtd help v030c-consensus --full`.
 
 ### `/dtd loop-guard [show|prune]` (v0.3.0a)
 
@@ -390,7 +436,8 @@ appended (`by: finalize_run_run_end` or
 `by: finalize_run_ttl_expired`). See `reference/run-loop.md`
 §"Time-limited permissions auto-prune (v0.3.0e R0)".
 
-Permission keys (canonical 10-key set per V011-1 + tool-runtime relay):
+Permission keys (canonical 11-key set; v0.2.0b 10-key + v0.3.0c
+`task_consensus`):
 
 | Key | Covers |
 |---|---|
@@ -402,6 +449,7 @@ Permission keys (canonical 10-key set per V011-1 + tool-runtime relay):
 | `revert` | `/dtd revert` (v0.2.0c dependency) |
 | `tool_relay_read` | controller-relayed read-only worker tool requests |
 | `tool_relay_mutating` | controller-relayed mutating worker tool requests; never bypasses path/permission/apply validation |
+| `task_consensus` | (v0.3.0c) multi-worker consensus dispatch (cost-multiplier; per-task opt-in via plan XML `consensus="N"` attribute) |
 | `todowrite` | controller TodoWrite/state-tracking (always-safe; default `allow`) |
 | `question` | controller asking user via decision capsule |
 
