@@ -1,37 +1,47 @@
 # DTD reference: roadmap
 
-> Canonical reference for v0.1.1 / v0.2 roadmap.
+> Canonical reference for v0.1.1 / v0.2 / v0.3 roadmap.
 > Lazy-loaded via `/dtd help roadmap --full`. Not auto-loaded.
 > v0.2.3 R1 extraction from `dtd.md` (single-source).
 
 ## Summary
 
-These are designed-in but explicitly deferred. v0.1 has hooks in place;
-full implementation is the next milestone.
+v0.1 / v0.1.1 / v0.2.0a tagged; rest of v0.2 line release-ready
+or R0+R1 complete pending user tag authorization.
+v0.3 line designed (5 sub-release proposals in AIMemory).
 
 Released:
 - **v0.1** — first lock; 18/18 acceptance smoke (2026-05-05).
 - **v0.1.1** — 5 R-rounds; ops hardening hooks (2026-05-05).
 - **v0.2.0a** — Incident Tracking; TAGGED 2026-05-05 (`41f8c7d`).
 
-In progress / R0-ready:
-- **v0.2.0d** — Self-Update + `/dtd help`. R0 implemented, Codex GO
-  accepted. Ready for tag once user authorizes.
+Release-ready (release-contract-passing; tag pending user auth):
+- **v0.2.0d** — Self-Update + `/dtd help`.
 - **v0.2.0f** — Autonomy & Attention + persona/reasoning/tool-runtime.
-  Implementation in spec/state/config/scenarios. Ready for tag once
-  user authorizes.
+- **v0.2.3** — Spec modularization + Lazy-Load Profile.
 
-R0 designed (not implemented):
+R0 + R1 complete (Codex GO accepted; tag pending user auth):
 - **v0.2.0e** — Locale Packs (English-only core + opt-in /ㄷㅌㄷ pack).
-- **v0.2.0b** — Permission Ledger
-  (`.dtd/permissions.md` ask/allow/deny + `tool_relay_*`).
+- **v0.2.0b** — Permission Ledger (`.dtd/permissions.md` 10-key set
+  with `tool_relay_*`; specificity-first resolution).
 - **v0.2.0c** — Snapshot/Revert (3-mode taxonomy: metadata-only /
-  preimage / patch).
-- **v0.2.1** — Runtime Resilience (worker health check + session resume
-  + loop guard).
-- **v0.2.2** — Compaction UX (notepad v2 8-heading + Reasoning Notes).
-- **v0.2.3** — Spec modularization (THIS doc; static markdown split +
-  lazy-load).
+  preimage / patch; revert is permission-gated).
+- **v0.2.1** — Runtime Resilience (worker health check 17-stage +
+  session resume 4-strategy + loop guard with window staleness).
+- **v0.2.2** — Compaction UX (notepad v2 8-heading + Reasoning Notes
+  + chain-of-thought leak filter).
+
+v0.3 line designed (R0 implementation pending; design proposals
+in `AIMemory/handoff_dtd-v030*-design.claude-opus-4-7.md`):
+- **v0.3.0a** — Cross-run loop guard (extends v0.2.1 within-run guard).
+- **v0.3.0b** — Token-rate-aware scheduling (predictive routing
+  before quota exhaustion).
+- **v0.3.0c** — Multi-worker consensus dispatch (`consensus="N"`
+  plan attribute; 4 selection strategies).
+- **v0.3.0d** — Cross-machine session affinity (filesystem /
+  git-branch backends + encrypted sync).
+- **v0.3.0e** — Time-limited permissions UX (`for 1h` /
+  `until eod` / `for session` natural duration syntax).
 
 ## v0.1.1
 
