@@ -283,6 +283,40 @@ Sections:
   `silent_window_transient_expired_unrevoked` (rule effectively
   inactive but tombstone not added; cosmetic).
 
+### v0.3.0e Time-limited permissions checks
+
+- For every `## Active rules` row with `until` field in
+  duration form (`+<int><m|h|d|w>`) or named-scope form
+  (`today | eod | this-week | next-monday | next-week | run |
+  run_end`): `resolved_until` MUST be derived; ELSE WARN
+  `permission_until_unresolved`.
+- Legacy v0.2.0b rules (`until: <ISO ts>` only, no
+  `resolved_until` derived field): INFO
+  `permission_until_unresolved_legacy_v020b` recommending
+  re-write to populate derived field.
+- `resolved_until: run_end` rules MUST be tombstoned by
+  `finalize_run` step 5c after each terminal exit. If a
+  `run_end` row exists AND `state.md.plan_status` is null OR
+  COMPLETED/STOPPED/FAILED AND no matching tombstone:
+  WARN `permission_run_end_orphaned_after_finalize`.
+- `resolved_until_tz` REQUIRED for named local-time scopes
+  (today/eod/this-week/next-monday/next-week); ELSE WARN
+  `permission_until_tz_missing` (cross-machine sync v0.3.0d
+  cannot interpret unambiguously).
+- Combined-unit `for` rules (e.g. `for 1h30m`) detected at
+  parse time: ERROR
+  `permission_duration_combined_unsupported_v030e`.
+- Mixed `for X until Y` rules: ERROR
+  `permission_duration_until_mixed_unsupported`.
+- `state.md.session_active_time_limited_count` should match
+  count of non-tombstoned time-limited rows in
+  `## Active rules`; ELSE WARN
+  `permission_time_limited_count_drift`.
+- `state.md.last_session_prune_at` is non-null after the
+  first finalize_run step 5c; ELSE INFO
+  `permission_finalize_prune_unrun` (acceptable for fresh
+  installs).
+
 ## Worker health + runtime resilience (v0.2.1)
 
 ### Worker health check freshness

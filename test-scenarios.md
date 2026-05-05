@@ -2949,6 +2949,157 @@ journey content is `examples/user-journeys.md` (tracked in repo).
 
 ---
 
+## v0.3.0e — Time-limited permissions UX
+
+### 109. /dtd permission allow ... for 1h sets resolved_until = now + 1h
+
+**Setup**: fresh install. `permissions.md ## Active rules` empty.
+
+**Steps**: `/dtd permission allow edit scope: src/** for 1h`.
+
+**Expected**:
+- Append row to `## Active rules` with `until: +1h`,
+  `resolved_until: <now+1h ISO ts>`, `resolved_until_tz: UTC`,
+  `by: user`.
+- `state.md.session_active_time_limited_count: 1`.
+
+**Pass**: duration syntax parses; resolved_until populated;
+state count incremented.
+
+### 110. /dtd permission allow ... for run expires at finalize_run
+
+**Setup**: fresh install.
+
+**Steps**:
+1. `/dtd permission allow bash scope: npm test for run`.
+2. Run a plan to completion (any
+   COMPLETED/STOPPED/FAILED terminal).
+
+**Expected**:
+- Step 1: row written with `until: for run`,
+  `resolved_until: run_end`, `resolved_until_tz: UTC`.
+- Step 2 finalize_run step 5c: tombstone row appended
+  `<ts> | revoke | bash | scope: npm test | by:
+  finalize_run_session_end (revokes <orig ts> row)`.
+- `state.md.last_session_prune_at: <ts>`.
+- Original allow row preserved (audit trail).
+
+**Pass**: run-end sentinel cleared by step 5c; tombstone is
+non-destructive.
+
+### 111. /dtd permission allow ... until eod resolves to today 23:59:59 local
+
+**Setup**: fresh install. Local timezone: Asia/Seoul (UTC+9).
+Current time: 2026-05-05 18:30 KST.
+
+**Steps**: `/dtd permission allow edit scope: docs/** until eod`.
+
+**Expected**:
+- `until: eod`,
+  `resolved_until: 2026-05-05T23:59:59+09:00`,
+  `resolved_until_tz: Asia/Seoul`.
+
+**Pass**: eod resolves to local 23:59:59 with timezone tag.
+
+### 112. /dtd permission allow ... until next-monday resolves to next Monday 00:00 local
+
+**Setup**: today is Wednesday 2026-05-06. Local: Asia/Seoul.
+
+**Steps**: `/dtd permission allow edit scope: docs/** until next-monday`.
+
+**Expected**:
+- `until: next-monday`,
+  `resolved_until: 2026-05-11T00:00:00+09:00` (Mon),
+  `resolved_until_tz: Asia/Seoul`.
+
+**Pass**: next-monday resolves to next Monday 00:00 local +
+timezone.
+
+### 113. Time-limited rule expires mid-run; next resolution falls through to default
+
+**Setup**: `permissions.md` has
+`allow edit scope: src/** until: +5m | resolved_until: <now+5m>`.
+Plan running. 6 minutes pass.
+
+**Steps**: trigger an edit at 6 minutes (after expiry).
+
+**Expected**:
+- Resolution algorithm reads rule; `resolved_until` < now;
+  rule treated as inactive; falls through to default
+  `ask edit scope: *`.
+- Capsule `awaiting_user_reason: PERMISSION_REQUIRED` fires.
+- Doctor INFO `permission_rule_expired` lists the rule.
+
+**Pass**: time-of-check expiry; default-rule fallback works.
+
+### 114. /dtd status --full shows perms line with countdown
+
+**Setup**: 2 active time-limited rules:
+- `allow edit src/** for 1h` (45m left).
+- `allow bash npm test until eod` (eod in 5h).
+
+**Steps**: `/dtd status --full`.
+
+**Expected**:
+- New line in `--full` rendering:
+  `| perms      2 time-limited rules: edit src/** (45m left), bash npm test (eod)`.
+- Total line width ≤ 80; if overflow, drop count tag and
+  surface only the most-restrictive rule.
+
+**Pass**: countdown displayed; format respects width budget.
+
+### 115. /dtd permission allow ... for "1h30m" rejected at parse time
+
+**Setup**: any state.
+
+**Steps**: `/dtd permission allow edit scope: src/** for 1h30m`.
+
+**Expected**:
+- Parser rejects with error
+  `permission_duration_combined_unsupported_v030e`.
+- Hint: "Use `for 90m` instead. Combined units deferred to
+  v0.3.x."
+- No row written to `## Active rules`.
+
+**Pass**: combined-unit syntax rejected with clear hint.
+
+### 116. /dtd permission allow ... for 1h until eod rejected at parse time
+
+**Setup**: any state.
+
+**Steps**: `/dtd permission allow edit scope: src/** for 1h until eod`.
+
+**Expected**:
+- Parser rejects with error
+  `permission_duration_until_mixed_unsupported`.
+- Hint: "Pick one: `for 1h` OR `until eod`, not both."
+- No row written.
+
+**Pass**: mixed for/until rejected; clear hint.
+
+### 117. finalize_run step 5c tombstones all session/run-end-scoped rules
+
+**Setup**: 5 active rules:
+- 2 with `resolved_until: run_end` (for run).
+- 1 with `resolved_until: <past ISO ts>` (TTL expired).
+- 2 with `resolved_until: <future ISO ts>` (still valid).
+
+**Steps**: run a plan to COMPLETED.
+
+**Expected** at step 5c:
+- 3 tombstones appended:
+  - 2 with `by: finalize_run_session_end`.
+  - 1 with `by: finalize_run_ttl_expired`.
+- 2 future-ts rules untouched.
+- `state.md.session_active_time_limited_count: 2`
+  (post-prune count of remaining time-limited rules).
+- `state.md.last_session_prune_at: <ts>`.
+
+**Pass**: step 5c distinguishes run_end vs TTL-expired
+tombstones; future-ts rules survive; count accurate.
+
+---
+
 ## Running
 
 These scenarios are not auto-runnable in v0.1 (markdown-only, no test harness). Manual or semi-manual run by:

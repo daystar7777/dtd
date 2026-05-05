@@ -126,3 +126,74 @@ ARE cross-checked by doctor:
   and `by: silent_window`. They expire automatically at silent-window end
   or are revoked by `/dtd interactive`.
 - Doctor (v0.2.0b) flags overly-broad allow patterns and expired rules.
+
+## Time-limited rules (v0.3.0e)
+
+The `until` field accepts three syntactic forms:
+
+| Form | Meaning |
+|---|---|
+| `<ISO ts>` | absolute UTC timestamp (existing v0.2.0b syntax) |
+| `+<int><m\|h\|d\|w>` | duration from now (NEW; v0.3.0e) |
+| `<named scope>` | named time scope (NEW; v0.3.0e) |
+
+Single-unit durations only in v0.3.0e R0: `+1h`, `+30m`, `+2d`,
+`+1w`. Combined units (`+1h30m`) DEFERRED to v0.3.x — rejected at
+parse time with `permission_duration_combined_unsupported_v030e`.
+
+**Named scopes** (v0.3.0e R0):
+
+| Scope | Meaning | Resolves to |
+|---|---|---|
+| `today` | until 23:59:59 local time today | absolute ISO ts |
+| `eod` | alias for `today` | absolute ISO ts |
+| `this-week` | until next Monday 00:00 local time | absolute ISO ts |
+| `next-monday` | alias for `this-week` (until next Monday 00:00) | absolute ISO ts |
+| `next-week` | until 7 days after this-week | absolute ISO ts |
+| `run` | until current `/dtd run` finalize_run | sentinel `run_end` |
+| `run_end` | explicit form of `run` | sentinel `run_end` |
+
+**`for <duration>` form**: equivalent UX wrapper. The user-facing
+syntax is `for 1h` (relative) or `until eod` (absolute / named).
+Mutually exclusive: a single rule cannot mix `for X until Y` —
+parser rejects with `permission_duration_until_mixed_unsupported`.
+
+`for run` is the user-facing alias for `until run_end`.
+
+**Resolution at write time**: when a rule is appended with
+duration or named-scope `until` form, controller computes the
+absolute expiry timestamp AND stores it as a derived field
+`resolved_until`. The original `until` form preserved for
+audit; `resolved_until` is the canonical expiry checked by
+runtime.
+
+**Resolved row format** (v0.3.0e):
+
+```text
+<ts> | <decision> | <key> | scope: <expr> | until: <orig form> | resolved_until: <abs ts | run_end> | resolved_until_tz: <tz | UTC> | by: <who>
+```
+
+- `resolved_until: <abs ts>` — for `<ISO ts>` / `+<duration>` /
+  named-time-scope forms.
+- `resolved_until: run_end` — sentinel for `for run` /
+  `until run_end`. Cleared at finalize_run by the v0.3.0e step 5c
+  prune (see `reference/run-loop.md`).
+- `resolved_until_tz`: timezone tag (e.g. `Asia/Seoul`,
+  `America/Los_Angeles`, or `UTC`). REQUIRED for named local-time
+  scopes (`today`, `eod`, `this-week`, etc.) so cross-machine
+  sync (v0.3.0d) interprets unambiguously. For `<ISO ts>` and
+  `+<duration>` forms, set to `UTC`.
+
+Examples:
+
+```text
+2026-05-05 18:30 | allow | edit  | scope: src/**     | until: +1h        | resolved_until: 2026-05-05T19:30:00Z   | resolved_until_tz: UTC          | by: user
+2026-05-05 18:30 | allow | bash  | scope: npm test   | until: for run    | resolved_until: run_end                | resolved_until_tz: UTC          | by: user
+2026-05-05 18:30 | allow | edit  | scope: docs/**    | until: eod        | resolved_until: 2026-05-05T23:59:59+09 | resolved_until_tz: Asia/Seoul   | by: user
+2026-05-05 18:30 | allow | edit  | scope: tests/**   | until: 2026-05-06T18:00:00Z | resolved_until: 2026-05-06T18:00:00Z   | resolved_until_tz: UTC          | by: user (legacy v0.2.0b form)
+```
+
+**Backward compatibility**: existing v0.2.0b `until: <ISO ts>`
+rows have empty `resolved_until` field. Doctor surfaces these as
+INFO `permission_until_unresolved_legacy_v020b` and recommends
+re-writing to populate the derived field.

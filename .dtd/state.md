@@ -77,6 +77,15 @@
 
 - pending_permission_request: null   # null | {key, scope, worker, dec_id, asked_at}
 
+## Permission time-limited rules (v0.3.0e)
+
+# Time-limited permission rule tracking. See dtd.md §/dtd permission
+# (v0.3.0e time-limited syntax) and reference/run-loop.md §"Auto-prune
+# time-limited permission rules" finalize_run step 5c.
+
+- session_active_time_limited_count: 0    # for /dtd status --full perms line; recounted at finalize_run 5c
+- last_session_prune_at: null             # ts of last finalize_run step 5c
+
 ## Silent window transient rules (v0.2.0b R1)
 
 # v0.2.0b R1 wiring: list of permissions.md rule timestamps installed by

@@ -48,6 +48,7 @@ $IncludedPaths = @(
     "scripts/check-v021.ps1",
     "scripts/check-v022.ps1",
     "scripts/check-v023.ps1",
+    "scripts/check-v030e.ps1",
     ".dtd/instructions.md",
     ".dtd/config.md",
     ".dtd/state.md",

@@ -659,6 +659,20 @@ responding to user):
      `resolved_worker_persona`, `resolved_reasoning_utility`, and
      `resolved_tool_runtime`. These are per-dispatch/per-phase
      controls, not terminal state.
+5c. **Auto-prune time-limited permission rules** (v0.3.0e R0):
+   - Read `.dtd/permissions.md` `## Active rules`.
+   - For every row with `resolved_until: run_end`: append
+     tombstone row
+     `<ts> | revoke | <key> | scope: <expr> | by: finalize_run_session_end (revokes <orig ts> row)`.
+   - For every row with `resolved_until: <ISO ts>` where
+     `ts < now`: append tombstone row
+     `<ts> | revoke | <key> | scope: <expr> | by: finalize_run_ttl_expired (revokes <orig ts> row)`.
+   - Original rules preserved (audit trail); tombstones
+     neutralize them in subsequent resolutions per
+     `.dtd/permissions.md` §Resolution algorithm.
+   - Update `state.md.last_session_prune_at: <ts>`.
+   - Recount `state.md.session_active_time_limited_count` from
+     remaining non-tombstoned time-limited rules.
 6. **Append AIMemory `WORK_END`** (only if AIMemory present):
    one-line event with
    `status=<terminal_status> grade=<final_grade> <duration>`. Per
