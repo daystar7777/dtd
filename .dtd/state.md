@@ -48,6 +48,16 @@
 - loop_guard_threshold: 3              # mirrors config.loop_guard_threshold
 - loop_guard_last_check_at: null
 
+## Notepad compaction (v0.2.2 R1)
+
+# Phase-boundary + manual compaction tracking. See
+# reference/run-loop.md §"Notepad compaction + reasoning utility
+# post-processing (v0.2.2 R1)".
+
+- last_compaction_at: null         # ts of last compaction
+- last_compaction_reason: null     # null | phase_boundary | manual | finalize_run
+- compaction_warns_run: 0          # WARN events this run after compaction
+
 ## Snapshot state (v0.2.0c)
 
 # Pre-apply snapshot tracking. See dtd.md §/dtd snapshot.

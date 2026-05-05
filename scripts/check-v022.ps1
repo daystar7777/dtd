@@ -141,6 +141,68 @@ Add-Result "v022.scenarios.compaction_order" "scenario 82 expects Progress first
     (($scenariosMd -match 'Step 1: `Progress`') -and
      ($scenariosMd -match 'Step 2: `Relevant Files`'))
 
+# ─── R1 wiring: run-loop.md + state.md + doctor-checks.md ────────────────────
+
+$runLoopRef = Read-Text ".dtd/reference/run-loop.md"
+
+Add-Result "v022.r1.run_loop_section" "run-loop.md has Notepad compaction + reasoning utility section (v0.2.2 R1)" `
+    ($runLoopRef -match "## Notepad compaction \+ reasoning utility post-processing \(v0\.2\.2 R1\)")
+Add-Result "v022.r1.run_loop_compaction_algorithm" "run-loop.md has Phase-boundary compaction algorithm" `
+    ($runLoopRef -match "### Phase-boundary compaction algorithm")
+Add-Result "v022.r1.run_loop_schema_detect" "run-loop.md compaction step 1 detects schema" `
+    ($runLoopRef -match "(?s)Schema detection.*?## handoff.*?### Goal")
+Add-Result "v022.r1.run_loop_truncate_progress_first" "run-loop.md compaction step 4.a truncates Progress first" `
+    ($runLoopRef -match "Step 4\.a\*\*\s*TRUNCATE.*Progress.*first")
+Add-Result "v022.r1.run_loop_truncate_relevant_second" "run-loop.md compaction step 4.b truncates Relevant Files second" `
+    ($runLoopRef -match "Step 4\.b\*\*\s*TRUNCATE.*Relevant Files.*second")
+Add-Result "v022.r1.run_loop_keep_six" "run-loop.md compaction KEEPs Goal/Constraints/Decisions/Next/Critical/Reasoning" `
+    ($runLoopRef -match "(?s)\*\*KEEP\*\*\s+Goal\s+/\s+Constraints\s+/\s+Decisions\s+/\s+Next Steps\s+/\s+Critical Context\s+/\s+Reasoning Notes")
+Add-Result "v022.r1.run_loop_reasoning_section" "run-loop.md has Reasoning utility post-processing section" `
+    ($runLoopRef -match "### Reasoning utility post-processing")
+Add-Result "v022.r1.run_loop_chain_filter" "run-loop.md documents chain-of-thought leakage filter" `
+    (($runLoopRef -match "Chain-of-thought leakage filter") -and `
+     ($runLoopRef -match "5 lines per entry"))
+Add-Result "v022.r1.run_loop_keep_last_3" "run-loop.md says keep last 3 reasoning entries; older roll" `
+    (($runLoopRef -match "Keep last 3 entries") -or `
+     ($runLoopRef -match "keep last 3 entries|keep-last-3"))
+Add-Result "v022.r1.run_loop_tree_search" "run-loop.md says tree_search writes option id + score, not raw chains" `
+    ($runLoopRef -match "(?s)tree_search.*?final option id.*?rubric score.*?NEVER write raw candidate chains")
+Add-Result "v022.r1.run_loop_reflexion_lesson" "run-loop.md says reflexion ALWAYS appends 1-line lesson" `
+    ($runLoopRef -match "(?s)reflexion.*?ALWAYS append a 1-line lesson")
+Add-Result "v022.r1.run_loop_manual_trigger" "run-loop.md says /dtd notepad compact runs same algorithm" `
+    ($runLoopRef -match "(?s)Manual trigger.*?/dtd notepad compact.*?runs the same\s+algorithm")
+
+$stateMd = Read-Text ".dtd/state.md"
+Add-Result "v022.r1.state.section" "state.md has ## Notepad compaction (v0.2.2 R1) section" `
+    ($stateMd -match "## Notepad compaction \(v0\.2\.2 R1\)")
+$r1StateKeys = @("last_compaction_at", "last_compaction_reason", "compaction_warns_run")
+foreach ($key in $r1StateKeys) {
+    Add-Result "v022.r1.state.$key" "state.md notepad compaction has $key" `
+        ($stateMd -match "(?m)^- $([regex]::Escape($key)):")
+}
+
+$doctorRefText = Read-Text ".dtd/reference/doctor-checks.md"
+Add-Result "v022.r1.doctor_section" "doctor-checks ref has v0.2.2 R1 wiring checks" `
+    ($doctorRefText -match "v0\.2\.2 R1 wiring checks")
+$r1DoctorCodes = @(
+    "notepad_compaction_unrun",
+    "notepad_compaction_reason_invalid",
+    "notepad_compaction_warn_high",
+    "reasoning_utility_no_capsule_capture",
+    "reasoning_redaction_high",
+    "reasoning_notes_overflow_unrolled"
+)
+foreach ($code in $r1DoctorCodes) {
+    Add-Result "v022.r1.doctor.code.$code" "doctor-checks ref defines R1 code $code" `
+        ($doctorRefText -match [regex]::Escape($code))
+}
+
+# R1 scenarios
+foreach ($letter in @("e", "f", "g", "h")) {
+    Add-Result "v022.r1.scenario.85$letter" "test-scenarios.md has scenario 85$letter (R1 wiring)" `
+        ($scenariosMd -match "### 85$letter\.")
+}
+
 # ─── build-manifest.ps1 ───────────────────────────────────────────────────────
 
 $builderText = Read-Text "scripts/build-manifest.ps1"

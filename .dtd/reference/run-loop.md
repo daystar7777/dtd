@@ -205,6 +205,95 @@ Audit row fields:
 - The only auto-action gate that bypasses `ask` is when the user
   has explicitly written an `allow` rule for that scope.
 
+## Notepad compaction + reasoning utility post-processing (v0.2.2 R1)
+
+R1 wiring for v0.2.2 Compaction UX. Two integration points: phase
+boundary compaction and per-dispatch reasoning capsule extraction.
+
+### Phase-boundary compaction algorithm
+
+Triggered at run-loop step 6.i (after phase row append to
+`phase-history.md`). Steps:
+
+1. **Schema detection**: read `.dtd/notepad.md`. First H2 is
+   `## handoff` AND H3 children include `### Goal` → schema v2;
+   else schema v1 (free-form). Schema v1 path: skip per-heading
+   compaction; treat handoff as one block (legacy behavior).
+2. **Free-form section pass**: for each of `## learnings`,
+   `## decisions`, `## issues`, `## verification`:
+   - Preserve last 3 entries (most recent).
+   - Older entries summarize to ONE bullet per category
+     (controller picks the most representative line).
+   - If section is empty: leave empty.
+3. **Handoff size check**: total size of `## handoff` H2 +
+   children. If ≤ 1.2 KB: skip step 4 (no compaction needed).
+4. **Per-heading priority truncation** (priority order per
+   v0.2.0e/b/c Codex review patches):
+   - **Step 4.a** TRUNCATE `### Progress` first → replace
+     content with line: `Phase N completed; see
+     phase-history.md for detail`.
+   - **Step 4.b** TRUNCATE `### Relevant Files` second → keep
+     last 5 path refs only.
+   - **KEEP** Goal / Constraints / Decisions / Next Steps /
+     Critical Context / Reasoning Notes (these are high-signal
+     and not recoverable from elsewhere).
+5. **Re-check size**: if still > 1.2 KB after Step 4: log WARN
+   to `.dtd/log/run-NNN-summary.md`; doctor surfaces
+   `notepad_handoff_oversized` next time.
+6. **Atomic write**: tmp + rename per existing notepad write
+   discipline.
+
+**Manual trigger**: `/dtd notepad compact` runs the same
+algorithm on demand (no phase boundary needed).
+
+### Reasoning utility post-processing
+
+Triggered after worker dispatch returns (run-loop step 6.e). When
+the dispatched task had a v0.2.0f reasoning utility configured
+(`reasoning-utility="<id>"` in plan XML; resolved into
+`state.md.resolved_reasoning_utility`):
+
+1. **Parse worker response** for compact output contract block.
+   Worker prompt prefix included `<reasoning>` block with
+   `output_contract: decision / evidence_refs / risks /
+   next_action / lesson` (per Amendment 1).
+2. **Extract structured fields**:
+   - `decision`: one-line.
+   - `evidence_refs`: list of `[log:..., attempt:...]` refs.
+   - `risks`: short text.
+   - `next_action`: one-line.
+   - `lesson` (only for `reflexion` utility): one-line.
+3. **Chain-of-thought leakage filter**: scan extracted content
+   for narrative-reasoning patterns. If detected:
+   - Pattern matches: phrases like "let me think",
+     "step-by-step" (in non-list-context), multi-paragraph
+     blocks > 5 lines per entry.
+   - Action: redact the offending entry, log WARN to
+     `.dtd/log/run-NNN-summary.md`, write a placeholder entry
+     `[redacted: reasoning narrative removed per output discipline]`.
+4. **Append to Reasoning Notes** in `## handoff` section:
+   - Keep last 3 entries (per v0.2.2 R0 spec).
+   - Older entries: roll into `## learnings` H2 section as
+     one-line bullet (`<ts>: <decision> [evidence: <refs>]`).
+5. **For `reasoning-utility="tree_search"`** specifically:
+   write final option id + rubric score to Reasoning Notes;
+   NEVER write raw candidate chains.
+6. **For `reasoning-utility="reflexion"`** specifically:
+   ALWAYS append a 1-line lesson entry (lesson is the durable
+   output of reflexion; rolling into learnings is the
+   cross-run path).
+
+### State.md additions
+
+```yaml
+## Notepad compaction (v0.2.2 R1)
+- last_compaction_at: null              # ts of last phase-boundary compaction
+- last_compaction_reason: null          # null | phase_boundary | manual | finalize_run
+- compaction_warns_run: 0               # count of WARN events this run (notepad_handoff_oversized after compaction)
+```
+
+These are observational; doctor checks consistency.
+
 ## Worker test runtime + session resume + loop guard (v0.2.1 R1)
 
 Wiring for the three v0.2.1 sub-features into the run loop and the

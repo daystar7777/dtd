@@ -390,6 +390,32 @@ Sections:
 - `Reasoning Notes` heading exists in v2 schema notepad; ELSE WARN
   `notepad_v2_missing_reasoning_notes`.
 
+### v0.2.2 R1 wiring checks
+
+- `state.md.last_compaction_at` non-null when notepad has been
+  edited recently (controller-recent-edit heuristic); ELSE INFO
+  `notepad_compaction_unrun`.
+- `state.md.last_compaction_reason` ∈
+  `phase_boundary | manual | finalize_run`; ELSE WARN
+  `notepad_compaction_reason_invalid`.
+- `compaction_warns_run` > 5 → INFO
+  `notepad_compaction_warn_high` (handoff repeatedly oversized;
+  user may need to reduce content).
+- Reasoning utility post-processing: if any
+  `attempts/run-NNN.md` row has
+  `resolved_reasoning_utility: <non-null>`, the corresponding
+  notepad `### Reasoning Notes` should have an entry within the
+  same phase; ELSE INFO `reasoning_utility_no_capsule_capture`.
+- Chain-of-thought redaction trail: if `## handoff` shows
+  `[redacted: reasoning narrative removed per output discipline]`
+  placeholder, count occurrences. > 3 in current run: WARN
+  `reasoning_redaction_high` (worker is repeatedly violating
+  output discipline; recommend `/dtd workers test --full` to
+  verify protocol compliance).
+- Reasoning rollover to learnings: if `### Reasoning Notes` has
+  > 3 entries (the keep-last-3 invariant should prevent this):
+  WARN `reasoning_notes_overflow_unrolled`.
+
 ## Snapshot state (v0.2.0c)
 
 - `.dtd/snapshots/` directory exists if

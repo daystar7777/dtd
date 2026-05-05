@@ -1240,6 +1240,101 @@ chain-of-thought storage in durable state.
 
 ## v0.2.1 — Runtime Resilience
 
+### 85e. Phase-boundary compaction order: Progress first, Relevant Files second (v0.2.2 R1)
+
+**Setup**: schema v2 notepad. Handoff at 1.4 KB (over 1.2 KB
+budget). Each heading at 1.5× its allowed budget.
+
+**Steps**: phase boundary completes; controller runs compaction
+algorithm.
+
+**Expected** (per run-loop.md §"Phase-boundary compaction
+algorithm" Step 4):
+- Step 4.a: `### Progress` truncated FIRST → replaced with
+  `Phase N completed; see phase-history.md for detail`.
+- Step 4.b: `### Relevant Files` truncated SECOND → keep last
+  5 path refs only.
+- Goal / Constraints / Decisions / Next Steps / Critical Context
+  / Reasoning Notes preserved unchanged.
+- Total handoff ≤ 1.2 KB after compaction.
+- `state.md.last_compaction_at: <ts>`,
+  `last_compaction_reason: phase_boundary`.
+
+**Pass**: priority order matches Codex's v0.2.2 R0 review patch
+(Section 7); state tracks compaction event.
+
+### 85f. Reasoning utility post-processing extracts contract fields (v0.2.2 R1)
+
+**Setup**: APPROVED plan task with
+`reasoning-utility="tool_critic"`. Worker dispatches; worker
+response includes the output_contract block:
+
+```
+<reasoning>
+decision: cache layer at edge, not origin
+evidence: [log:exec-001-task-3.1, attempt:att-2]
+risks: cold-cache penalty for cold paths
+next_action: add ttl monitoring
+</reasoning>
+```
+
+**Steps**: post-dispatch (run-loop step 6.e), observe notepad.
+
+**Expected**:
+- Reasoning Notes section gains one entry with the 4 fields
+  (decision / evidence / risks / next_action).
+- Older entries (if Reasoning Notes already had 3): oldest rolls
+  into `## learnings` H2 section as
+  `<ts>: <decision> [evidence: <refs>]` bullet.
+- No raw chain-of-thought leakage (controller filtered narrative
+  patterns).
+
+**Pass**: reasoning capsule captured durably; rollover to
+learnings preserved.
+
+### 85g. Chain-of-thought redaction filter triggers on narrative leak (v0.2.2 R1)
+
+**Setup**: worker response (with reasoning utility configured)
+includes a multi-paragraph "let me think step-by-step" narrative
+in the reasoning block.
+
+**Steps**: post-dispatch.
+
+**Expected**:
+- Controller detects narrative pattern (multi-paragraph >5 lines).
+- Reasoning Notes entry replaced with placeholder:
+  `[redacted: reasoning narrative removed per output discipline]`.
+- WARN logged to `.dtd/log/run-NNN-summary.md`.
+- `state.md.compaction_warns_run` increments.
+- Original narrative is NOT stored anywhere.
+
+**Pass**: chain-of-thought leakage caught and redacted at
+post-processing time, before durable storage.
+
+### 85h. reflexion utility writes 1-line lesson always (v0.2.2 R1)
+
+**Setup**: worker dispatches with
+`reasoning-utility="reflexion"`. Response includes a lesson:
+`lesson: timeout retry should escalate to next-tier worker
+faster on stuck-task pattern`.
+
+**Steps**: post-dispatch + at next phase boundary.
+
+**Expected**:
+- Post-dispatch: 1-line lesson appended to Reasoning Notes
+  (always, even if lesson is short).
+- At phase boundary: lesson rolls into `## learnings` (per
+  Reasoning Notes "keep last 3, older roll" invariant).
+- Cross-run: lesson durable in notepad archive
+  (`.dtd/runs/run-NNN-notepad.md`).
+
+**Pass**: reflexion lessons preserved durably; cross-run via
+archive; size stays bounded via rollover.
+
+---
+
+## v0.2.1 — Runtime Resilience
+
 ### 70. /dtd workers test --all --quick returns OK / FAIL / WARN per worker
 
 **Setup**: registry with 3 workers — one healthy, one with bad
