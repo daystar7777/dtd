@@ -151,6 +151,86 @@ foreach ($n in 118..125) {
     Add-Result "v030b.scenarios.$n" "test-scenarios.md has scenario $n" `
         ($scenariosMd -match "### $n\.")
 }
+Add-Result "v030b.scenarios.r1_section_header" "test-scenarios.md has v0.3.0b R1 section header" `
+    ($scenariosMd -match "## v0\.3\.0b R1 .* Token-rate-aware scheduling runtime")
+foreach ($n in 158..165) {
+    Add-Result "v030b.scenarios.r1_$n" "test-scenarios.md has R1 scenario $n" `
+        ($scenariosMd -match "### $n\.")
+}
+
+# ─── reference/v030b-quota-scheduling.md (R1 canonical topic) ──────────────
+
+$v030bRef = Read-Text ".dtd/reference/v030b-quota-scheduling.md"
+
+Add-Result "v030b.r1_ref.summary" "v030b R1 ref has Summary section" `
+    ($v030bRef -match "(?m)^## Summary")
+Add-Result "v030b.r1_ref.anchor" "v030b R1 ref has Anchor section" `
+    ($v030bRef -match "(?m)^## Anchor")
+Add-Result "v030b.r1_ref.estimation" "v030b R1 ref documents estimation function" `
+    ($v030bRef -match "next_task_estimate\(")
+Add-Result "v030b.r1_ref.history_priority" "v030b R1 ref documents history-first priority (Codex P1)" `
+    (($v030bRef -match "Per-task historical mean") -and ($v030bRef -match "Codex P1"))
+Add-Result "v030b.r1_ref.vendor_table" "v030b R1 ref has provider header vendor table" `
+    (($v030bRef -match "Anthropic") -and ($v030bRef -match "OpenAI") -and `
+     ($v030bRef -match "anthropic-ratelimit-"))
+Add-Result "v030b.r1_ref.redaction_discipline" "v030b R1 ref documents redaction (Codex P1)" `
+    (($v030bRef -match "NEVER captured:") -and ($v030bRef -match "auth headers"))
+Add-Result "v030b.r1_ref.finalize_step_9" "v030b R1 ref documents finalize_run step 9.quota" `
+    ($v030bRef -match "step 9\.quota|finalize_run_step_9_quota")
+Add-Result "v030b.r1_ref.dedicated_step_codex" "v030b R1 ref calls out Codex P1.10 dedicated step" `
+    ($v030bRef -match "P1\.10")
+Add-Result "v030b.r1_ref.tz_aware_reset" "v030b R1 ref documents TZ-aware reset window" `
+    (($v030bRef -match "compute_daily_window") -and ($v030bRef -match "user_tz"))
+Add-Result "v030b.r1_ref.mid_run_exhaust" "v030b R1 ref documents mid-run exhaust handling" `
+    (($v030bRef -match "Mid-run quota exhaust") -and ($v030bRef -match "mid_run_actual_exceeded"))
+Add-Result "v030b.r1_ref.capsule_rendering" "v030b R1 ref documents capsule prompt rendering" `
+    ($v030bRef -match "Capsule rendering")
+Add-Result "v030b.r1_ref.r1_scenarios" "v030b R1 ref lists scenarios 158-165" `
+    ($v030bRef -match "(?s)R1 acceptance scenarios.*?158.*?165")
+
+# ─── reference/index.md (v030b R1 row + expansion note) ────────────────────
+
+$indexRefText = Read-Text ".dtd/reference/index.md"
+Add-Result "v030b.index.r1_row" "index.md has v030b-quota-scheduling row" `
+    ($indexRefText -match '(?m)^\| `v030b-quota-scheduling` ')
+Add-Result "v030b.index.r1_canonical" "index.md marks v030b-quota-scheduling canonical" `
+    ($indexRefText -match '(?m)^\| `v030b-quota-scheduling` .*\| canonical \|')
+
+# ─── state.md (R1 fields) ──────────────────────────────────────────────────
+
+$stateR1Keys = @("last_quota_estimation_source", "mid_run_actual_exceeded_count")
+foreach ($key in $stateR1Keys) {
+    Add-Result "v030b.state.r1_key.$key" "state.md Quota section has R1 $key" `
+        ($stateMd -match "(?m)^- $([regex]::Escape($key)):")
+}
+
+# ─── config.md (R1 quota keys) ─────────────────────────────────────────────
+
+$configR1Keys = @("estimation_default_completion_tokens",
+                  "estimation_default_task_tokens",
+                  "quota_archive_max_files")
+foreach ($key in $configR1Keys) {
+    Add-Result "v030b.config.r1_key.$key" "config.md quota section has R1 $key" `
+        ($configMd -match "(?m)^- $([regex]::Escape($key)):")
+}
+
+# ─── doctor-checks.md (R1 doctor codes) ────────────────────────────────────
+
+$doctorR1Codes = @(
+    "quota_estimation_history_thin",
+    "quota_provider_header_format_drift",
+    "quota_provider_header_unknown_format",
+    "quota_reset_tz_mismatch",
+    "quota_pause_overnight_resume_tick_missing",
+    "quota_finalize_aggregation_skipped",
+    "quota_archive_overflow"
+)
+foreach ($code in $doctorR1Codes) {
+    Add-Result "v030b.doctor.r1_code.$code" "doctor-checks ref defines R1 $code" `
+        ($doctorRef -match [regex]::Escape($code))
+}
+Add-Result "v030b.doctor.r1_section" "doctor-checks ref has v0.3.0b R1 runtime checks header" `
+    ($doctorRef -match "v0\.3\.0b R1 runtime checks")
 
 # ─── build-manifest.ps1 ───────────────────────────────────────────────────────
 
@@ -158,6 +238,8 @@ $builderText = Read-Text "scripts/build-manifest.ps1"
 
 Add-Result "v030b.manifest.checker" "build-manifest includes scripts/check-v030b.ps1" `
     ($builderText -match [regex]::Escape("scripts/check-v030b.ps1"))
+Add-Result "v030b.manifest.r1_reference" "build-manifest includes reference/v030b-quota-scheduling.md" `
+    ($builderText -match [regex]::Escape(".dtd/reference/v030b-quota-scheduling.md"))
 
 $pass = @($Results | Where-Object { $_.pass }).Count
 $fail = @($Results | Where-Object { -not $_.pass }).Count

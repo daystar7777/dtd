@@ -129,6 +129,8 @@
 - last_quota_check_at: null
 - last_quota_reset_local_at: null           # ts when daily reset boundary crossed
 - last_quota_reset_tz: null                 # timezone tag at last reset
+- last_quota_estimation_source: null        # R1; per_task_history | plan_derived | conservative
+- mid_run_actual_exceeded_count: 0          # R1; counter of mid-run 429s in current run
 
 ## Permission time-limited rules (v0.3.0e)
 

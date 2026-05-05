@@ -156,6 +156,9 @@
 - quota_provider_headers_capture: true       # capture x-ratelimit-* response headers (advisory)
 - quota_persist_path: .dtd/log/worker-quota-tracker.md   # cross-run persistence file (gitignored under log/)
 - quota_paid_fallback_silent_defer: true     # in silent mode, defer paid-fallback unless explicit allow rule
+- estimation_default_completion_tokens: 8000 # R1; per-task completion estimate fallback
+- estimation_default_task_tokens: 16000      # R1; full-task estimate fallback when no plan info
+- quota_archive_max_files: 50                # R1; doctor WARN above (.dtd/runs/quota-archive-*.md)
 
 ## locale (v0.2.0e)
 

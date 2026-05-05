@@ -3413,6 +3413,157 @@ control.
 
 ---
 
+## v0.3.0b R1 — Token-rate-aware scheduling runtime
+
+### 158. Estimation source priority
+
+**Setup**: 3 workers, 1 plan task (id="2.1"):
+- (A) Worker `deepseek-local` has 5 prior `exec-*-ctx.md` rows
+  for task 2.1 with avg=12000 tokens.
+- (B) Worker `qwen-cloud` has 2 prior rows for task 2.1.
+- (C) Worker `mistral-paid` has 0 prior rows for task 2.1, but
+  task has `<context-files>` totaling 4000 tokens.
+
+**Steps**: predictive check at step 5.5.0 for each.
+
+**Expected**:
+- (A): per_task_history → `12000 * margin` used (Codex P1
+  preferred path).
+- (B): plan_derived → `(ctx + system + completion) * margin` used.
+- (C): conservative fallback → `DEFAULT_TASK_ESTIMATE_TOKENS *
+  margin` used.
+
+**Pass**: estimation source priority matches Codex P1
+amendments; `state.md.last_quota_estimation_source` reflects
+chosen path.
+
+### 159. Provider header parser by vendor prefix
+
+**Setup**: 3 workers configured:
+- Anthropic: `quota_provider_header_prefix: anthropic-ratelimit-`
+- OpenAI: `quota_provider_header_prefix: x-ratelimit-`
+- Generic (unrecognized provider): `quota_provider_header_prefix:
+  custom-rl-` (no vendor table match).
+
+**Steps**: dispatch each; response includes vendor headers.
+
+**Expected**:
+- Anthropic: `tokens-remaining` field parsed → numeric in
+  `provider_remaining` column.
+- OpenAI: `remaining-tokens` field parsed.
+- Custom: INFO `quota_provider_header_unknown_format` logged;
+  estimation falls through to dispatch_response only.
+
+**Pass**: vendor table dispatches correctly; unknowns are
+logged but don't break dispatch.
+
+### 160. Provider header redaction
+
+**Setup**: any worker with header parsing enabled. Response
+includes `x-ratelimit-remaining: 91600`,
+`x-ratelimit-reset: 2026-05-06T00:00:00Z`, plus
+`x-request-id: req_abc123def456` and
+`authorization: Bearer sk-...`.
+
+**Expected** in `worker-usage-run-NNN.md` row:
+- `provider_remaining: 91600` (numeric only)
+- `source: provider_header`
+- NO row contains: raw header strings, request_id values, auth
+  tokens, or any non-numeric provider data.
+
+**Pass**: redaction discipline holds; doctor
+`quota_audit_secret_leak` does NOT fire.
+
+### 161. Cross-run aggregation at finalize_run
+
+**Setup**: `config.cross_run_quota_persist: true`. Run dispatches
+2 workers, each consuming tokens. finalize_run reaches step 9.quota.
+
+**Expected**:
+- `.dtd/log/worker-quota-tracker.md` updated with per-worker
+  daily rows.
+- 5-day-old daily rows archived to
+  `.dtd/runs/quota-archive-NNN.md`; removed from tracker.
+- `state.md.last_quota_check_at`, `last_quota_reset_local_at`,
+  `last_quota_reset_tz` updated.
+- This step is observational w.r.t. permissions/incidents (no
+  v0.2.0a/v0.2.0b state mutation).
+
+**Pass**: cross-run aggregation is dedicated finalize_run step
+(Codex P1.10), not nested.
+
+### 162. TZ-aware daily reset boundary
+
+**Setup**:
+- Worker `deepseek-local`: `quota_reset_local_time: "00:00"`,
+  `quota_reset_tz: Asia/Seoul`.
+- `state.md.user_tz: Asia/Seoul`.
+- Current local time: 2026-05-05 23:30 KST.
+
+**Expected**:
+- Daily window for that worker: starts 2026-05-05 00:00 KST,
+  ends 2026-05-06 00:00 KST.
+- After 2026-05-06 00:01 KST: window rolls to
+  2026-05-06 00:00 KST → 2026-05-07 00:00 KST.
+
+**Pass**: reset boundary respects user_tz; UTC conversion is
+correct.
+
+### 163. Mid-run quota exhaust (prediction wrong)
+
+**Setup**: predictive check passed at step 5.5.0; dispatch
+proceeds; provider returns 429.
+
+**Expected**:
+- `worker-usage-run-NNN.md` appends actual usage row.
+- Capsule fills with
+  `awaiting_user_reason: WORKER_QUOTA_EXHAUSTED_PREDICTED`.
+- `pending_quota_capsule.mid_run_actual_exceeded: true` (R1 flag).
+- Run halts at finalize_run with terminal status
+  STOPPED_BY_QUOTA_MID_RUN.
+- `state.md.mid_run_actual_exceeded_count: 1`.
+
+**Pass**: prediction-was-wrong case has explicit handling;
+distinguishable from pre-dispatch capsule.
+
+### 164. Capsule prompt rendering with TZ
+
+**Setup**: 2 workers near quota. `state.md.user_tz: Asia/Seoul`.
+
+**Expected** capsule prompt:
+```
+Worker quota near limit:
+  deepseek-local: 95% of 100000 (2026-05-06 00:00 KST [Asia/Seoul])
+  qwen-cloud:     99% of 50000 (2026-05-06 09:00 KST [Asia/Seoul])
+
+How to proceed?
+```
+
+- `pause_overnight` option label: `PAUSED until next quota
+  reset (until 2026-05-06 00:00 KST [Asia/Seoul])`.
+- Codex P1.3 unambiguous TZ display invariant satisfied.
+
+**Pass**: prompt rendering shows used_pct + reset_at_local for
+each near-quota worker.
+
+### 165. pause_overnight resume tick
+
+**Setup**: capsule resolves to `pause_overnight`; reset_at_local
+= 2026-05-06 00:00 KST.
+
+**Expected**:
+- Run state: PAUSED.
+- Scheduler (host-dependent) wakes controller at reset_at_local.
+- Quota recomputed at wake; if recovered: dispatch proceeds.
+- If host doesn't support scheduled wake: INFO
+  `quota_pause_overnight_resume_tick_missing` informs user that
+  manual `/dtd run` is needed.
+
+**Pass**: pause-overnight semantics are explicit; both
+auto-resume and manual-resume paths handled.
+
+---
+
 ## v0.3.0a — Cross-run loop guard
 
 ### 126. Stable cross-run signature differs from within-run signature

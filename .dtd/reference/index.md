@@ -10,12 +10,13 @@
 > lives in this directory.
 >
 > v0.3.0a / v0.3.0c / v0.3.0d expansion: catalog grew from 13 → 14 →
-> 15 → 16 topics. v0.3 R1 runtime: catalog 16 → 17 (v030e R1).
-> Per Codex v0.3 review, v0.3+ sub-release runtime contracts use
-> NEW lazy-loaded reference topics
+> 15 → 16 topics. v0.3 R1 runtime: catalog 16 → 17 → 18 (v030e R1
+> + v030b R1). Per Codex v0.3 review, v0.3+ sub-release runtime
+> contracts use NEW lazy-loaded reference topics
 > (e.g. `v030a-cross-run-loop-guard.md`, `v030c-consensus.md`,
 > `v030d-cross-machine-session-sync.md`,
-> `v030e-time-limited-permissions.md`) rather than expanding
+> `v030e-time-limited-permissions.md`,
+> `v030b-quota-scheduling.md`) rather than expanding
 > cross-cutting `run-loop.md` past its typical 32 KB cap.
 
 ## Topics
@@ -39,6 +40,7 @@
 | `v030c-consensus` | v0.3.0c multi-worker consensus dispatch + 4 strategies + group lock + late-result cancellation | canonical | `.dtd/reference/v030c-consensus.md` |
 | `v030d-cross-machine-session-sync` | v0.3.0d cross-machine session affinity + mandatory encryption + SESSION_CONFLICT capsule | canonical | `.dtd/reference/v030d-cross-machine-session-sync.md` |
 | `v030e-time-limited-permissions` | v0.3.0e R1 runtime: pre-dispatch resolver, late-binding, TZ/DST/clock-skew, R1 audit fields | canonical | `.dtd/reference/v030e-time-limited-permissions.md` |
+| `v030b-quota-scheduling` | v0.3.0b R1 runtime: estimation algorithm, provider header parser, finalize_run cross-run aggregation, mid-run exhaust, capsule rendering | canonical | `.dtd/reference/v030b-quota-scheduling.md` |
 
 ## Extraction Rationale
 

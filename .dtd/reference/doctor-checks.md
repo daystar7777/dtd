@@ -417,6 +417,34 @@ Sections:
   user `allow task scope: paid_fallback` rule: ERROR
   `quota_paid_fallback_unauthorized` (Codex P1.3).
 
+### v0.3.0b R1 runtime checks (additional)
+
+> Full R1 runtime contract — estimation algorithm, provider header
+> parser, finalize_run aggregation step 9.quota, mid-run exhaust,
+> capsule rendering — lives in
+> `.dtd/reference/v030b-quota-scheduling.md`.
+
+- Fewer than 3 matching `exec-*-ctx.md` history rows for a
+  frequently-dispatched (worker, task) pair: INFO
+  `quota_estimation_history_thin`. Estimation falls through to
+  plan-derived; informational.
+- Header arrived with configured prefix but expected field
+  missing: WARN `quota_provider_header_format_drift` (possible
+  provider API change).
+- Header prefix configured but field names don't match any known
+  vendor: INFO `quota_provider_header_unknown_format`. Headers
+  ignored; estimation uses dispatch_response only.
+- `worker.quota_reset_tz` ≠ `state.md.user_tz`: INFO
+  `quota_reset_tz_mismatch` (valid configuration; informational).
+- `pause_overnight` chosen but no scheduled wake-up tick configured
+  (host-dependent): INFO `quota_pause_overnight_resume_tick_missing`.
+  User may need to manually re-run `/dtd run`.
+- `config.cross_run_quota_persist: false`: INFO
+  `quota_finalize_aggregation_skipped` (cosmetic; tracker not
+  updated).
+- `.dtd/runs/quota-archive-*.md` count > `config.quota_archive_max_files`
+  (default 50): WARN `quota_archive_overflow` recommending purge.
+
 ### v0.3.0e Time-limited permissions checks
 
 - For every `## Active rules` row with `until` field in
