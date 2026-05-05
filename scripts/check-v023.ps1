@@ -124,6 +124,21 @@ Add-Result "v023.dtd.profile_log_not_steering" "dtd.md routes profile diagnostic
 Add-Result "v023.dtd.token_caveat" "dtd.md does not guarantee token savings" `
     ($dtdMd -match "not a guaranteed provider-token reduction")
 
+$roadmapRefText = Read-Text ".dtd/reference/roadmap.md"
+Add-Result "v023.roadmap.permission_keys_current" "roadmap includes current 10 permission keys" `
+    (($roadmapRefText -match 'tool_relay_read') -and ($roadmapRefText -match 'tool_relay_mutating'))
+Add-Result "v023.roadmap.notepad_v2_current" "roadmap says notepad v2 is 8-heading with Reasoning Notes" `
+    (($roadmapRefText -match '8-heading `<handoff>`') -and
+     ($roadmapRefText -match 'Reasoning Notes') -and
+     ($roadmapRefText -match '1\.2\s*KB'))
+Add-Result "v023.roadmap.snapshot_revertable_default" "roadmap says normal worker output is revertable by default" `
+    (($roadmapRefText -match 'Default for normal worker output') -and
+     ($roadmapRefText -match 'absent-prestate marker'))
+Add-Result "v023.roadmap.no_stale_notepad_v1" "roadmap no longer says notepad v2 is 7-heading" `
+    (-not ($roadmapRefText -match '7-heading `<handoff>`'))
+Add-Result "v023.roadmap.no_stale_snapshot_vcs_default" "roadmap no longer says metadata-only defaults for version control" `
+    (-not ($roadmapRefText -match 'default\s+for\s+files\s+within\s+version\s+control'))
+
 Add-Result "v023.instructions.effective_profile" "instructions compute effective_profile" `
     ($instructionsMd -match 'compute `effective_profile`')
 Add-Result "v023.instructions.observational_no_profile_write" "instructions prevent profile writes on observational reads" `

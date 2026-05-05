@@ -126,20 +126,23 @@ placeholders); v0.2 implements the full systems.
 
 - **Permission Decision Ledger** (V011-1): `.dtd/permissions.md` with
   ask|allow|deny rules per
-  `edit/bash/external_directory/task/snapshot/revert/todowrite/question`
-  keys. `/dtd permission list/approve/reject/rules` commands. Pending
+  `edit/bash/external_directory/task/snapshot/revert/tool_relay_read/
+  tool_relay_mutating/todowrite/question` keys.
+  `/dtd permission list/show/allow/deny/ask/revoke/rules` commands. Pending
   request capsule in state.md (already partially in v0.1.1 decision
   capsule).
-- **Structured Notepad v2 handoff** (V011-2): 7-heading `<handoff>`
+- **Structured Notepad v2 handoff** (V011-2): 8-heading `<handoff>`
   template (Goal/Constraints/Progress/Decisions/Next Steps/Critical
-  Context/Relevant Files), <= 1KB worker-visible.
+  Context/Relevant Files/Reasoning Notes), <= 1.2KB worker-visible.
 - **Snapshot / Revert hooks** (V011-3): `.dtd/snapshots/` (gitignored),
   three modes per v0.2 design R1:
   - `metadata-only` — pre-apply file hash + git diff metadata.
-    Audit-only; **never revertable** (no preimage stored). Cheapest,
-    default for files within version control.
+    Audit-only; **never revertable** (no preimage stored). Used only
+    for explicit audit-only/non-output context, not normal worker output.
   - `preimage` — durable byte-for-byte snapshot of pre-apply file
-    content. Revertable. Used for files outside git or when
+    content, or an absent-prestate marker for a newly-created output
+    path. Revertable. Default for normal worker output, including
+    tracked text files and new output paths; also used when
     `revert_required: true` is set in `.dtd/permissions.md`.
   - `patch` — delta-only snapshot (forward + reverse patch).
     Revertable, smaller than `preimage` for large files. Mode chosen
@@ -152,8 +155,8 @@ placeholders); v0.2 implements the full systems.
   `resume_strategy: fresh|same-worker|new-worker|controller-takeover`
   in attempt timeline.
 - **Loop guard / doom-loop detection** (V011-5): `loop_guard_status`,
-  signature = worker+task+prompt-hash+failure-hash, threshold action
-  ask|worker_swap|controller.
+  v0.2 per-run signature = worker+task+prompt-hash+failure-hash,
+  threshold action ask|worker_swap|controller.
 - **External directory permission** (V011-6): absolute paths trigger
   explicit approval.
 - **Approval packet** (V011-7): `.dtd/runs/run-NNN-approval.md`
