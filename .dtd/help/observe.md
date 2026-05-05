@@ -24,6 +24,10 @@ affecting the active run.
 - `/dtd workers [list|test]`
 - `/dtd incident list/show <id>` (v0.2.0a)
 - `/dtd perf [--phase|--worker|--tokens|--cost]` (v0.2.0f)
+- `/dtd consensus show <task_id|--active>` (v0.3.0c)
+- `/dtd session-sync show` (v0.3.0d)
+- `/dtd loop-guard show` / `rehash --dry-run` (v0.3.0a)
+- `/dtd r2 readiness` (v0.3 R2 entry gate)
 
 ## Observational read isolation
 
