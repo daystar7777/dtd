@@ -325,11 +325,42 @@ your-project/
 - Distributed lock guarantees across DTD instances (best-effort for global paths)
 - Streaming worker responses
 - Direct adapters for Anthropic Messages / Gemini API (use OpenAI-compatible shims)
-- Voting / consensus dispatch (one worker per task)
 - Per-run notepad search across `.dtd/runs/` archive
 - `/dtd runs prune` cleanup command
 
 These are on the v0.2 / v0.1.1 roadmap.
+
+## v0.2 line — Operations hardening + lifecycle
+
+Spec-complete; tag pending user authorization. Adds incident
+tracking, permission ledger, snapshot/revert, runtime resilience
+(worker health-check + session resume + loop guard), notepad v2
++ reasoning-utility post-processing, autonomy & attention modes,
+locale packs, self-update with migration, and modular spec
+extraction.
+
+## v0.3 line — Multi-LLM advanced execution
+
+Spec-complete at R0 (design) + R1 (runtime), pending Codex final
+GO + tag. 5 sub-releases:
+
+- **v0.3.0a Cross-run loop guard** — stable signature ledger
+  catches long-term failure patterns the within-run guard misses.
+- **v0.3.0b Token-rate-aware scheduling** — predictive routing
+  with TZ-aware quota windows; provider-header parsing for 4
+  vendors; permission-gated paid fallback.
+- **v0.3.0c Multi-worker consensus dispatch** — `consensus="N"`
+  plan attribute; 4 selection strategies (`first_passing`,
+  `quality_rubric`, `reviewer_consensus`, `vote_unanimous`);
+  parallel staged outputs; group lock; late-result-never-apply
+  invariant.
+- **v0.3.0d Cross-machine session sync** — opt-in worker
+  session affinity across laptop/desktop with mandatorily
+  encrypted payloads (AES-256-GCM + HKDF-SHA256); 3 backends
+  (filesystem / git_branch / none); SESSION_CONFLICT capsule.
+- **v0.3.0e Time-limited permissions** — `for 1h` /
+  `until eod` / `for run` natural duration syntax;
+  TZ-aware named-local scopes; finalize_run auto-prune.
 
 ---
 

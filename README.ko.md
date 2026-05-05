@@ -291,11 +291,38 @@ Aider, Cline, Continue, Windsurf, gemini-cli, 그 외 agentic harness.
 - DTD 인스턴스 간 분산 lock 보장 (global path는 best-effort)
 - streaming worker response
 - Anthropic Messages / Gemini API 직접 어댑터 (OpenAI-호환 shim 권장)
-- 보팅 / 합의 디스패치 (한 task = 한 워커)
 - `.dtd/runs/` archive search
 - `/dtd runs prune` cleanup 명령
 
 v0.2 / v0.1.1 로드맵에 있습니다.
+
+## v0.2 라인 — 운영 강화 + 라이프사이클
+
+스펙 완성; 사용자 태그 권한 대기 중. incident tracking, permission
+ledger, snapshot/revert, runtime resilience (워커 health-check +
+session resume + loop guard), notepad v2 + reasoning-utility 후처리,
+autonomy & attention 모드, locale 팩, 마이그레이션 가능한
+self-update, 모듈화된 spec 추출이 포함됩니다.
+
+## v0.3 라인 — 멀티-LLM 고급 실행
+
+R0 (설계) + R1 (런타임)에서 스펙 완성; Codex 최종 GO + 태그 대기 중.
+5개 sub-release:
+
+- **v0.3.0a Cross-run loop guard** — 안정 시그니처 ledger가
+  within-run guard가 놓치는 장기 실패 패턴을 잡습니다.
+- **v0.3.0b 토큰 비율 인지 스케줄링** — TZ 인지 quota 윈도우 + 4개
+  벤더에 대한 provider-header 파싱 + 권한 게이트가 적용된 paid fallback.
+- **v0.3.0c 멀티-워커 합의 디스패치** — `consensus="N"` 플랜 속성;
+  4개 선택 전략 (`first_passing`, `quality_rubric`,
+  `reviewer_consensus`, `vote_unanimous`); 병렬 staged outputs;
+  group lock; late-result-never-apply 불변 조건.
+- **v0.3.0d 머신 간 세션 동기화** — 랩탑/데스크탑 간 워커 세션
+  affinity (mandatorily 암호화된 payload, AES-256-GCM + HKDF-SHA256);
+  3개 백엔드 (filesystem / git_branch / none); SESSION_CONFLICT capsule.
+- **v0.3.0e 시간 제한 권한** — `for 1h` / `until eod` / `for run`
+  자연어 duration 문법; TZ 인지 named-local 범위;
+  finalize_run auto-prune.
 
 ---
 

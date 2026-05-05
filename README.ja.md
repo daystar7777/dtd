@@ -296,11 +296,40 @@ Anthropic-compat shim)。
 - DTD インスタンス間の分散 lock 保証 (global path は best-effort)
 - streaming worker response
 - Anthropic Messages / Gemini API 直接アダプター (OpenAI 互換 shim 推奨)
-- 投票 / 合意ディスパッチ (1 task = 1 worker)
 - `.dtd/runs/` archive 検索
 - `/dtd runs prune` cleanup コマンド
 
 v0.2 / v0.1.1 のロードマップに含まれます。
+
+## v0.2 ライン — 運用強化 + ライフサイクル
+
+仕様完成; ユーザーのタグ承認待ち。incident tracking、permission
+ledger、snapshot/revert、runtime resilience (worker health-check +
+session resume + loop guard)、notepad v2 + reasoning-utility 後処理、
+autonomy & attention モード、locale パック、マイグレーション付き
+self-update、モジュール化された spec 抽出が含まれます。
+
+## v0.3 ライン — マルチ-LLM 高度実行
+
+R0 (設計) + R1 (ランタイム) で仕様完成; Codex 最終 GO + タグ待ち。
+5 sub-release:
+
+- **v0.3.0a Cross-run loop guard** — 安定シグネチャ ledger が
+  within-run guard が見逃す長期失敗パターンを検出します。
+- **v0.3.0b トークンレート対応スケジューリング** — TZ 対応 quota
+  ウィンドウ + 4 ベンダーの provider-header パース + パーミッション
+  ゲートで保護された paid fallback。
+- **v0.3.0c マルチワーカー合意ディスパッチ** — `consensus="N"`
+  plan 属性、4 つの選択戦略 (`first_passing`、`quality_rubric`、
+  `reviewer_consensus`、`vote_unanimous`)、並列 staged outputs、
+  group lock、late-result-never-apply 不変条件。
+- **v0.3.0d マシン間セッション同期** — ラップトップ/デスクトップ
+  間のワーカーセッション affinity (mandatorily 暗号化 payload、
+  AES-256-GCM + HKDF-SHA256)、3 バックエンド (filesystem /
+  git_branch / none)、SESSION_CONFLICT capsule。
+- **v0.3.0e 時間制限パーミッション** — `for 1h` / `until eod` /
+  `for run` 自然言語 duration 構文、TZ 対応 named-local スコープ、
+  finalize_run auto-prune。
 
 ---
 
