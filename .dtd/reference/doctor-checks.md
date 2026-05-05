@@ -387,6 +387,36 @@ Sections:
   `.dtd/log/run-NNN-summary.md`; does NOT block dispatch — Codex
   additional amendment).
 
+### v0.3.0d R1 runtime checks (additional)
+
+> Full R1 runtime contract — encryption / decryption flow,
+> pre-dispatch read, backend transports, finalize_run step
+> 9.session-sync, conflict resolution, /dtd session-sync R1
+> command output — lives in
+> `.dtd/reference/v030d-cross-machine-session-sync.md` ## R1
+> runtime contract.
+
+- Decryption of an encrypted_row failed (AES-256-GCM auth tag
+  mismatch): WARN `session_sync_decrypt_failed` (runtime, not
+  static; row marked corrupted; not used for resume; Codex P1.6
+  fail-closed).
+- 5+ consecutive run finalize_run sync writes failed with
+  connectivity error
+  (`state.md.session_sync_consecutive_unreachable_count >= 5`):
+  WARN `session_sync_consecutive_unreachable_count` suggesting
+  backend reachability check.
+- `.dtd/tmp/session-sync-worktree/` exists but
+  `config.session_sync.backend != "git_branch"` (or sync
+  disabled): WARN `session_sync_worktree_orphan` recommending
+  `git worktree remove`.
+- `.dtd/session-sync.encrypted` rows don't parse to
+  `<hash>|<nonce>|<ciphertext>|<auth_tag>` format: ERROR
+  `session_sync_encrypted_format_invalid`.
+- HKDF salt = `repo_identity_hash[:16]` differs between local and
+  remote ledgers: ERROR `session_sync_hkdf_salt_mismatch`
+  (runtime; repository identity changed; rehash needed similar to
+  v030a).
+
 ### v0.3.0a Cross-run loop guard checks
 
 - `.dtd/cross-run-loop-guard.md` exists if

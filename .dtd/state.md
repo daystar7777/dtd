@@ -94,6 +94,8 @@
 - session_sync_pending_conflicts: []   # list of {provider, machine_id, session_id_hash}
 - machine_id: null                     # auto-generated UUID at install (Codex: UUID + optional display_name)
 - machine_display_name: null           # optional human label, e.g. "laptop-A"
+- session_sync_consecutive_unreachable_count: 0  # R1; counter for backend reachability
+- last_session_sync_decrypt_failure_at: null     # R1; ts of last decrypt failure
 
 ## Notepad compaction (v0.2.2 R1)
 

@@ -3443,6 +3443,172 @@ that cross-machine match will not work without stable identity.
 
 ---
 
+## v0.3.0d R1 — Cross-machine session sync runtime
+
+### 182. AES-256-GCM encryption + decryption round-trip
+
+**Setup**: `state.md.machine_id = "laptop-A"`,
+`session_id = "sess_abc123"`,
+`DTD_SESSION_SYNC_KEY = "test-secret-32-bytes-or-more!!"`,
+repo_identity_hash known.
+
+**Steps**: encrypt session_id; persist; decrypt back.
+
+**Expected**:
+- Output structure: `nonce_b64u` (16 chars b64url, 12 bytes
+  binary), `ciphertext_b64u`, `auth_tag_b64u` (~22 chars b64url,
+  16 bytes binary).
+- `decrypt_session_id()` returns `Decrypted(session_id =
+  "sess_abc123")`.
+- Tampering ciphertext OR auth_tag OR nonce: AES-GCM auth
+  failure → `Corrupted` returned + WARN
+  `session_sync_decrypt_failed` logged.
+
+**Pass**: encryption round-trips; tampering fails closed
+(Codex P1.6).
+
+### 183. HKDF salt = repo_identity_hash[:16]
+
+**Setup**: same project, same git remote URL on 2 machines.
+Both compute `repo_identity_hash` PRIMARY:
+`sha256(remote_url + first_commit_sha)`.
+
+**Steps**: each machine derives encryption key.
+
+**Expected**:
+- Both machines derive IDENTICAL key from
+  `HKDF_SHA256(ikm=key_env, salt=repo_id_hash[:16],
+   info="dtd-session-sync-v1", length=32)`.
+- A's encrypted_row decrypts on B (cross-machine resume works).
+
+**Pass**: salt is project-stable but per-project;
+cross-project sync attempts (different `repo_id_hash`) would
+fail decryption → flagged by
+`session_sync_hkdf_salt_mismatch`.
+
+### 184. Pre-dispatch read with missing encrypted blob
+
+**Setup**:
+- Filesystem backend; sync_path has
+  `<repo_id_hash>/session-sync.md` (with rows) but
+  `session-sync.encrypted` missing.
+
+**Steps**: pre-dispatch sync read.
+
+**Expected**:
+- ERROR `session_sync_plaintext_violation` logged.
+- Sync read returns `EmptyLedger()` (refuses to use rows without
+  backing encryption).
+- v0.2.1 R1 fallback to per-machine.
+
+**Pass**: missing encryption blob with ledger rows is fail-closed
+(P1.6 invariant: synced ledger MUST have encrypted backing).
+
+### 185. git_branch read uses git show <ref>:<path>
+
+**Setup**: `backend: git_branch`, `sync_branch:
+dtd-session-sync`. User is on `feature/auth-rewrite` working
+branch.
+
+**Steps**: pre-dispatch sync read.
+
+**Expected**:
+- `git fetch origin dtd-session-sync` succeeds.
+- `git show origin/dtd-session-sync:.dtd/session-sync.md` reads
+  ledger metadata.
+- `git show origin/dtd-session-sync:.dtd/session-sync.encrypted`
+  reads encrypted blob.
+- User's working branch (`feature/auth-rewrite`) checkout NOT
+  disturbed.
+- No checkout / branch-switch happens.
+
+**Pass**: read is non-disruptive; uses git plumbing without
+working-tree mutation.
+
+### 186. git_branch write via isolated worktree
+
+**Setup**: same as 185. finalize_run reaches step 9.session-sync.
+
+**Steps**:
+1. `git worktree add .dtd/tmp/session-sync-worktree
+   dtd-session-sync` (one-time setup).
+2. Copy session-sync files into worktree.
+3. `git add -f .dtd/session-sync.md .dtd/session-sync.encrypted`
+   in the worktree.
+4. Commit + push.
+
+**Expected**:
+- `dtd-session-sync` branch has new commit with both files.
+- User's working branch (`feature/auth-rewrite`) staging area
+  NOT modified.
+- `git status` on user's branch shows clean (or only their own
+  edits).
+- Doctor `session_sync_files_staged_on_work_branch` does NOT
+  fire.
+
+**Pass**: branch isolation contract enforced at commit time, not
+just at config time.
+
+### 187. finalize_run step 9.session-sync atomic write
+
+**Setup**: filesystem backend; finalize_run reaches step 5e
+hooks.
+
+**Steps**: step 9.session-sync writes encrypted blob.
+
+**Expected**:
+- Local `.dtd/session-sync.md` and
+  `.dtd/session-sync.encrypted` written via tmp + atomic-rename.
+- If atomic-rename fails partway: ledger remains in prior
+  consistent state (no half-updated rows).
+- `state.md.session_sync_last_write_at` updated only on success.
+- Backend write attempted last; if backend fails, local files
+  still consistent.
+
+**Pass**: atomic-rename discipline preserves consistency under
+crash.
+
+### 188. SESSION_CONFLICT use_remote: decrypt + hint same-worker
+
+**Setup**:
+- Local row: `(claude-api, hash A)`, machine laptop-A.
+- Remote row: `(claude-api, hash B)`, machine desktop-B.
+- Both `active`; CONFLICT detected.
+- User picks `use_remote`.
+
+**Steps**: capsule resolves; controller applies decision.
+
+**Expected**:
+- Encrypted_row for hash B decrypted using local key_env +
+  shared repo_id_hash.
+- v0.2.1 R1 strategy resolver hinted to `same-worker` with
+  decrypted session_id.
+- Local row marked `superseded` in local ledger.
+- At next finalize_run, supersession propagates to synced
+  ledger.
+
+**Pass**: `use_remote` decrypts and reuses; loser row is
+preserved as audit (not deleted).
+
+### 189. Decrypt failure fails closed
+
+**Setup**: encrypted_row has tampered auth_tag (test fixture).
+
+**Steps**: pre-dispatch read attempts decryption.
+
+**Expected**:
+- AES-GCM auth tag verification FAILS.
+- WARN `session_sync_decrypt_failed` logged.
+- `state.md.last_session_sync_decrypt_failure_at: <ts>`.
+- Row marked corrupted; NOT used as resume hint.
+- v0.2.1 R1 falls back to fresh strategy for that
+  (worker, provider) tuple.
+
+**Pass**: tampered ciphertext NEVER yields plaintext; fail-closed
+posture (P1.6 invariant); resume gracefully degrades.
+
+---
+
 ## v0.3.0e R1 — Time-limited permissions runtime
 
 ### 150. Pre-dispatch gate locks in mid-call expiry

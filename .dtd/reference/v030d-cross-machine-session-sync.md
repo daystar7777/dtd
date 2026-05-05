@@ -370,3 +370,420 @@ R1; R0 manual config path must be safe). For R0 users edit
 - `workers.example.md` unchanged.
 
 Backward compat: `enabled: false` default = v0.2.1 behavior.
+
+## R1 runtime contract
+
+R0 (commit `6013ac2` + Codex review patches `1ab11f3`) shipped 3
+backends, the mandatory encryption invariant (Codex P1.6), shared
+`repo_identity_hash` (Codex P1.7), SESSION_CONFLICT capsule,
+sync-enabled gating across 10 doctor checks, branch-isolation
+contract for git_branch backend, and `/dtd session-sync` command.
+
+R1 ships the runtime algorithms:
+
+### R1.1 — Encryption / decryption flow
+
+```
+encrypt_session_id(session_id, key_env_value, repo_identity_hash):
+  # 1. Derive per-row encryption key via HKDF.
+  salt = repo_identity_hash[:16]                # first 16 chars (8 bytes binary)
+  ikm = utf8(key_env_value)
+  derived_key = HKDF_SHA256(ikm=ikm, salt=salt, info=b"dtd-session-sync-v1", length=32)
+
+  # 2. Generate per-row 96-bit nonce.
+  nonce = secure_random(12)                     # 96 bits = 12 bytes
+
+  # 3. AES-256-GCM encrypt.
+  plaintext = utf8(session_id)
+  associated_data = utf8(session_id_hash)       # binds ciphertext to public hash row
+  ciphertext, auth_tag = AES_256_GCM_encrypt(
+    key = derived_key,
+    nonce = nonce,
+    plaintext = plaintext,
+    associated_data = associated_data,
+  )
+
+  # 4. Encode for ledger (base64url, no padding).
+  return EncryptedRow(
+    nonce_b64u = base64url_no_pad(nonce),
+    ciphertext_b64u = base64url_no_pad(ciphertext),
+    auth_tag_b64u = base64url_no_pad(auth_tag),
+    associated_data_hash = session_id_hash,
+  )
+
+decrypt_session_id(row, key_env_value, repo_identity_hash):
+  # Same key derivation.
+  salt = repo_identity_hash[:16]
+  derived_key = HKDF_SHA256(ikm=utf8(key_env_value), salt=salt, info=b"dtd-session-sync-v1", length=32)
+
+  try:
+    plaintext = AES_256_GCM_decrypt(
+      key = derived_key,
+      nonce = base64url_no_pad_decode(row.nonce_b64u),
+      ciphertext = base64url_no_pad_decode(row.ciphertext_b64u),
+      auth_tag = base64url_no_pad_decode(row.auth_tag_b64u),
+      associated_data = utf8(row.associated_data_hash),
+    )
+    return Decrypted(session_id = utf8_decode(plaintext))
+  except AuthError:
+    # Tampered or wrong key — fail closed (Codex P1.6).
+    log_warn("session_sync_decrypt_failed", row=row.associated_data_hash)
+    return Corrupted
+```
+
+Ciphertext format on disk (`.dtd/session-sync.encrypted`):
+
+```
+# DTD session-sync encrypted blob (v0.3.0d R1)
+# format: <session_id_hash> | <nonce_b64u> | <ciphertext_b64u> | <auth_tag_b64u>
+
+a3f1b9d2c4e5f6a7... | xQ-fR3pK0sLm5tBg | iEpDx9nKv... | dF3qZ7wR2nVgT5...
+```
+
+R1 doctor `session_sync_decrypt_failed` (WARN — runtime, not
+static) records corruption events.
+
+### R1.2 — Pre-dispatch sync read (step 5.5.5b)
+
+```
+pre_dispatch_sync_read(state, config):
+  if not config.session_sync.enabled or config.session_sync.backend == "none":
+    return SkipSync()  # v0.2.1 per-machine behavior
+
+  # 1. Verify encryption key present (P1.6 mandatory).
+  key_env = os.environ.get(config.session_sync.encryption_key_env)
+  if not key_env:
+    log_error("session_sync_no_encryption_key")
+    return SyncDisabled()  # falls back to per-machine
+
+  # 2. Read local + remote ledgers.
+  local_ledger = read_ledger(".dtd/session-sync.md")
+  remote_ledger = backend_read(config.session_sync.backend, repo_identity_hash())
+
+  # 3. Conflict detection.
+  for (worker, provider) in active_dispatches(state):
+    local_active = local_ledger.find_active(worker, provider)
+    remote_active = remote_ledger.find_active(worker, provider)
+
+    if local_active and remote_active and local_active.session_id_hash != remote_active.session_id_hash:
+      # CONFLICT — capsule before any same-session reuse.
+      return SessionConflict(local=local_active, remote=remote_active)
+
+    elif remote_active and not local_active and within_expiry(remote_active):
+      # Hint v0.2.1 R1 to use same-worker strategy.
+      decrypted = decrypt_session_id(
+        remote_ledger.encrypted_row(remote_active.session_id_hash),
+        key_env,
+        repo_identity_hash(),
+      )
+      if isinstance(decrypted, Corrupted):
+        continue  # treat as fresh
+      hint_resume_strategy("same-worker", session_id=decrypted.session_id)
+
+  state.session_sync_last_read_at = now_utc()
+```
+
+### R1.3 — Backend-specific transport
+
+#### `filesystem` read
+
+```
+backend_read_filesystem(sync_path, repo_id_hash):
+  ledger_path = f"{sync_path}/{repo_id_hash}/session-sync.md"
+  encrypted_path = f"{sync_path}/{repo_id_hash}/session-sync.encrypted"
+
+  if not file_exists(ledger_path):
+    return EmptyLedger()
+  if not file_exists(encrypted_path):
+    log_error("session_sync_plaintext_violation")
+    return EmptyLedger()  # synced ledger without encrypted blob — refuse
+
+  return Ledger(
+    rows = parse_md(ledger_path),
+    encrypted_rows = parse_encrypted(encrypted_path),
+  )
+```
+
+#### `git_branch` read
+
+```
+backend_read_git_branch(sync_branch, sync_remote, repo_id_hash):
+  # Fetch the sync branch from the configured remote.
+  result = git_fetch(sync_remote, sync_branch)
+  if result.failed:
+    log_warn("session_sync_unreachable", reason=result.reason)
+    return EmptyLedger()
+
+  # Read files at FETCH_HEAD without checking out.
+  ledger_md = git_show(f"{sync_remote}/{sync_branch}:.dtd/session-sync.md")
+  encrypted_blob = git_show(f"{sync_remote}/{sync_branch}:.dtd/session-sync.encrypted")
+
+  return Ledger(
+    rows = parse_md(ledger_md),
+    encrypted_rows = parse_encrypted(encrypted_blob),
+  )
+```
+
+The git_branch read uses `git show <ref>:<path>` to avoid
+disturbing the user's working branch.
+
+### R1.4 — Finalize_run sync write (step 9.session-sync)
+
+NEW finalize_run sub-step (under step 5e dedicated v0.3 hooks).
+Codex P1.10 dedicated step discipline.
+
+```
+finalize_run_step_9_session_sync(state, config):
+  if not config.session_sync.enabled or config.session_sync.backend == "none":
+    return  # no sync
+
+  key_env = os.environ.get(config.session_sync.encryption_key_env)
+  if not key_env:
+    return  # already logged at pre-dispatch; skip silently here
+
+  # 1. Update local ledger row for this machine.
+  local_row = local_ledger.upsert(
+    machine_id = state.machine_id,
+    machine_display_name = state.machine_display_name,
+    provider = current_dispatch.provider,
+    session_id_hash = sha256(current_dispatch.session_id),
+    last_used = now_utc(),
+    expires_at = now_utc() + config.session_sync.expires_default_hours * 3600,
+    status = "active",
+  )
+
+  # 2. Encrypt session_id and update encrypted blob.
+  encrypted_row = encrypt_session_id(
+    session_id = current_dispatch.session_id,
+    key_env_value = key_env,
+    repo_identity_hash = repo_identity_hash(),
+  )
+  encrypted_blob.upsert(local_row.session_id_hash, encrypted_row)
+
+  # 3. Write local files atomically.
+  atomic_write(".dtd/session-sync.md", render_ledger(local_ledger))
+  atomic_write(".dtd/session-sync.encrypted", render_encrypted_blob(encrypted_blob))
+
+  # 4. Backend-specific write.
+  result = backend_write(config.session_sync.backend, ...)
+  if result.failed:
+    log_warn("session_sync_unreachable", reason=result.reason)
+    # Connectivity != conflict: do NOT block dispatch.
+
+  state.session_sync_last_write_at = now_utc()
+```
+
+#### `filesystem` write
+
+```
+backend_write_filesystem(sync_path, repo_id_hash):
+  target_dir = f"{sync_path}/{repo_id_hash}/"
+  ensure_dir(target_dir)
+  copy(".dtd/session-sync.md", f"{target_dir}/session-sync.md")
+  copy(".dtd/session-sync.encrypted", f"{target_dir}/session-sync.encrypted")
+```
+
+#### `git_branch` write
+
+Branch-isolation contract (per Codex review patch in `1ab11f3`):
+sync ledger files MUST be force-added only on the configured sync
+branch or in an isolated worktree; never on the user's active
+project branch.
+
+```
+backend_write_git_branch(sync_branch, sync_remote, commit_interval):
+  # Skip if last commit < commit_interval ago.
+  if (now_utc() - last_sync_commit_at) < commit_interval * 60:
+    return Skipped()
+
+  # 1. Use isolated worktree for the sync branch (does not disturb user's branch).
+  worktree_path = ".dtd/tmp/session-sync-worktree/"
+  if not worktree_exists(worktree_path):
+    git_worktree_add(worktree_path, sync_branch)
+
+  # 2. Copy session-sync files to worktree.
+  copy(".dtd/session-sync.md", f"{worktree_path}/.dtd/session-sync.md")
+  copy(".dtd/session-sync.encrypted", f"{worktree_path}/.dtd/session-sync.encrypted")
+
+  # 3. Force-add (these files are gitignored).
+  cd(worktree_path)
+  git_add_force(".dtd/session-sync.md", ".dtd/session-sync.encrypted")
+  git_commit(message=f"dtd session-sync update: {sha8(machine_id)} @ {iso_now()}")
+
+  # 4. Push.
+  result = git_push(sync_remote, sync_branch)
+  if result.failed:
+    return ConnectivityFailure(result.reason)
+
+  state.session_sync_last_write_at = now_utc()
+```
+
+R1 doctor check `session_sync_files_staged_on_work_branch` (R0
+ERROR — already added in `1ab11f3`) catches misconfigured
+implementations that stage `.dtd/session-sync.*` on the user's
+project branch.
+
+### R1.5 — Conflict resolution
+
+When `pre_dispatch_sync_read()` returns `SessionConflict`:
+
+```
+on_session_conflict(local, remote, config):
+  fill_capsule(
+    awaiting_user_reason = "SESSION_CONFLICT",
+    pending_session_conflict = {
+      provider: local.provider,
+      local_machine_id: local.machine_id,
+      local_session_id_hash: local.session_id_hash,
+      remote_machine_id: remote.machine_id,
+      remote_session_id_hash: remote.session_id_hash,
+    },
+    decision_options = ["use_local", "use_remote", "fresh", "stop"],
+    decision_default = "fresh",  # conservative
+  )
+  state.session_sync_pending_conflicts.append({
+    provider: local.provider,
+    machine_id: remote.machine_id,
+    session_id_hash: remote.session_id_hash,
+  })
+```
+
+`decision_resume_action` map:
+
+| Option | On `/dtd run` resume |
+|---|---|
+| `use_local` | local row stays `active`; remote row marked `superseded` in local ledger; sync write at finalize_run propagates supersession. |
+| `use_remote` | remote row's `session_id` decrypted; local row marked `superseded`; v0.2.1 R1 strategy resolver hinted to `same-worker` with remote session_id. |
+| `fresh` | both rows marked `superseded`; v0.2.1 R1 falls back to fresh strategy. |
+| `stop` | finalize_run(STOPPED). |
+
+Loser row is marked `superseded` in the synced ledger; both rows
+persist for audit (no row deletion on conflict resolve).
+
+### R1.6 — Connectivity failure handling
+
+A real `SESSION_CONFLICT` MUST create a decision capsule before
+any same-session reuse (Codex additional amendment:
+connectivity ≠ conflict).
+
+A connectivity failure (network unreachable, push rejected, sync
+path missing) is WARN-only:
+
+```
+on_connectivity_failure(reason):
+  log_to_run_summary(f"session_sync_unreachable: {reason}")
+  # Dispatch proceeds with whatever state we already have; sync is
+  # retried at next finalize_run.
+  # Doctor surfaces session_sync_unreachable WARN (already R0).
+```
+
+R1 doctor check `session_sync_consecutive_unreachable_count` (WARN
+when count >= 5 across 5 consecutive runs) suggests user verify
+backend reachability — connectivity is degraded but sync still
+attempts.
+
+### R1.7 — `/dtd session-sync` command R1 implementations
+
+#### `/dtd session-sync show`
+
+R0 specified the command; R1 specifies the output:
+
+```
+$ /dtd session-sync show
+
+Session sync (backend: filesystem; enabled: true; encryption: OK):
+
+Local ledger:
+| Machine | Provider   | Hash      | Last used         | Expires at        | Status |
+| laptop-A| claude-api | a3f1b9... | 2026-05-05 18:23  | 2026-05-06 14:00  | active |
+
+Remote ledger (last sync: 2026-05-05 18:25 UTC):
+| Machine  | Provider   | Hash      | Last used         | Expires at        | Status |
+| desktop-B| claude-api | a3f1b9... | 2026-05-05 18:24  | 2026-05-06 14:00  | active (resumed from laptop-A) |
+
+Pending conflicts: 0
+```
+
+#### `/dtd session-sync sync`
+
+Triggers a manual finalize_run-style sync write. Permission-gated
+under existing `tool_relay_mutating`.
+
+#### `/dtd session-sync expire <hash>`
+
+Marks a specific session_id_hash row as `expired`; tombstones
+appended to local + synced ledger at next sync write.
+
+#### `/dtd session-sync purge --before <date>`
+
+Tombstones all rows whose `expires_at < <date>`. Bulk operation
+preserves audit (tombstone, not physical removal).
+
+## R1 doctor checks (additional)
+
+```
+- session_sync_decrypt_failed (WARN — runtime)
+    Decryption of an encrypted_row failed (auth tag mismatch).
+    Row marked corrupted; not used for resume.
+
+- session_sync_consecutive_unreachable_count (WARN)
+    5+ consecutive run finalize_run sync writes failed with
+    connectivity error. Suggests backend reachability check.
+
+- session_sync_worktree_orphan (WARN)
+    .dtd/tmp/session-sync-worktree/ exists but git_branch backend
+    is no longer enabled. Suggests git worktree remove.
+
+- session_sync_encrypted_format_invalid (ERROR)
+    .dtd/session-sync.encrypted has rows that don't parse to
+    <hash>|<nonce>|<ciphertext>|<auth_tag> format.
+
+- session_sync_hkdf_salt_mismatch (ERROR — runtime)
+    HKDF salt = repo_identity_hash[:16] differs between local and
+    remote ledgers. Repository identity changed (rehash needed,
+    similar to v030a).
+```
+
+## R1 acceptance scenarios
+
+> Scenario numbers 182-189 (next free range after v0.3.0c R1
+> 174-181). See `test-scenarios.md` ## v0.3.0d R1 — Cross-machine
+> session sync runtime.
+
+```
+182. AES-256-GCM encryption: encrypt_session_id() produces
+     deterministic structure (nonce 12B, auth_tag 16B); decrypt
+     succeeds; tampered ciphertext fails closed.
+183. HKDF salt = repo_identity_hash[:16]: same project on 2
+     machines with same git remote derives same key.
+184. Pre-dispatch read: filesystem backend reads
+     <sync_path>/<repo_id_hash>/session-sync.md; missing encrypted
+     blob with rows present -> session_sync_plaintext_violation
+     ERROR.
+185. git_branch read uses git show <ref>:<path>: does NOT disturb
+     user's working branch checkout.
+186. git_branch write uses isolated worktree: force-adds session
+     ledger files only on sync branch; project branch staged-files
+     remain unchanged.
+187. finalize_run step 9.session-sync writes encrypted blob
+     atomically; partial-write failures don't corrupt ledger.
+188. SESSION_CONFLICT decision_resume_action: use_remote decrypts
+     remote session_id and hints v0.2.1 R1 same-worker strategy.
+189. Decrypt failure (auth tag mismatch): WARN
+     session_sync_decrypt_failed; row marked corrupted; resume
+     falls back to fresh strategy.
+```
+
+## Migration (R1 additions)
+
+R1 is a runtime contract; it adds these state fields:
+
+```
+state.md (additional R1):
+- session_sync_consecutive_unreachable_count: 0  # R1; counter for backend reachability
+- last_session_sync_decrypt_failure_at: null     # R1; ts of last decrypt failure
+```
+
+No new permission keys (11-key invariant from v0.3.0c stable;
+session-sync mutating sub-commands gated under
+`tool_relay_mutating`).

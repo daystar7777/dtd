@@ -206,6 +206,69 @@ foreach ($n in 142..149) {
     Add-Result "v030d.scenarios.$n" "test-scenarios.md has scenario $n" `
         ($scenariosMd -match "### $n\.")
 }
+Add-Result "v030d.scenarios.r1_section_header" "test-scenarios.md has v0.3.0d R1 section header" `
+    ($scenariosMd -match "## v0\.3\.0d R1 .* Cross-machine session sync runtime")
+foreach ($n in 182..189) {
+    Add-Result "v030d.scenarios.r1_$n" "test-scenarios.md has R1 scenario $n" `
+        ($scenariosMd -match "### $n\.")
+}
+
+# ─── reference/v030d (R1 sections) ──────────────────────────────────────────
+
+Add-Result "v030d.r1_ref.section" "v030d ref has ## R1 runtime contract section" `
+    ($v030dRef -match "(?m)^## R1 runtime contract")
+Add-Result "v030d.r1_ref.encrypt_function" "v030d R1 ref documents encrypt_session_id() function" `
+    (($v030dRef -match "encrypt_session_id\(") -and ($v030dRef -match "decrypt_session_id\("))
+Add-Result "v030d.r1_ref.hkdf_salt" "v030d R1 ref defines HKDF salt = repo_identity_hash[:16]" `
+    ($v030dRef -match "salt = repo_identity_hash\[:16\]")
+Add-Result "v030d.r1_ref.hkdf_info_label" "v030d R1 ref defines HKDF info label" `
+    ($v030dRef -match 'dtd-session-sync-v1')
+Add-Result "v030d.r1_ref.aes_gcm_associated_data" "v030d R1 ref binds AES-GCM via associated_data" `
+    (($v030dRef -match "associated_data") -and ($v030dRef -match "session_id_hash"))
+Add-Result "v030d.r1_ref.encrypted_format" "v030d R1 ref documents encrypted blob row format" `
+    ($v030dRef -match "<session_id_hash> \| <nonce_b64u> \| <ciphertext_b64u> \| <auth_tag_b64u>")
+Add-Result "v030d.r1_ref.pre_dispatch_read" "v030d R1 ref documents pre_dispatch_sync_read()" `
+    ($v030dRef -match "pre_dispatch_sync_read\(")
+Add-Result "v030d.r1_ref.backend_filesystem_read" "v030d R1 ref documents backend_read_filesystem()" `
+    ($v030dRef -match "backend_read_filesystem\(")
+Add-Result "v030d.r1_ref.backend_git_branch_read" "v030d R1 ref documents backend_read_git_branch() with git show" `
+    (($v030dRef -match "backend_read_git_branch\(") -and ($v030dRef -match "git show"))
+Add-Result "v030d.r1_ref.finalize_step_9" "v030d R1 ref documents finalize_run step 9.session-sync" `
+    (($v030dRef -match "finalize_run_step_9_session_sync\(") -and ($v030dRef -match "9\.session-sync"))
+Add-Result "v030d.r1_ref.git_worktree_isolation" "v030d R1 ref documents git worktree isolation pattern" `
+    (($v030dRef -match "session-sync-worktree") -and ($v030dRef -match "git_worktree_add\("))
+Add-Result "v030d.r1_ref.session_conflict_resume_action" "v030d R1 ref documents SESSION_CONFLICT decision_resume_action map" `
+    (($v030dRef -match "decision_resume_action") -and `
+     ($v030dRef -match "use_local") -and `
+     ($v030dRef -match "use_remote") -and `
+     ($v030dRef -match "fresh"))
+Add-Result "v030d.r1_ref.connectivity_not_conflict_r1" "v030d R1 ref reaffirms connectivity != conflict" `
+    ($v030dRef -match "(?s)connectivity failure.*?WARN-only")
+Add-Result "v030d.r1_ref.r1_scenarios" "v030d R1 ref lists scenarios 182-189" `
+    ($v030dRef -match "(?s)R1 acceptance scenarios.*?182.*?189")
+
+# v030d R1 doctor codes (additional)
+$v030dR1DoctorCodes = @(
+    "session_sync_decrypt_failed",
+    "session_sync_consecutive_unreachable_count",
+    "session_sync_worktree_orphan",
+    "session_sync_encrypted_format_invalid",
+    "session_sync_hkdf_salt_mismatch"
+)
+foreach ($code in $v030dR1DoctorCodes) {
+    Add-Result "v030d.doctor.r1_code.$code" "doctor-checks ref defines R1 $code" `
+        ($doctorRef -match [regex]::Escape($code))
+}
+Add-Result "v030d.doctor.r1_section" "doctor-checks ref has v0.3.0d R1 runtime checks header" `
+    ($doctorRef -match "v0\.3\.0d R1 runtime checks")
+
+# v030d R1 state fields
+$v030dR1StateKeys = @("session_sync_consecutive_unreachable_count",
+                       "last_session_sync_decrypt_failure_at")
+foreach ($key in $v030dR1StateKeys) {
+    Add-Result "v030d.state.r1_key.$key" "state.md Session sync section has R1 $key" `
+        ($stateMd -match "(?m)^- $([regex]::Escape($key)):")
+}
 
 # ─── .dtd/.gitignore ────────────────────────────────────────────────────────
 
