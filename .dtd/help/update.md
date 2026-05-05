@@ -2,68 +2,47 @@
 
 ## Summary
 
-Self-Update flow (v0.2.0d). Fetches latest DTD release from GitHub,
-verifies via `MANIFEST.json`, runs state-schema migration, applies
-files atomically, runs doctor verification, rolls back on failure.
+Self-update checks DTD releases, verifies `MANIFEST.json`, migrates additive
+state/config fields, applies files atomically, runs doctor, and rolls back on
+failure.
 
 ## Quick examples
 
 ```text
-/dtd update check                see latest available version
-/dtd update --dry-run            preview file changes + state migrations
-/dtd update                      apply with explicit confirm
-/dtd update --pin <version>      stay on a specific version
+/dtd update check             see latest available version
+/dtd update --dry-run         preview files and migrations
+/dtd update                   apply latest after confirm
+/dtd update --pin v0.2.0d     apply a specific version
+/dtd update --rollback        restore latest backup after confirm
 ```
 
 ## Canonical commands
 
-- `/dtd update check` — observational; queries GitHub for latest tag.
-- `/dtd update --dry-run` — observational; previews delta + asks confirm.
-- `/dtd update [<version>]` — applies (defaults to latest). Confirm required.
-- `/dtd update --rollback` — restore from `.dtd.backup-*-*-<ts>/`.
+- `check` and `--dry-run` are observational: no local writes, no state update.
+- `/dtd update [<version>]` mutates files and always asks for confirmation.
+- `--rollback` restores from `.dtd.backup-*-<ts>/` after confirmation.
 
 ## Update flow (B1-B7)
 
-1. **B1 Lock + check** — `state.md.update_in_progress: true` atomically.
-2. **B2 Fetch manifest** — HTTP GET MANIFEST.json from target tag.
-3. **B2.5 Verify version** — compare `installed_version` vs target.
-4. **B3 Backup** — copy `.dtd/` to `.dtd.backup-<from>-to-<to>-<ts>/`.
-5. **B3.5 State schema migration** — apply additive deltas per spec.
-6. **B4 Apply files** — temp-write + atomic rename per file.
-7. **B5 Doctor verification** — run `/dtd doctor`; ERROR triggers B5.5 rollback.
-8. **B5.5 Rollback** (on failure) — restore from backup, clear lock.
-9. **B6 Update state** — `installed_version`, `update_check_at`, etc.
-10. **B7 Cleanup** — backup retention; AIMemory NOTE event.
+1. B1: set `state.md.update_in_progress: true` atomically.
+2. B2: fetch tag-anchored `MANIFEST.json`.
+3. B2.5: compare `installed_version` with target.
+4. B3: copy `.dtd/` to `.dtd.backup-<from>-to-<to>-<ts>/`.
+5. B3.5: add missing state/config fields; preserve user edits.
+6. B4: fetch, sha256-check, temp-write all files, then rename.
+7. B5: run `/dtd doctor`; ERROR triggers rollback.
+8. B5.5: restore backup, clear lock, print recovery hint.
+9. B6: update version/check fields and clear lock.
+10. B7: enforce backup retention; append AIMemory NOTE.
 
-## State / config fields
+## Safety
 
-state.md `Self-Update state (v0.2.0d)`:
-- `installed_version` — e.g. `v0.2.0d`
-- `update_check_at`, `update_available`, `update_in_progress`
-- `last_update_from`, `last_update_at`
-
-config.md `update (v0.2.0d)`:
-- `check_on_install: true`
-- `check_interval_days: 7`
-- `github_repo: daystar7777/dtd`
-- `github_token_env: GITHUB_TOKEN` (env var name; never literal)
-- `manifest_required: true`
-
-## Safety invariants
-
-- Never auto-applies without user confirm.
-- Never overwrites `workers.md` / user customizations / project files.
-- MANIFEST sha256 verified before any file write.
-- Atomic: phase 1 write all temps, phase 2 rename all (per apply spec).
-- Rollback restores the full `.dtd/` from backup on any error.
-
-## NL phrases
-
-- `"업데이트 해줘"` / `"최신으로 업데이트"` → `/dtd update`
-- `"업데이트 미리보기"` → `/dtd update --dry-run`
-- `"버전 확인"` → `/dtd update check`
+- Never overwrites `.dtd/workers.md`, `.dtd/.env`, or project source files.
+- GitHub tokens are referenced by env-var name only.
+- Manifest sha must match before any final rename.
+- Any apply/doctor failure restores the backup and clears the update lock.
 
 ## Next topics
 
-- `/dtd help start` — first-run flow.
-- `/dtd help observe` — `/dtd doctor` runs after update.
+- `/dtd help start`: first-run flow.
+- `/dtd help observe`: status and doctor checks.

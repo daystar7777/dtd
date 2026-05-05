@@ -18,8 +18,8 @@
 
 # Self-Update settings. See dtd.md §/dtd update.
 
-- check_on_install: true              # run `/dtd update check` at install completion
-- check_interval_days: 7              # /dtd doctor reminds if check is stale
+- check_on_install: true              # installer may check upstream once; read-only `/dtd update check` never writes
+- check_interval_days: 7              # informational upstream-check cadence; not a state mutation timer
 - github_repo: daystar7777/dtd        # upstream repo for /dtd update
 - github_token_env: GITHUB_TOKEN      # env var name for private repo auth; NEVER literal
 - manifest_required: true             # ERROR if MANIFEST.json missing in fetched release

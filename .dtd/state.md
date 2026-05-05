@@ -14,8 +14,8 @@
 # /dtd update flow tracking. See dtd.md §/dtd update.
 
 - installed_version: null         # e.g. "v0.2.0d"; null pre-update / pre-tag
-- update_check_at: null            # last time `/dtd update check` ran
-- update_available: null           # null | "<version>" if newer release detected
+- update_check_at: null            # persisted install/apply check; read-only `/dtd update check` does not write
+- update_available: null           # null | "<version>" from mutating update flow; read-only check is transient
 - update_in_progress: false        # true blocks dispatch + concurrent /dtd update
 - last_update_from: null           # version migrated from
 - last_update_at: null             # timestamp of last successful update

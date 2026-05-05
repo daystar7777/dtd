@@ -118,7 +118,7 @@ Health check. Output uses the same Unicode/ASCII style as `/dtd status`. Reports
 - `MANIFEST.json` exists at repo root if installed via v0.2.0d-aware bootstrap; ELSE INFO `manifest_absent_will_fetch` (acceptable)
 - If `MANIFEST.json` exists: parses as valid JSON with required fields (`version`, `tagged_at`, `manifest_format_version`, `files[]`); ELSE ERROR `manifest_invalid`
 - If `MANIFEST.json` exists: `manifest.version` matches `state.md.installed_version`; ELSE WARN `manifest_version_drift`
-- `state.md.update_check_at` is recent (within `config.update.check_interval_days * 2`); ELSE INFO `update_check_stale` recommending `/dtd update check`
+- `state.md.update_check_at` if non-null parses as timestamp; ELSE WARN `update_check_at_invalid`. Do not require freshness here: `/dtd update check` is observational and does not refresh durable state.
 - `.dtd.backup-*-<ts>/` directories older than `config.update.backup_retention_days` (default 7); INFO recommending purge
 
 **Help system** (v0.2.0d):

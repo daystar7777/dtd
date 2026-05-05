@@ -1091,11 +1091,11 @@ follow normal confidence rules; no silent run termination via NL.
 - HTTP GET to GitHub manifest of latest tagged release.
 - Compare `manifest.version` vs `state.md.installed_version`.
 - If equal: print `✓ already on latest (v0.2.0d). last checked: <ts>`.
-- `state.md.update_check_at: <now>` updated (the only state mutation).
-- `state.md.update_available: null` confirmed.
-- No file writes; no backup; observational beyond update_check_at.
+- `state.md` remains byte-identical before/after; `update_check_at` is not
+  written by this observational command.
+- No file writes; no backup; no AIMemory/notepad/attempt append.
 
-**Pass**: no-op message printed; `update_available` null; no files modified.
+**Pass**: no-op message printed; no files or state are modified.
 
 ### 87. /dtd update --dry-run shows full delta + asks confirm
 
@@ -1119,7 +1119,7 @@ follow normal confidence rules; no silent run termination via NL.
   + Apply? (y/n/edit)
   ```
 - NO file writes.
-- NO state.md mutation beyond `update_check_at`.
+- NO state.md mutation.
 
 **Pass**: full delta visible without applying; user can review before confirm.
 

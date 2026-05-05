@@ -13,10 +13,16 @@
 param(
     [Parameter(Mandatory=$true)]
     [string]$Version,
-    [string]$RepoRoot = (Resolve-Path "$PSScriptRoot/..").Path
+    [string]$RepoRoot = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
+    $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+} else {
+    $RepoRoot = (Resolve-Path $RepoRoot).Path
+}
 
 # Files to include in manifest (tracked release deliverables).
 # Excludes: AIMemory/, .git/, log/, snapshots/, attempts/, runs/, tmp/, workers.md (gitignored)
@@ -33,6 +39,7 @@ $IncludedPaths = @(
     "examples/user-journeys.md",
     "examples/plan-001.md",
     "examples/run-001-summary.md",
+    "scripts/build-manifest.ps1",
     ".dtd/instructions.md",
     ".dtd/config.md",
     ".dtd/state.md",

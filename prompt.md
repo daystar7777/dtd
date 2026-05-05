@@ -328,8 +328,8 @@ Set `state.md.installed_version` to the current DTD version (e.g.
 
 If `MANIFEST.json` exists at the repo root of the install source, copy
 it to the project root for offline doctor verification. If absent,
-`state.md.installed_version` is recorded but `MANIFEST.json` is fetched
-later by `/dtd update check`.
+`state.md.installed_version` is recorded; `/dtd update check` can query
+upstream read-only, and `/dtd update` fetches the manifest before apply.
 
 Create `.dtd/help/` directory with the 10 topic files
 (`index.md`, `start.md`, `observe.md`, `recover.md`, `workers.md`,
@@ -348,7 +348,7 @@ Print to user:
   installed_version: <e.g. v0.2.0d>
   Files written:    15 templates + 10 help topics + dtd.md
   Host pointer:     appended to <host-file>
-  MANIFEST.json:    <copied | will fetch on first /dtd update check>
+  MANIFEST.json:    <copied | queried by /dtd update check; fetched by /dtd update>
   AIMemory:         <integrated | absent>
 
 Next:
