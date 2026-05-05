@@ -231,7 +231,8 @@ Sections:
   ELSE ERROR `permission_rule_invalid` with line ref.
 - Permission keys MUST be one of
   `edit | bash | external_directory | task | snapshot | revert |
-  todowrite | question`; ELSE ERROR `permission_key_unknown`.
+  tool_relay_read | tool_relay_mutating | todowrite | question`; ELSE
+  ERROR `permission_key_unknown`.
 - Decisions MUST be one of `allow | deny | ask`; ELSE ERROR
   `permission_decision_invalid`.
 - No active rule allows `bash` with overly-broad scope (`*`, `/**`,
@@ -240,8 +241,9 @@ Sections:
   command(s).
 - No active rule allows `external_directory` with `*` scope; ELSE
   WARN `permission_external_directory_too_broad`.
-- Overlapping deny+allow rules with deny narrower than allow: WARN
-  `permission_rule_overlap` (semantics ok but can confuse users).
+- Overlapping deny+allow rules: WARN `permission_rule_overlap`. Runtime
+  resolves matching rules by scope specificity first and timestamp second, so
+  the warning is for auditability/user clarity rather than ambiguity.
 - Active rules referencing non-existent workers: WARN
   `permission_rule_unknown_worker`.
 - `until` timestamps in past: INFO `permission_rule_expired` (rule

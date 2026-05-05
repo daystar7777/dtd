@@ -36,23 +36,23 @@ action set:
 Routing rule: **detect prefix → strip → normalize to `/dtd` → feed remainder
 to NL/canonical router**. If remainder is empty, default to `/dtd status`.
 
-Examples (all equivalent):
+Examples while `locale_active: null`:
 
 ```
-/dtd status                     → /dtd status
-/ㄷㅌㄷ 상태                     → /dtd status
-/ㄷㅌㄷ 상태보여줘                → /dtd status (NL → status intent)
-/디티디 지금 어디까지 됐어?       → /dtd status
-/ㄷㅌㄷ 워커 추가                 → /dtd workers add
-/ㄷㅌㄷ qwen 워커 하나 추가해줘    → /dtd workers add (with alias hint "qwen")
+/dtd status                  → /dtd status
+/ㄷㅌㄷ locale enable ko      → /dtd locale enable ko
+/ㄷㅌㄷ 도움말                → bootstrap hint for enabling ko
 ```
 
 Implementation:
 
-1. Detect ASCII or Korean prefix at start of message.
+1. Detect ASCII or bootstrap non-English prefix at start of message.
 2. Strip prefix, normalize to canonical `/dtd`.
-3. Feed remainder through NL intent router (per Intent Gate below).
-4. Record canonical action only in state/log/attempts — never the alias spelling.
+3. If `locale_active: null`, route only the bootstrap forms listed below.
+   Other localized NL phrases return the one-line locale-enable hint.
+4. If a locale pack is active, feed the remainder through core + pack NL
+   routing (pack wins on conflict).
+5. Record canonical action only in state/log/attempts — never the alias spelling.
 
 Doctor reports alias support as INFO (host slash-command system support varies).
 If host doesn't support non-ASCII slash command filenames, the alias still works
@@ -147,6 +147,7 @@ classification, confidence, and any assumptions in your turn output (briefly).
 | `decision_mode` | `/dtd mode decision <plan|permission|auto>` or `/dtd run --decision <mode>` | how often DTD asks before non-destructive choices |
 | `history` | `/dtd status --history` or `phase-history.md` read | informational |
 | `incident` | `/dtd incident [list\|show\|resolve]` (v0.2.0a) | list/show are observational reads; resolve is a mutating decision action — see below |
+| `locale` | `/dtd locale [enable\|disable\|list\|show]` (v0.2.0e) | list/show are observational; enable/disable mutate locale state |
 | `update` | `/dtd update [check\|--dry-run\|<version>\|--rollback]` (v0.2.0d) | check/--dry-run are observational; apply/rollback ALWAYS confirms (mutating) |
 | `help` | `/dtd help [topic]` (v0.2.0d) | observational; reads `.dtd/help/<topic>.md`; never mutates state |
 | `explain` | answer in chat using `dtd.md` / `instructions.md` | meta — explain DTD itself |
@@ -154,7 +155,7 @@ classification, confidence, and any assumptions in your turn output (briefly).
 ### Classification rules
 
 - Confidence ≥ 0.95: act, print one-line status. No confirmation question.
-- Confidence 0.80-0.94: act, print "→ <action> (interpreted as <intent>). 되돌리려면 `<undo>`".
+- Confidence 0.80-0.94: act, print "→ <action> (interpreted as <intent>). Undo: `<undo>`."
 - Confidence < 0.80: confirm in ONE line. Wait.
 - **Destructive intents** (`stop`, `uninstall`, `workers rm`, `mode off` mid-run, `incident resolve <id> <destructive_option>`): ALWAYS confirm with explicit user phrase, regardless of confidence. Destructive incident options are those whose effect class is `stop` / `purge` / `delete` / `force_overwrite` / `revert_partial` / `terminal_finalize` (per `dtd.md` §`/dtd incident resolve` Destructive option confirmation). Non-destructive options (`retry`, `switch_worker`, `wait_once`, `manual_paste`) follow normal confidence rules.
 
@@ -168,89 +169,49 @@ assumption: user wants a fresh plan (current state is COMPLETED)
 → generated plan-002.md as DRAFT
 ```
 
-This makes Korean-first NL ergonomic without the user having to memorize commands,
-while still giving them a clear audit of what was inferred.
+Locale packs make non-English NL ergonomic after opt-in while preserving a
+clear audit of what was inferred.
 
 ---
 
-## NL → Canonical Action Mapping
+## Locale Pack NL Routing Boundary
 
-| User phrase pattern (Korean) | English equivalent | Canonical | Required state |
-|---|---|---|---|
-| "계획 짜줘", "이 목표로 정리", "이거 어떻게 할까" | "plan this", "make a plan" | `plan <inferred goal>` | any (DRAFT overwrite confirms) |
-| "좋아 진행", "ok 시작", "그대로 가" | "approve", "go ahead" | `approve` | DRAFT only |
-| "실행해", "돌려", "시작" | "run", "execute" | `run` | APPROVED or PAUSED |
-| "이어서", "계속해" | "continue", "resume" | `run` (resume effect) | PAUSED |
-| "3페이즈까지만 해줘", "phase 3까지 돌려" | "run until phase 3" | `run --until phase:3` | APPROVED or PAUSED |
-| "리뷰 전까지만 돌려" | "run until before review" | `run --until before:review` | APPROVED or PAUSED |
-| "UI 만들고 멈춰", "task X끝나면 멈춰" | "run until task X" | `run --until task:<id>` | APPROVED or PAUSED |
-| "다음 결정나오면 멈춰" | "run until next decision" | `run --until next-decision` | APPROVED or PAUSED |
-| "잠깐", "멈춰", "기다려" | "pause", "wait" | `pause` | RUNNING only |
-| "그만", "취소", "관둬" | "stop", "cancel", "abort" | `stop` | RUNNING / PAUSED, or any state with `pending_patch: true` |
-| "지금 어디까지", "진행상황", "어떻게 돼가" | "status", "where are we" | `status` | any |
-| "처음 계획 보여줘", "계획 다시 보여줘" | "show plan" | `plan show` | any (after plan exists) |
-| "task N은 X로", "phase N은 X가" | "task N to X" | `plan worker` (DRAFT) or `steer` (post-DRAFT) | DRAFT → swap; else patch |
-| "워커 추가", "X 등록" | "add worker", "register X" | `workers add` | any |
-| "X 빼줘", "워커 제거" | "remove worker" | `workers rm` | any |
-| "X에 별명 Y", "Y로 부를게" | "alias X as Y" | `workers alias add` | any |
-| "리뷰어를 X로", "primary는 Y로" | "set role to X" | `workers role set` | any |
-| "방향 바꾸자", "이번엔 안정성 우선" | "steer", "change direction" | `steer <text>` | RUNNING / APPROVED / PAUSED |
-| "patch 적용", "그 변경 가" | "approve patch" | `steer approve patch` | pending_patch=true |
-| "patch 빼", "그 변경 안 해" | "reject patch" | `steer reject patch` | pending_patch=true |
-| "DTD 꺼", "일반모드", "그냥 너가 해" | "DTD off", "normal mode" | `mode off` | any |
-| "DTD 켜", "협업모드" | "DTD on" | `mode on` | any |
-| "건강 체크", "검사" | "doctor", "check" | `doctor` | any |
-| "지워", "삭제", "uninstall" | "uninstall" | `uninstall` | any (off first if running) |
-| "도움말", "help", "어떻게 써?" | "help" | `help` (no arg = overview) | any |
-| "워커 도움말", "help workers" | "help workers" | `help workers` | any |
-| "막혔을 때", "help stuck" | "help stuck" | `help stuck` | any |
-| "업데이트 해줘", "최신으로 업데이트", "/dtd update latest" | "update", "update to latest" | `update` (mutating — confirm always) | any (host_mode != plan-only) |
-| "업데이트 미리보기", "update dry-run" | "update --dry-run" | `update --dry-run` (observational) | any |
-| "버전 확인", "최신 버전 뭐야" | "update check" | `update check` (observational) | any |
-| "롤백", "이전 버전으로", "rollback" | "rollback" | `update --rollback` (destructive — confirm always) | post-update only |
-| "지금 막힌 거 뭐야", "어디서 막혔어?", "어떤 에러야" | "what's blocking?", "what's wrong" | `incident show <active_blocking_incident_id>` (or `incident list` if none active) | any |
-| "incident 목록", "에러 목록", "사고 보여줘" | "list incidents" | `incident list` | any |
-| "incident <id> 보여줘", "그 사고 자세히" | "show incident" | `incident show <id>` | any |
-| "incident <id> 해결 retry", "그 에러 재시도", "재시도로 가자" | "resolve with retry" | `incident resolve <id> retry` | active blocking incident OR id supplied |
-| "워커 바꿔서 다시", "다른 워커로" | "resolve with switch_worker" | `incident resolve <id> switch_worker` | active blocking incident |
-| "incident <id> 그만", "그 에러 멈춰" | "resolve with stop" | `incident resolve <id> stop` — **DESTRUCTIVE; ALWAYS confirm** with explicit phrase before executing, regardless of intent confidence. Effect: triggers `finalize_run(STOPPED)` on the active run. | active blocking incident |
+Core instructions stay English-only except for the bootstrap aliases above.
+Localized NL tables for planning, run-until, worker management, incidents,
+attention modes, perf, and context-pattern changes live in
+`.dtd/locales/<lang>.md` and are loaded only after `/dtd locale enable <lang>`.
 
-### Attention / decision mode NL
+When `locale_active: null`, a localized phrase that is not one of the
+bootstrap aliases MUST return the one-line locale-enable hint instead of
+routing to an operational action. This keeps fresh installs predictable and
+prevents always-loaded core prompt drift.
+
+English canonical examples:
 
 | User phrase pattern | Canonical | Required state |
 |---|---|---|
-| "자러갈게 4시간 조용히 개발해줘", "몇 시간 동안 조용히 진행해줘" | `/dtd run --silent=<duration>` or `/dtd silent on --for <duration>` | APPROVED / PAUSED / RUNNING |
-| "4시간 자동진행, 조용히", "질문하지 말고 가능한 것만 해" | `/dtd run --decision auto --silent=<duration>` | APPROVED / PAUSED |
-| "큰 결정은 물어보고 진행해" | `/dtd mode decision permission` | any |
-| "계획 단위로만 물어봐" | `/dtd mode decision plan` | any |
-| "자동진행 모드로" | `/dtd mode decision auto` | any |
-| "이제 물어보면서 해", "인터랙티브 모드" | `/dtd interactive` | any |
+| "plan this" | `plan <inferred goal>` | any (DRAFT overwrite confirms) |
+| "go ahead" | `approve` | DRAFT only |
+| "run" | `run` | APPROVED or PAUSED |
+| "continue" | `run` (resume effect) | PAUSED |
+| "run until phase 3" | `run --until phase:3` | APPROVED or PAUSED |
+| "run until next decision" | `run --until next-decision` | APPROVED or PAUSED |
+| "pause" | `pause` | RUNNING only |
+| "stop" | `stop` | RUNNING / PAUSED, or any state with `pending_patch: true` |
+| "status" | `status` | any |
+| "show plan" | `plan show` | any (after plan exists) |
+| "add worker" | `workers add` | any |
+| "doctor" | `doctor` | any |
+| "help workers" | `help workers` | any |
+| "what is blocking?" | `incident show <active_blocking_incident_id>` or `incident list` | any |
+| "silent for 4h" | `/dtd run --silent=4h` or `/dtd silent on --for 4h` | APPROVED / PAUSED / RUNNING |
+| "interactive mode" | `/dtd interactive` | any |
+| "token usage" | `/dtd perf --tokens` | any |
+| "use explore pattern" | set `context-pattern="explore"` | DRAFT = edit plan; else steer patch |
 
 Silent mode defers blockers and continues independent ready work. It never
 auto-runs destructive, paid, secret, external-directory, partial-apply, or
 ambiguous permission actions.
-
-### Perf NL
-
-| User phrase pattern | Canonical | Required state |
-|---|---|---|
-| "토큰 사용량 보여줘", "페이즈별 토큰 체크" | `/dtd perf --tokens` | any |
-| "워커별 퍼포먼스 보여줘", "워커 토큰 얼마나 썼어" | `/dtd perf --worker all --tokens` | any |
-| "비용 보여줘", "페이즈별 비용/토큰" | `/dtd perf --cost --tokens` | any |
-
-Perf reads are observational. Controller totals and worker totals remain
-separate; never add them into one blended total.
-
-### Context-pattern NL
-
-| User phrase pattern | Canonical | Required state |
-|---|---|---|
-| "이번 설계 페이즈는 탐색적으로 해", "explore 패턴으로" | set `context-pattern="explore"` on matching phase/task | DRAFT = edit plan; else steer patch |
-| "구현은 안정적으로 fresh로 가자", "결정적으로 해" | set `context-pattern="fresh"` on matching phase/task | DRAFT = edit plan; else steer patch |
-| "이 에러는 디버그 패턴으로 다시 돌려", "debug로 재시도" | retry/route current task with `context-pattern="debug"` | RUNNING / PAUSED with failure context |
-
-Controller may choose `fresh` / `explore` / `debug` during plan generation.
-User NL overrides are patches unless the active plan is still DRAFT.
 
 ### Persona / reasoning / tool-runtime NL
 
@@ -266,20 +227,22 @@ summaries plus evidence/log refs only.
 ## State-aware Disambiguation
 
 Same phrase, different action based on `plan_status` + `pending_patch`.
+Localized phrase variants live in locale packs; this core table uses English
+examples only.
 
-### "OK" / "좋아" / "y"
+### "OK" / "yes" / "go"
 
 | state | meaning |
 |---|---|
-| DRAFT | likely `approve` — confirm if not obvious |
-| APPROVED + no patch | likely `run` — confirm if just bare "ok" |
+| DRAFT | likely `approve`; confirm if not obvious |
+| APPROVED + no patch | likely `run`; confirm if just bare "ok" |
 | APPROVED + pending_patch | likely `approve patch` |
 | RUNNING + pending_patch | likely `approve patch` |
-| RUNNING + awaiting_user_decision | answers the open menu — match to option |
-| PAUSED | likely `run` (resume) — confirm |
+| RUNNING + awaiting_user_decision | answers the open menu; match to option |
+| PAUSED | likely `run` (resume); confirm |
 | COMPLETED / STOPPED | acknowledgment only, no action |
 
-### "그대로" / "as-is"
+### "as-is" / "keep current"
 
 | state | meaning |
 |---|---|
@@ -287,7 +250,7 @@ Same phrase, different action based on `plan_status` + `pending_patch`.
 | pending_patch | `reject patch` (keep plan as it was) |
 | awaiting_user_decision | `accept current result` |
 
-### "task N은 X로"
+### "task N to X"
 
 | state | meaning |
 |---|---|
@@ -295,72 +258,70 @@ Same phrase, different action based on `plan_status` + `pending_patch`.
 | APPROVED / RUNNING / PAUSED | `steer "task N is X"` (medium impact patch + confirm) |
 | Other | refuse with reason |
 
-### "잠깐"
+### "pause" / "wait"
 
 | state | meaning |
 |---|---|
 | RUNNING | `pause` |
 | Other | acknowledgment, no action |
 
-### "재시도" / "retry" / "다시" (when an incident is active)
+### "retry" / "try again" (when an incident is active)
 
 | state | meaning |
 |---|---|
 | `active_blocking_incident_id` set | `incident resolve <active_blocking_incident_id> retry` |
-| `awaiting_user_decision: INCIDENT_BLOCKED` only | same — incident id is implicit |
+| `awaiting_user_decision: INCIDENT_BLOCKED` only | same; incident id is implicit |
 | No active incident, RUNNING | acknowledgment, no action (controller already retries via tier ladder) |
 | No active incident, FAILED/STOPPED | confirm: did user mean to start a new run? |
 
-### "그 에러" / "그 사고" / "incident" (referent disambiguation)
+### "that incident" / "that error"
 
 | state | meaning |
 |---|---|
 | Exactly one open incident | refers to that incident |
 | Multiple open incidents | confirm: list with ids and ask "which?" |
-| No open incidents | answer "open incident 없음. `/dtd incident list --all` 로 과거 이력 확인" |
+| No open incidents | answer "no open incidents; use `/dtd incident list --all` for history" |
 
-### "조용히" / "silent" / "자러갈게" (v0.2.0f attention-mode disambiguation)
+### "silent" / "quietly" (v0.2.0f attention-mode disambiguation)
 
 | state | meaning |
 |---|---|
-| `attention_mode: interactive`, no active run | `/dtd silent on --for <duration>` (require duration if missing — confirm) |
+| `attention_mode: interactive`, no active run | `/dtd silent on --for <duration>` (require duration if missing; confirm) |
 | `attention_mode: interactive`, RUNNING | `/dtd run --silent=<duration>` (kicks silent + continues running) |
 | `attention_mode: silent` already | acknowledgment + show `attention_until` countdown + `attention_goal` if set; offer `/dtd silent extend <duration>` or `/dtd interactive` |
 | Plan-only host.mode | refuse: `silent on requires host.mode assisted or full` |
-| `host.mode: assisted` with `assisted_confirm_each_call: true` | warn: each worker apply will defer in silent — confirm intent |
-| User phrase includes a goal context (e.g. "프론트 마무리하고 자러갈게") | extract the goal portion as `attention_goal` and pass `--goal "<text>"`; show it in confirm so user can correct |
+| `host.mode: assisted` with `assisted_confirm_each_call: true` | warn: each worker apply will defer in silent; confirm intent |
+| User phrase includes a goal context | extract the goal portion as `attention_goal` and pass `--goal "<text>"`; show it in confirm so user can correct |
 
-### "이제 물어보면서" / "interactive" / "이제 인터랙티브" (v0.2.0f exit-silent disambiguation)
+### "interactive" / "ask me now" (v0.2.0f exit-silent disambiguation)
 
 | state | meaning |
 |---|---|
-| `attention_mode: silent`, deferred_decision_count > 0 | `/dtd interactive` — surfaces oldest deferred via morning summary |
-| `attention_mode: silent`, deferred_decision_count = 0 | `/dtd interactive` — clean exit; print short confirmation, no morning summary |
+| `attention_mode: silent`, deferred_decision_count > 0 | `/dtd interactive`; surfaces oldest deferred via morning summary |
+| `attention_mode: silent`, deferred_decision_count = 0 | `/dtd interactive`; clean exit; print short confirmation, no morning summary |
 | `attention_mode: interactive` already | acknowledgment, no action |
 
-### "자동" / "auto" / "물어보지 마" (v0.2.0f decision-mode disambiguation)
+### "auto" / "do not ask" (v0.2.0f decision-mode disambiguation)
 
 | state | meaning |
 |---|---|
-| `decision_mode != auto`, RUNNING | `/dtd mode decision auto` — confirm because user is changing how often DTD asks |
+| `decision_mode != auto`, RUNNING | `/dtd mode decision auto`; confirm because user is changing how often DTD asks |
 | `decision_mode = auto` already | acknowledgment, surface what auto still confirms (destructive/paid/external-path) |
-| User said "자동으로 자러갈게" or similar combo | route to `/dtd run --decision auto --silent=<duration>` (one combined command) |
-
----
+| User asks for auto + silent together | route to `/dtd run --decision auto --silent=<duration>` (one combined command) |
 
 ## Confidence & Confirmation
 
 - Confidence ≥ 0.95: act, just print "→ <action>" status line
-- Confidence 0.8-0.95: act, print "→ <action> (interpreted as: <NL phrase>). 되돌리려면 `<undo>`"
+- Confidence 0.8-0.95: act, print "→ <action> (interpreted as: <NL phrase>). Undo: `<undo>`"
 - Confidence < 0.8: confirm in one line. Wait.
 - Destructive actions (`stop`, `mode off`, `workers rm`, `uninstall --purge`, `incident resolve <id> <destructive_option>`, `update [latest|--pin]`, `update --rollback`): ALWAYS confirm with explicit phrase, regardless of confidence. Destructive incident options are defined in `dtd.md` §`/dtd incident resolve` (set: `stop` / `purge` / `delete` / `force_overwrite` / `revert_partial` / `terminal_finalize`). `/dtd update` apply and rollback both modify `.dtd/` extensively and require explicit confirm regardless of confidence.
 
 Sample confirms (keep short):
 
 ```
-"approve 하고 곧장 run까지 가는 걸로 이해했어요. 맞나요? (y/n)"
-"task 5,6 제거 patch를 만들게요. medium impact라 적용 전 확인 받을게요. 진행? (y/n)"
-"진짜 stop 할까요? plan-001은 STOPPED로 마감되고 재개 안 됩니다. (y/n)"
+"I interpreted this as approve and immediately run. Is that right? (y/n)"
+"I'll prepare a medium-impact patch removing tasks 5 and 6. Proceed? (y/n)"
+"Really stop? plan-001 will be finalized as STOPPED and will not auto-resume. (y/n)"
 ```
 
 ---
@@ -372,14 +333,14 @@ When user names something (worker / role / controller):
 1. exact `worker_id` match
 2. exact `alias` match (across all workers; if collision, ask)
 3. exact `role` name match (look up `config.md` `roles.<name>`)
-4. capability fuzzy ("리뷰어" → role:reviewer if exists, else capability:review)
+4. capability fuzzy ("reviewer" → role:reviewer if exists, else capability:review)
 5. ambiguous → list candidates, confirm
 
 Special:
 
 - Phrase matches **both** `controller.name` and a worker alias → ask which.
 - Phrase is a reserved word (`controller, user, worker, self, all, any, none, default`) → reject as worker target; route to system meaning.
-- "all" / "전부" / "다" → applies to all matching scope (e.g. `plan worker all <X>` = all tasks).
+- "all" applies to all matching scope (e.g. `plan worker all <X>` = all tasks).
 
 ---
 
@@ -392,7 +353,7 @@ Hard rules. Violations waste user tokens or degrade UX.
 ```
 ✗ BAD:  paste worker's full code response into chat
 ✓ GOOD: save to .dtd/log/exec-<run>-task-<id>.<worker>.md, show one-line status
-        "✓ task 2.1 done [딥시크] 2 files modified, 8m12s — log: .dtd/log/exec-001-task-2.1.deepseek-local.md"
+        "✓ task 2.1 done [deepseek-local] 2 files modified, 8m12s — log: .dtd/log/exec-001-task-2.1.deepseek-local.md"
 ```
 
 ### 2. Worker prompt assembly order (canonical — same in dtd.md and instructions.md)
@@ -508,7 +469,7 @@ Status display (when applicable):
 
 ```
 phase 3 frontend [iter 1/3]
-  task 3.1: React 컴포넌트  → 딥시크   GOOD     pass
+  task 3.1: React component  → deepseek-local   GOOD     pass
   task 3.2: typo fix        → controller  N/A(controller)  REVIEW_REQUIRED ← awaiting reviewer
 ```
 
@@ -558,14 +519,19 @@ Classify these as `observational_read`:
 - `/dtd attempts show` (future)
 - `/dtd incident list` (v0.2.0a) — any flag
 - `/dtd incident show <id>` (v0.2.0a)
+- `/dtd locale list` (v0.2.0e)
+- `/dtd locale show` (v0.2.0e)
 - `/dtd perf` (v0.2.0f) — any flag
 - `/dtd silent` (v0.2.0f) — bare form (no args) shows current attention mode
 - `/dtd mode decision` (v0.2.0f) — bare form (no args) shows current decision mode
 - `/dtd help [topic]` (v0.2.0d) — reads `.dtd/help/<topic>.md`; never mutates
 - `/dtd update check` (v0.2.0d) — queries upstream; no local writes
 - `/dtd update --dry-run` (v0.2.0d) — previews delta; no local writes
-- NL: "지금 어디까지 됐어?", "상태 보여줘", "그 에러 다시 보여줘", "처음 계획 보여줘", "어디서 막혔어?", "지금 막힌 거 뭐야", "incident 보여줘", "토큰 사용량 보여줘", "지금 어떤 모드야?", "도움말", "버전 확인", "업데이트 미리보기"
-- (Korean alias forms route to same set — `/ㄷㅌㄷ 상태`, `/ㄷㅌㄷ incident 목록` etc.)
+- NL: "where are we?", "show status", "show that incident again",
+  "show the first plan", "what is blocking?", "token usage",
+  "what mode are we in?", "help", "version check", "update dry-run".
+- Localized observational phrases live in locale packs and route only after
+  the pack is enabled.
 
 Note: `/dtd incident resolve <id> <option>` is NOT observational — it is a
 **mutating decision action** that closes a decision capsule. See NL table row
@@ -602,8 +568,16 @@ Reason: long sessions easily fill controller context with repeated "what's the s
 ## Don't Do These
 
 - **Don't override host's own slash commands** (`/help`, `/clear`, `/exit`, etc.). DTD only handles `/dtd*` and DTD-related NL.
-- **Don't auto-act on destructive NL** without explicit destructive words (e.g., "stop", "취소", "uninstall", "rm", "delete", "그만", "멈춰" when paired with an incident referent — see `incident resolve <destructive_option>` rule below).
-- **Don't auto-execute destructive incident recovery options**. NL phrases like "그 에러 멈춰" or "incident X stop" map to `incident resolve <id> stop`, which inherits the destructive-confirmation rule because its effect class is `stop` (terminates the active run via `finalize_run(STOPPED)`). Destructive option set: `stop` / `purge` / `delete` / `force_overwrite` / `revert_partial` / `terminal_finalize`. Always show a one-line confirm for these regardless of intent confidence.
+- **Don't auto-act on destructive NL** without explicit destructive words
+  (e.g., "stop", "cancel", "uninstall", "rm", "delete" when paired with an
+  incident referent — see `incident resolve <destructive_option>` rule below).
+- **Don't auto-execute destructive incident recovery options**. Phrases like
+  "stop that incident" or "incident X stop" map to
+  `incident resolve <id> stop`, which inherits the destructive-confirmation
+  rule because its effect class is `stop` (terminates the active run via
+  `finalize_run(STOPPED)`). Destructive option set: `stop` / `purge` /
+  `delete` / `force_overwrite` / `revert_partial` / `terminal_finalize`.
+  Always show a one-line confirm for these regardless of intent confidence.
 - **Don't grade your own work**. Even when classifying as `orchestration`, never claim a grade for controller-authored output.
 - **Don't write secrets anywhere**. Re-read the redaction policy in `/dtd.md` if uncertain.
 - **Don't bloat `plan-NNN.md`**. Compact completed tasks. Spill patches when over budget.

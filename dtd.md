@@ -125,9 +125,13 @@ per file (chosen by policy at apply-time):
 
 | Mode | Contents | Revertable | When |
 |---|---|---|---|
-| `metadata-only` | SHA-256 + size + git diff metadata | NO (audit-only) | tracked text files within size threshold |
-| `preimage` | byte-for-byte pre-apply copy | YES | binaries OR untracked OR `revert_required: true` rule |
-| `patch` | forward + reverse unified diff | YES | text files larger than `preimage_size_threshold` |
+| `metadata-only` | SHA-256 + size + git diff metadata | NO (audit-only) | explicit audit-only files or non-output context where revertability is not promised |
+| `preimage` | byte-for-byte pre-apply copy | YES | default for changed files `<= preimage_size_threshold`, binaries, untracked files, or `revert_required: true` |
+| `patch` | forward + reverse unified diff | YES | text files larger than `preimage_size_threshold` and `<= patch_max_size` |
+
+Normal worker output files must be revertable by default. Small tracked text
+files therefore use `preimage`, not `metadata-only`; metadata-only is an
+explicit audit-only choice and cannot be the default for apply writes.
 
 Forms:
 
@@ -221,7 +225,7 @@ Forms:
 /dtd permission rules                             # observational; show config defaults
 ```
 
-Permission keys (canonical 8-key set per V011-1):
+Permission keys (canonical 10-key set per V011-1 + tool-runtime relay):
 
 | Key | Covers |
 |---|---|
@@ -231,6 +235,8 @@ Permission keys (canonical 8-key set per V011-1):
 | `task` | dispatching worker tasks (master switch) |
 | `snapshot` | `.dtd/snapshots/` writes (v0.2.0c dependency) |
 | `revert` | `/dtd revert` (v0.2.0c dependency) |
+| `tool_relay_read` | controller-relayed read-only worker tool requests |
+| `tool_relay_mutating` | controller-relayed mutating worker tool requests; never bypasses path/permission/apply validation |
 | `todowrite` | controller TodoWrite/state-tracking (always-safe; default `allow`) |
 | `question` | controller asking user via decision capsule |
 
@@ -241,10 +247,11 @@ Scope expressions:
 - Bash command (exact match by default; `regex:` prefix for regex):
   `scope: npm test`, `scope: regex:^npm (test|run)`
 
-Resolution: latest active rule wins for the same (key, scope) tuple
-(default-rules fallback when nothing matches). `until` past current
-time deactivates the rule. See `.dtd/permissions.md` for the full
-algorithm.
+Resolution: gather active matching rules, ignore expired rules, then choose
+the most specific scope first and latest timestamp second for ties
+(default-rules fallback when nothing matches). Scope specificity is
+determined by exactness/longer glob/path before `*`; worker and capability
+filters add specificity. See `.dtd/permissions.md` for the full algorithm.
 
 Decision capsule integration (v0.1 `awaiting_user_reason:
 PERMISSION_REQUIRED`):
@@ -256,7 +263,7 @@ decision_options:
   - {id: allow_always, label: "allow always",      effect: "add allow rule; proceed",     risk: "broadens permission scope"}
   - {id: deny_once,    label: "deny once",         effect: "abort; no rule",              risk: "may need retry later"}
   - {id: deny_always,  label: "deny always",       effect: "add deny rule; abort",        risk: "may need /dtd permission revoke later"}
-decision_default: allow_once
+decision_default: deny_once
 ```
 
 NL routing (English):

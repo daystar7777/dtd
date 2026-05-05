@@ -1091,14 +1091,15 @@ git-tracked), `tests/fixtures/big.json` (text, 200 KB, untracked).
 **Expected**:
 - After apply, `.dtd/snapshots/snap-001-task-2.1-att-1/` exists with:
   * `manifest.md` listing all 3 files.
-  * `files/src__api__users.ts.metadata` (tracked text under threshold).
+  * `files/src__api__users.ts.preimage` (small tracked text; default
+    apply writes must be revertable).
   * `files/src__build__icon.png.preimage` (binary).
   * `files/tests__fixtures__big.json.patch` (text > preimage threshold).
 - `.dtd/snapshots/index.md` `## Active snapshots` row appended.
 - `state.md.last_snapshot_id: snap-001-task-2.1-att-1`,
   `last_snapshot_at: <ts>`.
 
-**Pass**: per-file mode follows policy (tracked text → metadata-only,
+**Pass**: per-file mode follows policy (small changed text → preimage,
 binary → preimage, large text → patch).
 
 ### 61. /dtd revert last restores files atomically (temp + rename)
@@ -1116,8 +1117,8 @@ or default ask resolved.
 - `attempts/run-NNN.md` row appended: `reverted: snap-001-task-2.1-att-1`.
 - `phase-history.md` row appended.
 
-**Pass**: revert is atomic + recorded; metadata-only file is
-NOT touched (audit-only).
+**Pass**: revert is atomic + recorded; `src/api/users.ts`,
+`src/build/icon.png`, and `tests/fixtures/big.json` are restored.
 
 ### 62. /dtd revert task <id> undoes all attempts in reverse order
 
@@ -1138,8 +1139,9 @@ final state is pre-task baseline.
 
 ### 63. metadata-only files surface revert_unavailable_metadata_only
 
-**Setup**: snapshot exists where `docs/schema.md` is `metadata-only`
-mode.
+**Setup**: snapshot exists where `docs/schema.md` is explicitly marked
+`metadata-only` as an audit-only/non-output context file. Normal worker output
+files do not default to metadata-only.
 
 **Steps**: `/dtd revert last`.
 
@@ -1265,8 +1267,8 @@ or accept partial revertability.
 **Expected**:
 - Active rules: empty.
 - Default rules show `allow | todowrite | scope: *` and `ask | <key>` for
-  the other 7 permission keys (edit, bash, external_directory, task,
-  snapshot, revert, question).
+  the other 9 permission keys (edit, bash, external_directory, task,
+  snapshot, revert, tool_relay_read, tool_relay_mutating, question).
 - `state.md.pending_permission_request: null`.
 
 **Pass**: install ships safe defaults; nothing auto-allowed except `todowrite`.
@@ -1346,6 +1348,22 @@ one editing `tests/integration/foo.test.ts`.
 hint. Exit code remains 0 (WARN does not block).
 
 **Pass**: doctor catches dangerously-broad allow rules.
+
+### 55a. Narrow deny beats broader allow by specificity
+
+**Setup**: active rules include `allow | edit | scope: src/**` and
+`deny | edit | scope: src/api/secrets/**`.
+
+**Steps**: `/dtd permission show edit scope: src/api/secrets/key.ts`, then
+trigger an edit under `src/api/secrets/`.
+
+**Expected**:
+- Resolution chooses the narrower deny rule even if the broad allow is newer.
+- `.dtd/log/permissions.md` records `decision: auto-deny`.
+- `/dtd doctor` may WARN `permission_rule_overlap`, but runtime semantics are
+  deterministic: specificity first, timestamp second.
+
+**Pass**: broad allow cannot accidentally override a narrower deny.
 
 ### 56. Permission audit log accumulates per-decision rows
 

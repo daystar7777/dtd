@@ -3,7 +3,7 @@
 # Validates that the v0.2.0b deliverables match the design contract:
 #   - .dtd/permissions.md exists with ## Active rules + ## Default rules
 #     + ## Resolution algorithm sections
-#   - 8 default rules cover canonical permission keys
+#   - 10 default rules cover canonical permission keys
 #   - dtd.md has /dtd permission command body with all 7 forms
 #   - dtd.md doctor section lists Permission ledger (v0.2.0b)
 #   - reference/doctor-checks.md has ## Permission ledger (v0.2.0b)
@@ -62,13 +62,16 @@ if ($permissionsExists) {
         ($permText -match "## Resolution algorithm")
 
     $permKeys = @("edit", "bash", "external_directory", "task",
-                  "snapshot", "revert", "todowrite", "question")
+                  "snapshot", "revert", "tool_relay_read",
+                  "tool_relay_mutating", "todowrite", "question")
     foreach ($key in $permKeys) {
         Add-Result "v020b.permissions.default.$key" "permissions.md default rule covers $key" `
             ($permText -match "(?m)^- (allow|ask|deny)\s+\|\s+$([regex]::Escape($key))\s+\|")
     }
     Add-Result "v020b.permissions.todowrite_allow" "permissions.md defaults todowrite to allow" `
         ($permText -match "(?m)^- allow\s+\|\s+todowrite")
+    Add-Result "v020b.permissions.specificity_resolution" "permissions.md resolves by scope specificity before timestamp" `
+        (($permText -match "scope specificity") -and ($permText -match "timestamp DESC"))
 }
 
 # ─── dtd.md ──────────────────────────────────────────────────────────────────
@@ -84,6 +87,10 @@ foreach ($form in $permissionForms) {
 }
 Add-Result "v020b.dtdmd.permission_required" "dtd.md mentions PERMISSION_REQUIRED capsule reason" `
     ($dtdMd -match "PERMISSION_REQUIRED")
+Add-Result "v020b.dtdmd.permission_default_deny_once" "permission capsule defaults to deny_once" `
+    ($dtdMd -match "decision_default:\s*deny_once")
+Add-Result "v020b.dtdmd.permission_specificity" "dtd.md documents specificity-first permission resolution" `
+    (($dtdMd -match "most specific scope first") -and ($dtdMd -match "latest timestamp second"))
 Add-Result "v020b.dtdmd.doctor_lists_permission" "dtd.md doctor lists Permission ledger (v0.2.0b)" `
     ($dtdMd -match "Permission ledger \(v0\.2\.0b\)")
 

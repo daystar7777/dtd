@@ -89,6 +89,8 @@ foreach ($form in $revertForms) {
 }
 Add-Result "v020c.dtdmd.three_modes" "dtd.md documents 3 snapshot modes" `
     (($dtdMd -match "metadata-only") -and ($dtdMd -match "preimage") -and ($dtdMd -match "patch"))
+Add-Result "v020c.dtdmd.small_text_preimage" "dtd.md requires normal small text outputs to use preimage" `
+    (($dtdMd -match "Small tracked text") -and ($dtdMd -match "use .*preimage.*not .*metadata-only"))
 Add-Result "v020c.dtdmd.partial_revert" "dtd.md mentions PARTIAL_REVERT capsule" `
     ($dtdMd -match "PARTIAL_REVERT")
 Add-Result "v020c.dtdmd.proceed_unsafe" "dtd.md mentions proceed_unsafe option" `
@@ -155,6 +157,9 @@ foreach ($n in 60..69) {
 }
 Add-Result "v020c.scenarios.section_header" "test-scenarios.md has v0.2.0c section header" `
     ($scenariosMd -match "## v0\.2\.0c .* Snapshot")
+Add-Result "v020c.scenarios.small_text_preimage" "scenario 60 expects src/api/users.ts preimage" `
+    (($scenariosMd -match "files/src__api__users\.ts\.preimage") -and
+     ($scenariosMd -notmatch "files/src__api__users\.ts\.metadata"))
 
 # ─── build-manifest.ps1 ───────────────────────────────────────────────────────
 

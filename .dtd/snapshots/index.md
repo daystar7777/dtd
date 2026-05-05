@@ -27,4 +27,6 @@
   vary (recorded in each `snap-*/manifest.md`).
 - `revertable_count` = count of files with mode `preimage` or
   `patch` (mode `metadata-only` is audit-only, never revertable).
+- Normal apply writes should be revertable by default. Use
+  `metadata-only` only for explicit audit-only/non-output context files.
 - This file is gitignored via `.dtd/.gitignore` `snapshots/` rule.

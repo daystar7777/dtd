@@ -123,6 +123,15 @@ Add-Result "v020e.instructions.locale_step_1_6" "per-turn protocol step 1.6 load
     ($instructionsMd -match "1\.6\.\s*\*\*Load locale pack\*\*")
 Add-Result "v020e.instructions.pack_wins" "instructions.md says pack wins on conflict" `
     ($instructionsMd -match "pack wins")
+Add-Result "v020e.instructions.locale_intent" "Intent Gate includes locale intent" `
+    ($instructionsMd -match '\| `locale` \| `/dtd locale')
+Add-Result "v020e.instructions.locale_observational" "locale list/show are observational reads" `
+    (($instructionsMd -match "/dtd locale list") -and
+     ($instructionsMd -match "/dtd locale show"))
+$koreanWorkerAdd = "/" + [char]0x3137 + [char]0x314C + [char]0x3137 + " " +
+    [char]0xC6CC + [char]0xCEE4 + " " + [char]0xCD94 + [char]0xAC00
+Add-Result "v020e.instructions.no_core_worker_add_route" "core instructions do not route Korean worker-add before locale enable" `
+    (-not ($instructionsMd -match ([regex]::Escape($koreanWorkerAdd) + ".*?/dtd workers add")))
 
 # ─── config.md ────────────────────────────────────────────────────────────────
 

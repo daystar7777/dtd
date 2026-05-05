@@ -1,7 +1,8 @@
 # DTD Permission Ledger
 
 > Source of truth for what the user has pre-approved.
-> Append-only history; current state is the latest entry per (key, scope).
+> Append-only history; current state is resolved by key, scope specificity,
+> and timestamp.
 > Rule format:
 >   `<ts> | <decision> | <key> | scope: <expr> [| worker: <id>] [| until: <ts>] | by: <who>`
 >
@@ -11,7 +12,8 @@
 ## Active rules
 
 (Empty by default. Populated by `/dtd permission allow|deny|ask|revoke ...`
-or by hand-edit. Latest-by-timestamp wins for the same (key, scope).)
+or by hand-edit. Matching rules resolve by most-specific scope first, then
+latest timestamp for ties.)
 
 ## Default rules
 
@@ -24,17 +26,22 @@ or by hand-edit. Latest-by-timestamp wins for the same (key, scope).)
 - ask   | task               | scope: *
 - ask   | snapshot           | scope: *
 - ask   | revert             | scope: *
+- ask   | tool_relay_read    | scope: *
+- ask   | tool_relay_mutating | scope: *
 - allow | todowrite          | scope: *           # always-safe; never blocks
 - ask   | question           | scope: *           # questions to user; user choice
 
 ## Resolution algorithm
 
 1. Compute `(key, scope, worker, capability)` for the proposed action.
-2. Scan `## Active rules` from latest to oldest.
-3. First rule whose key matches AND all specified scope/worker/capability
-   filters match wins.
-4. If `until` is past current time, treat rule as inactive and continue.
-5. If no active rule matches, fall back to `## Default rules` for that key.
+2. Collect `## Active rules` whose key matches and whose scope/worker/
+   capability filters match the proposed action.
+3. Drop rules whose `until` is past current time.
+4. Sort remaining matches by scope specificity DESC, then timestamp DESC.
+   Specificity order: exact path/command > longer glob/prefix > shorter
+   glob/prefix > `*`; worker/capability filters add specificity.
+5. First sorted rule wins. If no active rule matches, fall back to
+   `## Default rules` for that key.
 6. Apply the matched decision:
    - `allow`: proceed; append `auto-allow` row to `.dtd/log/permissions.md`.
    - `deny`: abort; append `auto-deny` row. Silent mode does NOT defer
