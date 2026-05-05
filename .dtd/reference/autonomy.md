@@ -245,6 +245,73 @@ deferred backlog.
   `assisted_confirm_each_call: true`) become defer triggers in silent.
 - `host.mode: full`: works. Default expected combination for overnight runs.
 
+## Silent transient rules (v0.2.0b R1)
+
+When `/dtd silent on` activates a silent window, the
+`silent_allow_*` config flags translate to transient permission
+ledger rules. These rules expire at `attention_until` or are
+revoked by `/dtd interactive`. They take precedence over user's
+permanent `## Active rules` for the silent window only; permanent
+rules resume after silent ends.
+
+**Translation algorithm** (run at `/dtd silent on` time):
+
+1. Read `config.attention.silent_allow_*` flags.
+2. For each flag, compute the corresponding transient rule:
+
+| Flag | Default | Transient rule installed |
+|---|---|---|
+| `silent_allow_same_profile_fallback: true` | true | (no permission rule; fallback chain logic — orthogonal) |
+| `silent_allow_paid_fallback: false` | false | `<ts> \| deny \| task \| scope: paid_fallback \| until: <attention_until> \| by: silent_window` |
+| `silent_allow_destructive: false` | false | `<ts> \| deny \| bash \| scope: destructive_command_set \| until: <attention_until> \| by: silent_window` |
+
+3. Append rules to `.dtd/permissions.md` `## Active rules` with
+   `by: silent_window`.
+4. Record `state.md.silent_window_transient_rule_ids` (timestamps)
+   so the controller can revoke them deterministically.
+
+**Destructive command set** (referenced by the bash transient
+rule): controller-side hardcoded patterns matched by the `bash`
+resolution algorithm:
+
+- `rm -rf` (any form: `rm -fr`, `rm -Rf`)
+- `rm /` (root deletion variants)
+- `git push --force` / `git push -f` to non-feature branches
+- `dd if=` (disk-write commands)
+- `mkfs` (filesystem creation)
+- `chmod -R 777` / `chmod 0777`
+- `wget | bash` / `curl | sh` (pipe-to-shell patterns)
+
+The user's permanent `allow` rule for any of these scopes is
+**overridden** by the silent transient `deny` for the silent
+window only; after silent ends the permanent rule resumes.
+silent_allow_destructive is a per-window safety net, not a
+permanent override.
+
+**Revocation algorithm** (at `/dtd silent off` /
+`/dtd interactive` / `attention_until` reached):
+
+1. Read `state.md.silent_window_transient_rule_ids`.
+2. For each id (timestamp): append tombstone row to `## Active rules`:
+   ```
+   <ts> | revoke | <key> | scope: <expr> | by: silent_window_end (revokes <transient ts> row)
+   ```
+3. Clear `state.md.silent_window_transient_rule_ids`.
+
+Original transient rows remain (audit trail); tombstone rows
+neutralize them in subsequent resolutions per
+`.dtd/permissions.md` §Resolution algorithm.
+
+**state.md addition** (v0.2.0b R1):
+
+```yaml
+## Silent window transient rules (v0.2.0b R1)
+- silent_window_transient_rule_ids: []   # list of timestamps; populated at /dtd silent on, cleared at /dtd interactive
+```
+
+Doctor checks this list for consistency with `permissions.md`
+`by: silent_window` rows.
+
 ## Anchor
 
 This file IS the canonical source for v0.2.0f Autonomy & Attention.

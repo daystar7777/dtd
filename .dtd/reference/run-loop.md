@@ -90,20 +90,111 @@ run loop, summarized:
 3. Check `pending_patch` (refuse new dispatch until resolved).
 4. Pick next ready batch (topo + parallel-group).
 5. Pre-dispatch lock partitioning.
+5.5. **Permission ledger gate** (v0.2.0b R1): for the next task,
+   resolve `task` key against `.dtd/permissions.md`. If `deny` →
+   abort task (auto-deny audit row); if `ask` → fill
+   `awaiting_user_reason: PERMISSION_REQUIRED` capsule; if
+   `allow` → proceed and write `auto-allow` audit row. See
+   "Permission resolution at dispatch time" below for the full
+   per-key matrix.
 6. For each task in batch:
    - **6.a** Build worker prompt (5-step canonical assembly +
      GSD-style reset).
    - **6.b** Context budget gate (soft 70% / hard 85% /
      emergency 95%).
    - **6.c** Dispatch (HTTP per worker registry; see workers.md).
+     Pre-dispatch: resolve `tool_relay_read` /
+     `tool_relay_mutating` keys per worker's `tool_runtime`
+     setting. `controller_relay`/`hybrid` ⇒ both keys gated;
+     `worker_native` ⇒ key gated based on tool risk class;
+     `none` ⇒ no relay key check.
    - **6.d** Heartbeat lease.
    - **6.e** Receive + parse response (`::done::` / `::blocked::`).
+   - **6.e.5** **Tool-request relay gate** (v0.2.0b R1): if worker
+     emitted `::tool_request::` for a mutating action (write,
+     exec, network), resolve `tool_relay_mutating` key first. If
+     `deny` → abort relay; if `ask` → fill capsule. Read-only tool
+     requests resolve against `tool_relay_read`.
    - **6.f** Validate before apply (output-paths × permission_profile
      × locks × block_patterns).
+   - **6.f.0** **Edit permission gate** (v0.2.0b R1): resolve
+     `edit` key against the most-specific output path. Resolve
+     `external_directory` for any path outside project root. If
+     either is `deny` → abort apply; if `ask` → fill capsule.
    - **6.g** Apply phase 1 (write all temps) + phase 2 (rename all).
+     Pre-apply (between phase 1 and phase 2): resolve `snapshot`
+     key against snapshot policy (v0.2.0c). Snapshot writes go to
+     `.dtd/snapshots/`; bash invocations during apply (e.g.
+     post-apply hooks) resolve `bash` key.
    - **6.h** Compute grade (controller-side; never worker self-grade).
    - **6.i** Append phase row to `phase-history.md`.
    - **6.j** Apply patches between tasks only.
+
+## Permission resolution at dispatch time (v0.2.0b R1)
+
+The 10 v0.2.0b permission keys map to specific run-loop steps:
+
+| Key | Run-loop step | Rationale |
+|---|---|---|
+| `task` | 5.5 (master switch) | Before ANY worker dispatch; one resolution per task |
+| `bash` | 6.c (worker shell call), 6.g (apply hook), 6.e.5 (relay) | Wherever shell exec is requested |
+| `external_directory` | 6.c (read), 6.f.0 (write) | Path outside project root |
+| `edit` | 6.f.0 (pre-apply) | Per output path; most-specific scope wins |
+| `snapshot` | 6.g (pre-apply, between phase 1 and 2) | v0.2.0c snapshot writes |
+| `revert` | `/dtd revert` command (NOT in run-loop) | User-invoked; gated separately |
+| `todowrite` | 1, 2, 5, 6.i (controller-internal state writes) | Default `allow`; never blocks |
+| `question` | Whenever controller fills decision capsule | User-facing question; default `ask` |
+| `tool_relay_read` | 6.c (pre-dispatch), 6.e.5 (post-response) | Read-only worker tool calls |
+| `tool_relay_mutating` | 6.e.5 (post-response, mutating relay) | Write/exec/network worker tools |
+
+**Resolution semantics** (per `.dtd/permissions.md`
+§Resolution algorithm): specificity-first, timestamp-second.
+The most specific scope match wins; ties broken by latest
+timestamp. Default rules apply only when no `## Active rule`
+matches.
+
+**Per-resolution audit row** appended to
+`.dtd/log/permissions.md` (gitignored, append-only):
+
+```text
+2026-05-05T14:32:11Z | dec-007 | edit                | src/api/users.ts          | rule_match: 2026-05-05T14:00 (active) | decision: auto-allow
+2026-05-05T14:32:14Z | dec-008 | bash                | rm -rf node_modules        | rule_match: 2026-05-05T14:00 (active) | decision: auto-deny
+2026-05-05T14:32:18Z | dec-009 | tool_relay_mutating | shell: npm install         | rule_match: default                      | decision: asked
+2026-05-05T14:32:25Z | dec-009 | tool_relay_mutating | shell: npm install         | rule_match: dec-009 (user)               | decision: user-allow
+```
+
+Audit row fields:
+- `<ts>`: ISO 8601 UTC.
+- `<dec_id>`: decision capsule id IF this resolution required user
+  input (e.g. `dec-009`); for auto-allow / auto-deny rows that did
+  not surface a capsule, use the synthetic id `auto-<run>-<seq>`.
+- `<key>`: one of the 10 v0.2.0b permission keys.
+- `<scope>`: the specific scope at resolution time (path, command,
+  worker, capability — whichever applied).
+- `rule_match`: timestamp of the matched `## Active rule`, OR
+  `default` for default-rule fallback, OR `dec-NNN (user)` when
+  user resolved an `ask` capsule.
+- `decision`: `auto-allow | auto-deny | asked | user-allow |
+  user-deny | denied-explicit-rule | revoked-after-tombstone`.
+
+**Silent mode interaction** (v0.2.0f):
+- `allow` rules auto-handle without surfacing capsule.
+- `deny` rules abort immediately AND do NOT defer (deny is
+  unambiguous; silent mode does not delay denials).
+- `ask` rules fire `PERMISSION_REQUIRED` capsule which is
+  deferred to `deferred_decision_refs` per silent algorithm.
+- Transient rules from `silent_allow_*` config flags expire at
+  `attention_until` or are revoked by `/dtd interactive`. See
+  `autonomy.md` §"Silent transient rules (v0.2.0b R1)".
+
+**Decision-mode interaction** (v0.2.0f):
+- `decision_mode: auto` does NOT auto-resolve `ask` permission
+  rules (permission-class is treated as user-required regardless
+  of decision_mode).
+- `decision_mode: plan` and `decision_mode: permission` follow
+  the standard ask flow.
+- The only auto-action gate that bypasses `ask` is when the user
+  has explicitly written an `allow` rule for that scope.
 
 ## `finalize_run(terminal_status)` — shared terminal lifecycle
 

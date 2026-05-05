@@ -66,6 +66,15 @@
 
 - pending_permission_request: null   # null | {key, scope, worker, dec_id, asked_at}
 
+## Silent window transient rules (v0.2.0b R1)
+
+# v0.2.0b R1 wiring: list of permissions.md rule timestamps installed by
+# /dtd silent on (with by: silent_window), to be revoked at
+# /dtd interactive / attention_until / /dtd silent off. See
+# reference/autonomy.md §"Silent transient rules (v0.2.0b R1)".
+
+- silent_window_transient_rule_ids: []   # list of ISO 8601 timestamps
+
 ## Locale (v0.2.0e)
 
 # Optional locale-pack activation. Core prompts stay English-only;

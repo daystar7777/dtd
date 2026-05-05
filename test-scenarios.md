@@ -1834,6 +1834,98 @@ mutations are silently dropped.
 
 **Pass**: silent-mode safety nets are per-window only, never permanent.
 
+### 59a. Permission key resolved at correct run-loop step (v0.2.0b R1)
+
+**Setup**: APPROVED plan with task that writes `src/api/users.ts`.
+Active rules: `allow edit scope: src/**`, `ask bash scope: *`.
+
+**Steps**: `/dtd run`.
+
+**Expected**:
+- Step 5.5 resolves `task` against default-rule (no explicit task
+  rule); fires PERMISSION_REQUIRED (default `ask`); user grants
+  `allow_once`.
+- Step 6.f.0 resolves `edit` against `allow edit scope: src/**`;
+  no capsule fires (auto-allow).
+- `.dtd/log/permissions.md` accumulates 3 rows (task asked +
+  user-allow, edit auto-allow).
+
+**Pass**: per-key resolution at the spec'd run-loop step; audit
+log captures every resolution with `dec_id` lineage.
+
+### 59b. Audit log row format enforced (v0.2.0b R1)
+
+**Setup**: any active permissions ledger run with a few resolutions.
+
+**Steps**: read `.dtd/log/permissions.md`. Run `/dtd doctor`.
+
+**Expected**:
+- All rows match
+  `<ts> | <dec_id> | <key> | <scope> | rule_match: ... | decision: ...`.
+- Doctor passes the audit format check.
+- Manually corrupt one row (drop the `decision:` field). Re-run
+  doctor → WARN `permission_audit_row_invalid` with line ref.
+
+**Pass**: audit log format is doctor-enforced; row corruption is
+caught.
+
+### 59c. Silent transient rules installed at /dtd silent on (v0.2.0b R1)
+
+**Setup**: `config.attention.silent_allow_destructive: false`,
+`silent_allow_paid_fallback: false`. User has permanent
+`allow bash scope: rm -rf` (terrifying but legal).
+
+**Steps**: `/dtd silent on --for 4h --goal "overnight build"`.
+
+**Expected**:
+- 2 transient rows appended to `.dtd/permissions.md` `## Active rules`:
+  - `<ts> | deny | task | scope: paid_fallback | until: <attention_until> | by: silent_window`
+  - `<ts> | deny | bash | scope: destructive_command_set | until: <attention_until> | by: silent_window`
+- `state.md.silent_window_transient_rule_ids` populated with the
+  2 timestamps.
+- During silent window: a worker's attempt to run `rm -rf X`
+  resolves to `deny` (transient rule beats permanent allow per
+  specificity-first; transient rule is more specific because of
+  `until` and `by`).
+
+**Pass**: transient rules override permanent rules within the
+silent window only.
+
+### 59d. Transient rules revoked at /dtd interactive (v0.2.0b R1)
+
+**Setup**: silent window active per scenario 59c.
+
+**Steps**: `/dtd interactive`.
+
+**Expected**:
+- 2 tombstone rows appended to `## Active rules`:
+  - `<ts> | revoke | task | scope: paid_fallback | by: silent_window_end (revokes <transient ts>)`
+  - `<ts> | revoke | bash | scope: destructive_command_set | by: silent_window_end (revokes <transient ts>)`
+- `state.md.silent_window_transient_rule_ids` cleared (empty list).
+- Original transient rows remain in file (audit trail preserved).
+- User's permanent `allow bash scope: rm -rf` is now active again
+  (terrifying but per user's explicit rule).
+
+**Pass**: revoke is non-destructive (tombstones, not deletes);
+state list synced; permanent rules resume.
+
+### 59e. Decision_mode auto does NOT auto-resolve ask permission (v0.2.0b R1)
+
+**Setup**: `decision_mode: auto`. Active rules: `ask edit scope: *`.
+
+**Steps**: `/dtd run` with task that needs to edit a file.
+
+**Expected**:
+- Step 6.f.0 resolves `edit` to `ask` (default rule).
+- PERMISSION_REQUIRED capsule fires (NOT auto-resolved by
+  decision_mode: auto).
+- `decision_mode: auto` only auto-resolves non-permission
+  decisions (e.g. plan-pending vs run-now).
+
+**Pass**: permission-class is user-required regardless of
+decision_mode. The only auto-resolve gate is an explicit user
+`allow` rule.
+
 ---
 
 ## v0.2.0e — Locale Packs

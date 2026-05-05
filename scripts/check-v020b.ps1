@@ -126,6 +126,69 @@ Add-Result "v020b.state.section" "state.md has ## Permission ledger (v0.2.0b)" `
     ($stateMd -match "## Permission ledger \(v0\.2\.0b\)")
 Add-Result "v020b.state.pending_field" "state.md has pending_permission_request field" `
     ($stateMd -match "(?m)^- pending_permission_request:")
+Add-Result "v020b.state.silent_transient_section" "state.md has Silent window transient rules (v0.2.0b R1)" `
+    ($stateMd -match "## Silent window transient rules \(v0\.2\.0b R1\)")
+Add-Result "v020b.state.silent_transient_field" "state.md has silent_window_transient_rule_ids field" `
+    ($stateMd -match "(?m)^- silent_window_transient_rule_ids:")
+
+# ─── R1 wiring: run-loop.md + autonomy.md + dtd.md ───────────────────────────
+
+$runLoopRef = Read-Text ".dtd/reference/run-loop.md"
+$autonomyRef = Read-Text ".dtd/reference/autonomy.md"
+$permissionsMd = Read-Text ".dtd/permissions.md"
+
+Add-Result "v020b.r1.run_loop_step_5_5" "run-loop.md has step 5.5 permission gate" `
+    ($runLoopRef -match "5\.5\.\s*\*\*Permission ledger gate\*\*")
+Add-Result "v020b.r1.run_loop_step_6_e_5" "run-loop.md has step 6.e.5 tool-relay gate" `
+    ($runLoopRef -match "6\.e\.5\*\*\s*\*\*Tool-request relay gate\*\*")
+Add-Result "v020b.r1.run_loop_step_6_f_0" "run-loop.md has step 6.f.0 edit permission gate" `
+    ($runLoopRef -match "6\.f\.0\*\*\s*\*\*Edit permission gate\*\*")
+Add-Result "v020b.r1.run_loop_key_to_step" "run-loop.md has Permission resolution at dispatch time section" `
+    ($runLoopRef -match "## Permission resolution at dispatch time \(v0\.2\.0b R1\)")
+Add-Result "v020b.r1.run_loop_audit_format" "run-loop.md documents audit row format with all decision values" `
+    (($runLoopRef -match "auto-allow") -and ($runLoopRef -match "auto-deny") -and `
+     ($runLoopRef -match "asked") -and ($runLoopRef -match "user-allow"))
+Add-Result "v020b.r1.run_loop_decision_mode_auto" "run-loop.md says decision_mode auto does NOT auto-resolve ask permission" `
+    ($runLoopRef -match "decision_mode: auto.*does NOT auto-resolve")
+Add-Result "v020b.r1.autonomy_silent_transient" "autonomy.md has Silent transient rules (v0.2.0b R1) section" `
+    ($autonomyRef -match "## Silent transient rules \(v0\.2\.0b R1\)")
+Add-Result "v020b.r1.autonomy_destructive_set" "autonomy.md documents destructive_command_set patterns" `
+    (($autonomyRef -match "rm -rf") -and ($autonomyRef -match "git push --force") -and `
+     ($autonomyRef -match "wget \| bash"))
+Add-Result "v020b.r1.autonomy_revocation" "autonomy.md documents revocation algorithm" `
+    ($autonomyRef -match "Revocation algorithm")
+Add-Result "v020b.r1.permissions_audit_section" "permissions.md has Audit log (v0.2.0b R1) section" `
+    ($permissionsMd -match "## Audit log \(v0\.2\.0b R1\)")
+Add-Result "v020b.r1.permissions_audit_observational" "permissions.md says audit writes are observational" `
+    ($permissionsMd -match "Observational discipline")
+Add-Result "v020b.r1.dtdmd_key_to_step" "dtd.md has Permission-key run-loop step matrix" `
+    ($dtdMd -match "Permission-key .* run-loop step matrix \(v0\.2\.0b R1\)")
+Add-Result "v020b.r1.dtdmd_silent_interaction" "dtd.md documents silent-mode interaction (deny does NOT defer)" `
+    (($dtdMd -match "Silent-mode interaction") -and `
+     ($dtdMd -match "deny is\s+unambiguous") -or ($dtdMd -match "deny is unambiguous"))
+Add-Result "v020b.r1.doctor_audit_checks" "doctor-checks ref has v0.2.0b R1 wiring checks" `
+    ((Read-Text ".dtd/reference/doctor-checks.md") -match "v0\.2\.0b R1 wiring checks")
+$doctorRefText = Read-Text ".dtd/reference/doctor-checks.md"
+$r1DoctorCodes = @(
+    "permission_audit_row_invalid",
+    "permission_audit_log_too_large",
+    "permission_audit_high_volume",
+    "permission_audit_rule_drift",
+    "silent_window_transient_drift",
+    "silent_window_transient_orphan",
+    "silent_window_transient_expired_unrevoked"
+)
+foreach ($code in $r1DoctorCodes) {
+    Add-Result "v020b.r1.doctor.code.$code" "doctor-checks ref defines R1 code $code" `
+        ($doctorRefText -match [regex]::Escape($code))
+}
+$koPack = Read-Text ".dtd/locales/ko.md"
+Add-Result "v020b.r1.ko_permission_section" "ko.md has Permission ledger (v0.2.0b) section" `
+    ($koPack -match "### Permission ledger \(v0\.2\.0b\)")
+Add-Result "v020b.r1.ko_permission_rows" "ko.md has Korean rows for permission allow/deny/ask/list/revoke" `
+    (($koPack -match "/dtd permission allow") -and ($koPack -match "/dtd permission deny") -and `
+     ($koPack -match "/dtd permission ask") -and ($koPack -match "/dtd permission list") -and `
+     ($koPack -match "/dtd permission revoke"))
 
 # ─── test-scenarios.md ────────────────────────────────────────────────────────
 
@@ -134,6 +197,10 @@ $scenariosMd = Read-Text "test-scenarios.md"
 foreach ($n in 50..59) {
     Add-Result "v020b.scenarios.$n" "test-scenarios.md has scenario $n" `
         ($scenariosMd -match "### $n\.")
+}
+foreach ($letter in @("a", "b", "c", "d", "e")) {
+    Add-Result "v020b.scenarios.59$letter" "test-scenarios.md has scenario 59$letter (R1 wiring)" `
+        ($scenariosMd -match "### 59$letter\.")
 }
 Add-Result "v020b.scenarios.section_header" "test-scenarios.md has v0.2.0b section header" `
     ($scenariosMd -match "## v0\.2\.0b .* Permission Ledger")

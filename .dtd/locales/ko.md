@@ -95,25 +95,31 @@ Augments the Intent Gate. Pack-wins on conflict.
 | "로케일 보여줘", "어떤 언어 켜져있어" | `/dtd locale list` |
 | "영어로만 해", "로케일 꺼" | `/dtd locale disable` |
 
+### Permission ledger (v0.2.0b)
+
+| Korean phrase pattern | Canonical |
+|---|---|
+| "src/ 자유롭게 편집", "src 폴더는 알아서 해도 돼" | `/dtd permission allow edit scope: src/**` |
+| "npm test 자동으로", "테스트는 자동으로 돌려도 돼" | `/dtd permission allow bash scope: npm test` |
+| "rm -rf 절대 금지" | `/dtd permission deny bash scope: rm -rf` |
+| "데이터 폴더는 매번 물어봐" | `/dtd permission ask external_directory scope: ~/data/**` |
+| "권한 보여줘", "퍼미션 목록" | `/dtd permission list` |
+| "그 권한 빼", "권한 취소" | `/dtd permission revoke <key> scope: <expr>` |
+
 ## State-aware Disambiguation phrase additions
 
-Disambiguation rules from `instructions.md` are unchanged; this pack
-adds Korean phrase variants to each rule's recognized phrase set:
-"좋아"/"그대로"/"진행해"/"갈게" (OK), "잠깐" (pause), "재시도"/"다시"
-(retry), "그 에러"/"그 사고" (incident referent), "조용히"/"자러갈게"
-(attention silent), "인터랙티브" (exit silent), "자동"/"물어보지 마"
-(decision-mode auto).
+Rules from `instructions.md` unchanged; pack adds Korean phrase
+variants: "좋아"/"그대로"/"진행해"/"갈게" (OK), "잠깐" (pause),
+"재시도"/"다시" (retry), "그 에러"/"그 사고" (incident referent),
+"조용히"/"자러갈게" (silent), "인터랙티브" (exit silent),
+"자동"/"물어보지 마" (decision auto).
 
 ## Confirmation phrasing (Korean)
 
-When the controller asks a confirm question per
-`instructions.md` §Confidence & Confirmation, use Korean phrasing:
-
-```
-"approve 하고 곧장 run까지 가는 걸로 이해했어요. 맞나요? (y/n)"
-"task 5,6 제거 patch를 만들게요. medium impact라 적용 전 확인 받을게요. 진행? (y/n)"
-"진짜 stop 할까요? plan-001은 STOPPED로 마감되고 재개 안 됩니다. (y/n)"
-```
+Per `instructions.md` §Confidence & Confirmation, use Korean
+phrasing for confirm questions, e.g.:
+`"approve 하고 곧장 run까지 가는 걸로 이해했어요. 맞나요? (y/n)"`,
+`"진짜 stop 할까요? plan-001은 STOPPED로 마감됩니다. (y/n)"`.
 
 ## Output translations (selected)
 
@@ -140,7 +146,6 @@ logs / state / attempts.
 
 ## See also
 
-- `dtd.md` §`/dtd locale` — command spec.
-- `.dtd/instructions.md` §"Locale bootstrap aliases" — minimum
-  always-loaded surface to enable this pack.
+- `dtd.md` §`/dtd locale` and §`/dtd permission`.
+- `.dtd/instructions.md` §"Locale bootstrap aliases".
 - `.dtd/reference/doctor-checks.md` §"Locale state (v0.2.0e)".

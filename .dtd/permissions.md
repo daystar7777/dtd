@@ -50,14 +50,72 @@ latest timestamp for ties.)
      capsule. Interactive surfaces immediately; silent defers per silent
      algorithm.
 
-## Audit log
+## Audit log (v0.2.0b R1)
 
-Every permission resolution (allow/deny/ask) appends one row to
-`.dtd/log/permissions.md` (gitignored, append-only). Format:
+Every permission resolution (allow / deny / ask / user-decision)
+appends one row to `.dtd/log/permissions.md` (gitignored,
+append-only). Writer is the controller in `run-loop.md` step
+5.5 / 6.c / 6.e.5 / 6.f.0 / 6.g, plus the `/dtd permission *`
+mutating commands and `/dtd revert` permission gate.
+
+**Row format**:
 
 ```
-<ts> | <dec_id> | <key> | <scope> | rule_match: <ts of rule or "default"> | decision: <auto-allow|auto-deny|asked|user-allow|user-deny>
+<ts> | <dec_id> | <key> | <scope> | rule_match: <ts of rule or "default"> | decision: <auto-allow|auto-deny|asked|user-allow|user-deny|denied-explicit-rule|revoked-after-tombstone>
 ```
+
+**Field semantics**:
+
+- `<ts>` — ISO 8601 UTC timestamp of resolution.
+- `<dec_id>` — decision capsule id IF this resolution required
+  user input (e.g. `dec-009`). For auto-allow / auto-deny rows
+  that did not surface a capsule, use the synthetic id
+  `auto-<run>-<seq>` (e.g. `auto-001-042`). Synthetic ids are NOT
+  recorded in `state.md` decision capsule fields.
+- `<key>` — one of the 10 v0.2.0b permission keys.
+- `<scope>` — the specific scope at resolution time (path /
+  command / worker / capability — whichever applied to the
+  proposed action). For `bash`: the exact command string.
+  For `edit`: the resolved output path. For
+  `tool_relay_mutating`: `<tool_name>: <args summary>`.
+- `rule_match` — `<ts of matched ## Active rule>`, OR
+  `default` for default-rule fallback, OR `dec-NNN (user)`
+  when user resolved an `ask` capsule. The `<ts>` form
+  references the rule timestamp at resolution time (rules are
+  immutable; revoke adds tombstone, never edits).
+- `decision` — one of:
+  - `auto-allow` — matched `allow` rule; proceeded.
+  - `auto-deny` — matched `deny` rule; aborted.
+  - `asked` — matched `ask` rule; capsule filled (this is the
+    "before user answered" row).
+  - `user-allow` — user picked `allow_once` or `allow_always`.
+  - `user-deny` — user picked `deny_once` or `deny_always`.
+  - `denied-explicit-rule` — matched `deny` rule, AND the
+    user previously confirmed it (from `deny_always` lineage).
+  - `revoked-after-tombstone` — matched a rule that was later
+    revoked; resolution treats it as inactive and falls through.
+
+**One row per resolution event** (so an `ask` rule that the
+user resolves with `allow_once` produces TWO rows: one `asked`
+and one `user-allow`).
+
+**Writer is the controller**, not the worker. Per
+§Observational discipline below.
+
+**Observational discipline**: writes to
+`.dtd/log/permissions.md` are NOT considered run-state
+mutations. They do not flip `state.md.last_writer`, they do
+not increment `state.md.last_update_at` for permission-resolution
+turns, and they do not appear in `state.md.recent_outputs`. They
+ARE cross-checked by doctor:
+
+- Audit log file size > 32 KB → WARN
+  `permission_audit_log_too_large`.
+- Audit row count exceeds active-rules count by > 100×: INFO
+  `permission_audit_high_volume` (suggests reviewing
+  `permission_bash_too_broad` patterns).
+- Audit row references unknown rule timestamp: WARN
+  `permission_audit_rule_drift`.
 
 ## Notes
 

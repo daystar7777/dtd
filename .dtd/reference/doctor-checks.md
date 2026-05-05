@@ -256,6 +256,33 @@ Sections:
 - `.dtd/log/permissions.md` (audit log) exists when any active rule
   exists; ELSE INFO (audit log lazy-created on first decision).
 
+### v0.2.0b R1 wiring checks
+
+- Audit log row format: every line in
+  `.dtd/log/permissions.md` matches
+  `<ts> | <dec_id> | <key> | <scope> | rule_match: ... | decision: ...`;
+  ELSE WARN `permission_audit_row_invalid` with line ref.
+- Audit log size > 32 KB → WARN `permission_audit_log_too_large`
+  recommending purge of resolutions older than 30 days.
+- Audit row count exceeds active-rules count by > 100×: INFO
+  `permission_audit_high_volume` (suggests reviewing
+  `permission_bash_too_broad` patterns).
+- Audit row references unknown rule timestamp: WARN
+  `permission_audit_rule_drift`.
+- `state.md.silent_window_transient_rule_ids` consistency:
+  every id MUST correspond to a `## Active rules` row with
+  `by: silent_window`; ELSE WARN
+  `silent_window_transient_drift`.
+- If `state.md.attention_mode: interactive` AND
+  `silent_window_transient_rule_ids` is non-empty: WARN
+  `silent_window_transient_orphan` (transient rules survived
+  past silent window without revoke; recommend
+  `/dtd doctor --takeover`).
+- `## Active rules` rows with `by: silent_window` AND past
+  `until` timestamp: INFO
+  `silent_window_transient_expired_unrevoked` (rule effectively
+  inactive but tombstone not added; cosmetic).
+
 ## Worker health + runtime resilience (v0.2.1)
 
 ### Worker health check freshness

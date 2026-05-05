@@ -365,6 +365,41 @@ Korean / Japanese NL routing in the respective locale pack.
 are mutating; they append to `.dtd/permissions.md` `## Active rules`.
 `revoke` adds a tombstone entry rather than truncating history.
 
+#### Permission-key → run-loop step matrix (v0.2.0b R1)
+
+Each permission key is resolved at a specific run-loop step (per
+`.dtd/reference/run-loop.md` §"Permission resolution at dispatch
+time"):
+
+| Key | Run-loop step | Surface |
+|---|---|---|
+| `task` | 5.5 (master switch) | one resolution per task before dispatch |
+| `bash` | 6.c (worker shell) / 6.g (apply hook) / 6.e.5 (relay) | wherever shell exec is requested |
+| `external_directory` | 6.c (read) / 6.f.0 (write) | path outside project root |
+| `edit` | 6.f.0 (pre-apply) | per output path; most-specific scope wins |
+| `snapshot` | 6.g (between phase 1 and 2) | v0.2.0c snapshot writes |
+| `revert` | `/dtd revert` command | NOT in run-loop; user-invoked |
+| `todowrite` | 1, 2, 5, 6.i (controller-internal) | default `allow`; never blocks |
+| `question` | whenever capsule fills | default `ask` |
+| `tool_relay_read` | 6.c (pre-dispatch) / 6.e.5 (post-response) | read-only worker tool calls |
+| `tool_relay_mutating` | 6.e.5 (post-response, mutating relay) | write/exec/network tool calls |
+
+**Silent-mode interaction**: `allow` rules auto-handle without
+capsule. `deny` rules abort immediately AND do NOT defer (deny is
+unambiguous). `ask` rules fire `PERMISSION_REQUIRED` capsule which
+silent mode defers per `silent_deferred_decision_limit`. Transient
+rules from `silent_allow_*` flags expire at `attention_until` (see
+`.dtd/reference/autonomy.md` §"Silent transient rules (v0.2.0b R1)").
+
+**Decision-mode interaction**: `decision_mode: auto` does NOT
+auto-resolve `ask` permission rules. Permission-class is treated
+as user-required regardless of decision_mode. The only auto-resolve
+gate is when the user explicitly wrote an `allow` rule.
+
+**Audit log**: every resolution writes one row to
+`.dtd/log/permissions.md` (gitignored, append-only). Format spec
+in `.dtd/permissions.md` §"Audit log (v0.2.0b R1)".
+
 ### `/dtd locale [enable|disable|list|show] [<lang>]` (v0.2.0e)
 
 Optional locale-pack management. Core operational prompts ship
