@@ -1,8 +1,16 @@
-# DTD v0.1 Test Scenarios
+# DTD Test Scenarios (v0.1 / v0.2 / v0.3)
 
-> 81 acceptance scenarios (72 single-feature + 9 cross-sub-release integration) for v0.1 + v0.1.1 + v0.2.0a (TAGGED) + v0.2.0d (R0 implementation) + v0.2.3 R1 reference extraction + Lazy-Load Profile + v0.2.0f/0e/0b/0c/0.2.1/0.2.2 (planned). Not auto-runnable — these are
-> (a) QA checklist for releases, (b) Codex review criteria, (c) user
-> usage examples. Each scenario has Setup / Steps / Expected / Pass.
+> Acceptance scenarios for the v0.1 / v0.1.1 / v0.2 / v0.3 lines.
+> Tagged: v0.1 / v0.1.1 / v0.2.0a / v0.2.0d / v0.2.0f / v0.2.3
+> (4 of 9 v0.2 sub-releases). Codex GO with tag pending: v0.2.0e
+> / v0.2.0b / v0.2.0c / v0.2.1 / v0.2.2. v0.3 line at R0+R1 GO
+> across all 5 sub-releases (v0.3.0e/b/a/c/d) with R2 plan + R2-0
+> entry gate also GO; tag pending. Static contracts validated by
+> the 13 release-contract harnesses + v0.1 smoke; live R2
+> execution gated on `/dtd r2 readiness`. Not auto-runnable —
+> these are (a) QA checklist for releases, (b) Codex review
+> criteria, (c) user usage examples. Each scenario has Setup /
+> Steps / Expected / Pass.
 
 Format:
 
