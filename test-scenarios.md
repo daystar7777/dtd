@@ -1088,7 +1088,7 @@ today.
 ### 100. Silent + permission deny — auto-deny is final, never deferred (v0.2.0f + v0.2.0b)
 
 **Setup**: silent run with `decision_mode: auto`. Permission ledger has
-`deny | bash | scope: rm -rf` (set by user pre-run). Worker emits
+`deny | tool_relay_mutating | scope: run_shell pattern: "rm -rf"` (set by user pre-run). Worker emits
 `::tool_request:: tool_name=run_shell args="rm -rf node_modules"`.
 
 **Steps**:
@@ -1187,15 +1187,19 @@ escalation happens; loop signature resets after user resolution.
 in `steering.md` (auto-detected by migration).
 
 **Steps**:
-1. `/dtd update --dry-run` (after v0.2.0d ships with v0.2.0e migration delta).
+1. `/dtd update --dry-run` to a target release that includes both v0.2.0d
+   Self-Update and v0.2.0e Locale Packs (for example, skipping from v0.2.0a
+   directly to v0.2.0e or later).
 2. Migration detects Korean usage; offers `Auto-enable locale pack? (y/n/skip)`.
 3. User picks `y`.
 4. `/dtd update` proceeds.
 
 **Expected**:
 - Pre-update backup created at `.dtd.backup-v020a-to-v020d-<ts>/`.
-- State schema migration applies all v0.2.0d/0f/0e/0b/0c deltas if they all
-  ship by then; or sub-releases are migrated incrementally per release order.
+- State schema migration applies every delta included in the target release.
+  If the target is v0.2.0d only, locale auto-detect may be reported as a
+  preview but MUST NOT set `locale_active: ko` until `.dtd/locales/ko.md`
+  exists in the manifest.
 - Locale auto-enabled: `state.md.locale_active: ko`,
   `config.md.locale.enabled: true`, `config.md.locale.language: ko`.
 - `.dtd/locales/ko.md` copied from release manifest.
@@ -1210,29 +1214,37 @@ user's Korean UX is preserved post-update; doctor verification PASSes.
 
 **Setup**: APPROVED plan. Worker has `tool_runtime: controller_relay`.
 Permission ledger has:
-- `ask | tool_relay_mutating | scope: file_write`
+- `ask | tool_relay_read | scope: run_shell:npm-test`
 - `allow | snapshot | scope: *`
 
-Worker emits `::tool_request:: tool_name=file_write args={path: src/api/users.ts}`.
+Worker first emits `::tool_request:: tool_name=run_shell args="npm test"`,
+then the next fresh dispatch emits `===FILE: src/api/users.ts===` as its
+declared output.
 
 **Steps**:
 1. `/dtd run`.
-2. Worker emits the file_write tool request.
+2. Worker emits the read/verification tool request.
+3. Controller runs the relay, then re-dispatches with a compact tool-log ref.
+4. Worker returns a normal file block for `src/api/users.ts`.
 
 **Expected**:
-- Controller resolves `tool_relay_mutating ask` → fills PERMISSION_REQUIRED
+- Controller resolves `tool_relay_read ask` → fills PERMISSION_REQUIRED
   capsule.
 - User picks `allow_once`.
-- Controller proceeds: BEFORE relay execution, takes snapshot per v0.2.0c
-  rules (preimage mode for src/api/users.ts).
-- Snapshot manifest entry created.
-- Tool relay executes: file_write applied via controller (NOT worker).
-- Sanitized output saved to `.dtd/log/tool-001-task-2.1-1.md`.
-- Compact result ref passed to next dispatch.
+- Controller relay executes only after permission resolves; sanitized output is
+  saved to `.dtd/log/tool-001-task-2.1-1.md`.
+- Next fresh worker dispatch receives only compact tool result + log ref.
+- File modification still arrives through `===FILE: src/api/users.ts===`.
+- Before applying that file block, controller validates output path and takes a
+  snapshot per v0.2.0c rules (preimage mode for src/api/users.ts).
+- Snapshot manifest entry created, then normal temp-file + atomic rename apply
+  pipeline runs.
 
 **Pass**: three-way integration (tool runtime + permission + snapshot)
-correctly orders: permission first, snapshot second, execution third.
-Audit log + snapshot + tool log all populate per spec.
+correctly orders: permission first, relay execution second, snapshot before
+apply, apply last.
+Audit log + snapshot + tool log all populate per spec, and tool relay never
+bypasses output-path validation or the apply pipeline.
 
 ### 106. Persona resolution under context_pattern + reasoning_utility (v0.2.0f internal)
 
@@ -1364,7 +1376,7 @@ help output stays under 50 lines; user can drill via `/dtd help <other-topic>`.
 | 104 | cross v0.2.0d+0e: self-update + state migration + locale auto-detect |
 | 105 | cross v0.2.0f+0c+0b: tool relay + snapshot + permission ordering |
 | 106 | cross v0.2.0f: persona + context_pattern + reasoning_utility resolution |
-| 107 | cross v0.2.0f+2.2: reflexion utility writes notepad v2 reasoning notes |
+| 107 | cross v0.2.0f+v0.2.2: reflexion utility writes notepad v2 reasoning notes |
 | 108 | cross v0.2.3+0d: modularization + /dtd help lazy-load drilling |
 
 Controller no-self-grade gate (P1-2): exercised wherever step 4 of escalation ladder is reached (Scenario 17 covers this; specific REVIEW_REQUIRED gate is observed in phase-history.md gate column).
