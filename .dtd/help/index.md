@@ -15,5 +15,7 @@
 | `run` | running + bounded execution: run, run --until, pause, resume |
 | `steer` | steering / patches mid-run |
 
+R2 gate: `/dtd r2 readiness` (full ref: `v030-r2-0-readiness-checklist`).
+
 Default `/dtd help` shows the lifecycle overview (≤ 25 lines).
 Topic help is ≤ 50 lines unless `--full` is specified.

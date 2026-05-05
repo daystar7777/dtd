@@ -128,6 +128,10 @@ $configMd = Read-Text ".dtd/config.md"
 $stateMd = Read-Text ".dtd/state.md"
 $scenariosMd = Read-Text "test-scenarios.md"
 $builderText = Read-Text "scripts/build-manifest.ps1"
+$readmeText = Read-Text "README.md"
+$readmeKoText = Read-Text "README.ko.md"
+$readmeJaText = Read-Text "README.ja.md"
+$helpIndexText = Read-Text ".dtd/help/index.md"
 
 # v0.2.3 R1: doctor-checks extracted; dtd.md stub mentions "13 topics",
 # full enumeration lives in .dtd/reference/doctor-checks.md.
@@ -190,6 +194,16 @@ Add-Result "v023.r2_0.command_surface" "dtd.md + instructions expose /dtd r2 rea
      ($instructionsMd -match '\| `r2_readiness` \|') -and
      ($instructionsMd -match '/dtd r2 readiness') -and
      ($instructionsMd -match 'no worker calls, no test project creation'))
+Add-Result "v023.r2_0.readme_help_discovery" "README and help index expose /dtd r2 readiness" `
+    (($readmeText -match '/dtd r2 readiness') -and
+     ($readmeText -match 'v0\.3 live-test entry gate') -and
+     ($helpIndexText -match '/dtd r2 readiness') -and
+     ($helpIndexText -match 'v030-r2-0-readiness-checklist'))
+Add-Result "v023.r2_0.localized_readme_discovery" "localized READMEs expose /dtd r2 readiness and current worker health wording" `
+    (($readmeKoText -match '/dtd r2 readiness') -and
+     ($readmeJaText -match '/dtd r2 readiness') -and
+     ($readmeKoText -match 'v0\.2\.1\+') -and
+     ($readmeJaText -match 'v0\.2\.1\+'))
 Add-Result "v023.r2_0.reference_command_surface" "R2-0 readiness ref documents command and aliases" `
     (($r2ReadinessText -match '/dtd r2 readiness \[--full\|--json\]') -and
      ($r2ReadinessText -match '/dtd r2 status') -and

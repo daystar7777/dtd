@@ -72,6 +72,7 @@ github の daystar7777/dtd から prompt.md を取得してこのプロジェク
 /dtd workers list                登録済みワーカー一覧
 /dtd help [topic]                階層型ヘルプ (≤25行概要、≤50行トピック)
 /dtd update check                最新 DTD バージョン確認 (v0.2.0d)
+/dtd r2 readiness                v0.3 ライブテスト入口ゲート; ワーカー呼び出しなし
 ```
 
 復旧 (Recover, v0.2.0a Incident Tracking):
@@ -85,7 +86,7 @@ github の daystar7777/dtd から prompt.md を取得してこのプロジェク
 ```
 
 > ワーカーヘルスチェックの詳細診断 (`--all`, `--full`, `--connectivity`,
-> ステージログ, 失敗分類) は v0.2.1 Runtime Resilience で提供。
+> ステージログ, 失敗分類) は v0.2.1+ Runtime Resilience で利用可能。
 
 または自然言語で:
 

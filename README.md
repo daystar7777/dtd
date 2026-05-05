@@ -56,7 +56,7 @@ Start:
 ```
 
 > Detailed worker health diagnostics (`--all`, `--full`, `--connectivity`,
-> stage logs, failure taxonomy) ship in v0.2.1 Runtime Resilience.
+> stage logs, failure taxonomy) are available in v0.2.1+ Runtime Resilience.
 
 Run styles (v0.2.0f Autonomy & Attention):
 
@@ -83,6 +83,7 @@ Observe:
 /dtd workers list                show registered workers
 /dtd help [topic]                layered help (≤25-line overview, ≤50-line topic)
 /dtd update check                see latest available DTD version (v0.2.0d)
+/dtd r2 readiness                v0.3 live-test entry gate; no worker calls
 ```
 
 Recover (v0.2.0a Incident Tracking):
