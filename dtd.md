@@ -111,6 +111,23 @@ Health check. Output uses the same Unicode/ASCII style as `/dtd status`. Reports
 - Incident detail files in `.dtd/log/incidents/` should not contain secret patterns (regex scan); ELSE ERROR `incident_secret_leak`
 - Total open-incident count > 100 → INFO suggesting `/dtd incident list --all` review or v0.3 prune command (deferred)
 
+**Self-Update state** (v0.2.0d):
+- `state.md.installed_version` is non-null and matches a tagged release format (e.g. `v0.2.0d`); ELSE INFO `installed_version_unrecorded` (legitimate for pre-v0.2.0d installs upgrading via first `/dtd update`)
+- `state.md.update_in_progress: false` between actual update operations; ELSE WARN `update_lock_held` (auto-clear after `stale_threshold_min * 6` per stale-takeover policy — default 30 min)
+- If `state.md.update_in_progress: true` for > 30 min: WARN `update_lock_stuck`, recommend `/dtd doctor --takeover`
+- `MANIFEST.json` exists at repo root if installed via v0.2.0d-aware bootstrap; ELSE INFO `manifest_absent_will_fetch` (acceptable)
+- If `MANIFEST.json` exists: parses as valid JSON with required fields (`version`, `tagged_at`, `manifest_format_version`, `files[]`); ELSE ERROR `manifest_invalid`
+- If `MANIFEST.json` exists: `manifest.version` matches `state.md.installed_version`; ELSE WARN `manifest_version_drift`
+- `state.md.update_check_at` is recent (within `config.update.check_interval_days * 2`); ELSE INFO `update_check_stale` recommending `/dtd update check`
+- `.dtd.backup-*-<ts>/` directories older than `config.update.backup_retention_days` (default 7); INFO recommending purge
+
+**Help system** (v0.2.0d):
+- `.dtd/help/` directory exists; ELSE WARN `help_dir_missing` (graceful — `/dtd help` falls back to dtd.md anchor lookup)
+- All 9 canonical topics have `.dtd/help/<topic>.md` files (start, observe, recover, workers, stuck, update, plan, run, steer); ELSE WARN `help_topic_missing: <topic>`
+- `.dtd/help/index.md` exists and is ≤ 1 KB; ELSE WARN
+- Each topic file ≤ 2 KB; ELSE WARN `help_topic_oversized: <topic>`
+- Default help body (rendered from index.md Summary section) ≤ 25 lines; topic help ≤ 50 lines (line-budget INFO; not blocking)
+
 **Path policy**:
 - Scan plan files for `..` paths: WARN, recommend absolute form
 - BLOCK pattern hits in plans: ERROR with line ref
