@@ -65,7 +65,8 @@
       - "dtd.md §/dtd incident list/show/resolve"
       - "dtd.md §Status Dashboard (v0.2.0a/v0.2.0f rendering)"
       - "instructions.md §Don't Do These (full)"
-- profile_transition_logging: true        # log to steering.md when profile changes
+- profile_transition_logging: false       # optional diagnostic; never log profile changes to steering.md
+- profile_transition_log_path: .dtd/log/profile-transitions.md
 - aggressive_unload: false                # if true, hosts that support unload may evict non-profile sections (advanced)
 
 ## update (v0.2.0d)

@@ -27,6 +27,8 @@
 | `doctor-checks` | All doctor checks across sub-releases | `dtd.md` §`/dtd doctor` |
 | `roadmap` | v0.2 sub-release tree | `dtd.md` §v0.1.1 / v0.2 Roadmap |
 
+| `load-profile` | v0.2.3 controller cognitive scoping | `dtd.md` Lazy-Load Profile |
+
 ## Scaffold rationale
 
 v0.2.3 R0 is intentionally a SCAFFOLD-ONLY commit:
@@ -35,7 +37,7 @@ v0.2.3 R0 is intentionally a SCAFFOLD-ONLY commit:
   content or break section anchors. SHA-equivalence verification
   (per the v0.2.3 design Amendment 10 in v0.2.0d) needs careful
   per-topic extraction.
-- Approach: R0 lands the directory + 12 topic stubs that point at
+- Approach: R0 lands the directory + 13 topic stubs that point at
   `dtd.md` sections via the "Source-of-truth (today)" column. R1+
   moves content from `dtd.md` into each reference file, replacing
   the dtd.md sections with topic links.

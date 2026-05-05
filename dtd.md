@@ -130,7 +130,10 @@ Health check. Output uses the same Unicode/ASCII style as `/dtd status`. Reports
 
 **Spec modularization** (v0.2.3 R0 scaffold):
 - `.dtd/reference/` directory exists; ELSE INFO `reference_dir_missing` (acceptable — full content remains in dtd.md until R1+ extraction)
-- All 13 canonical reference files have stubs (index, autonomy, incidents, persona-reasoning-tools, perf, workers, plan-schema, status-dashboard, self-update, help-system, run-loop, doctor-checks, roadmap); ELSE INFO `reference_stub_missing: <topic>` (graceful)
+- `.dtd/reference/index.md` plus all 13 canonical reference topic stubs exist
+  (autonomy, incidents, persona-reasoning-tools, perf, workers, plan-schema,
+  status-dashboard, self-update, help-system, run-loop, doctor-checks,
+  roadmap, load-profile); ELSE INFO `reference_stub_missing: <topic>` (graceful)
 - Reference files ≤ 8 KB each (larger budget than help topics since reference docs may carry full canonical content); ELSE WARN `reference_oversized: <topic>`
 - v0.2.3 R0 stub status: each reference file should anchor back to `dtd.md` via "Source-of-truth today" or "Anchor" section; INFO if missing
 - v0.2.3 R1+ full extraction: when reference files contain full content (not stubs), INFO that dtd.md sections may be safely compacted
@@ -309,6 +312,17 @@ Forms:
    | help     show available topics
    ```
 5. Else: show full topic list from `.dtd/help/index.md`.
+
+v0.2.3 reference-topic extension:
+
+- If `--full` and `.dtd/reference/<topic>.md` exists, render that ONE
+  reference file. Do not load `dtd.md` or other reference files.
+- If a topic exists only in `.dtd/reference/<topic>.md`, default
+  `/dtd help <topic>` renders the one-line summary from
+  `.dtd/reference/index.md` and hints:
+  `Run /dtd help <topic> --full for the reference file.`
+- Unknown-topic search includes both `.dtd/help/*.md` and
+  `.dtd/reference/index.md`.
 
 #### Canonical topics (v0.2.0d set)
 
@@ -2867,15 +2881,21 @@ Per-turn protocol step 1.5 (after reading `state.md`, before Intent Gate):
    - Elif plan_status in [RUNNING, PAUSED]: running
    - Elif plan_status in [DRAFT, APPROVED]: planning
    - Else: minimal
-3. Compare to state.md.loaded_profile. If different:
+3. Compute `effective_profile`; do not persist it yet. If the turn later
+   performs a mutating action and it differs from state.md.loaded_profile:
    - Update state.md.loaded_profile, loaded_profile_set_at,
-     loaded_profile_reason atomically (next turn boundary).
-   - If config.load-profile.profile_transition_logging: true,
+     loaded_profile_reason atomically in that action's state write.
+   - If config.load-profile.profile_transition_logging: true (diagnostic only),
      append a one-line steering.md entry: "loaded_profile: <old> → <new>
      reason: <reason>".
 4. Use the new profile's section set (from config.load-profile.profile_sections)
    as the controller's "active" cognitive scope for this turn.
 ```
+
+Clarification: observational reads compute and display `effective_profile`
+without writing `state.md` or appending logs. Profile transition diagnostics
+are optional and, when enabled, go to `.dtd/log/profile-transitions.md`, never
+to `steering.md`.
 
 ### Section coverage
 
@@ -2912,7 +2932,8 @@ Per `/dtd doctor`:
   ELSE ERROR `loaded_profile_invalid`.
 - `loaded_profile` matches resolution rules given current state.md
   (computed by doctor from mode/plan_status/pending_patch/incident);
-  ELSE WARN `loaded_profile_drift` recommending `/dtd doctor --refresh-profile`.
+  ELSE INFO `loaded_profile_drift`. Doctor is observational by default and
+  reports the computed effective profile without refreshing durable state.
 - `config.load-profile.profile_sections` has all 4 keys
   (minimal/planning/running/recovery); ELSE ERROR
   `profile_sections_incomplete`.
@@ -2922,14 +2943,18 @@ Per `/dtd doctor`:
 
 ### Token economy impact
 
-For long-running silent runs (v0.2.0f), the lazy-load profile reduces
-the controller's effective per-turn cognitive load by ~30-50% during
-`minimal`/`planning` turns, because the controller doesn't have to
-re-process recovery/dispatch logic that doesn't apply.
+For long-running sessions, the lazy-load profile reduces
+the controller's effective per-turn cognitive scope by making irrelevant
+sections inactive. This is not a guaranteed provider-token reduction.
 
-This complements the `/dtd perf` controller-usage ledger (v0.2.0f
+This is measured by the `/dtd perf` controller-usage ledger (v0.2.0f
 follow-up) — perf measures actual token usage; lazy-load profile
-helps reduce it.
+does not assume it.
+
+Correction: this is a cognitive-scope benefit by default, not a guaranteed
+provider-token reduction. Actual prompt-token savings require host support for
+selective loading or `aggressive_unload`; `/dtd perf` is the authority for
+measured token usage.
 
 ### NL routing
 
@@ -2939,6 +2964,10 @@ helps reduce it.
 | `"프로파일 새로고침"` / `"refresh profile"` | `/dtd doctor --refresh-profile` (recompute from state) |
 
 (Localized phrases via locale packs per v0.2.0e.)
+
+English-only core aliases: `"profile"` / `"show profile"` render
+`/dtd status --profile`; `"refresh profile"` recomputes effective profile on
+the next mutating turn. Localized examples belong in locale packs.
 
 ---
 

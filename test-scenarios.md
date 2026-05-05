@@ -1238,21 +1238,21 @@ truly observational.
 
 ## v0.2.3 — Spec modularization + Lazy-load profile
 
-### 94. .dtd/reference/ scaffold exists with 13 stubs
+### 94. .dtd/reference/ scaffold exists with index + 13 topic stubs
 
 **Setup**: post-v0.2.3 R0 install.
 
 **Steps**: inspect `.dtd/reference/` directory.
 
 **Expected**:
-- 13 markdown files exist: index, autonomy, incidents,
+- 14 markdown files exist: index plus 13 reference topics: autonomy, incidents,
   persona-reasoning-tools, perf, workers, plan-schema,
   status-dashboard, self-update, help-system, run-loop,
   doctor-checks, roadmap, load-profile.
 - Each is ≤ 8 KB.
-- Each has Summary + Anchor section pointing at dtd.md or
+- Each topic stub has Summary + Anchor section pointing at dtd.md or
   AIMemory archive.
-- index.md lists all 13 topics with one-line description.
+- index.md lists all 13 reference topics with one-line description.
 
 **Pass**: scaffold present; lazy-load architecture verified at file level.
 
@@ -1267,6 +1267,11 @@ against the design.
    from `.dtd/help/autonomy.md` (or generated from index).
 2. `/dtd help autonomy --full` — drills into `.dtd/reference/autonomy.md`
    for full spec extraction.
+
+R0 correction: `autonomy` is a reference topic, not a v0.2.0d help topic.
+Default `/dtd help autonomy` should render a compact summary from
+`.dtd/reference/index.md` plus a `--full` hint; only `--full` loads the
+reference file.
 
 **Expected**:
 - `/dtd help` (no flag) loads only `.dtd/help/<topic>.md` (≤ 2 KB).
@@ -1290,14 +1295,17 @@ file loaded per `/dtd help <topic> --full` invocation.
 `/dtd status --profile` to display current loaded_profile.
 
 **Expected**:
-- `state.md.loaded_profile` updates atomically at per-turn protocol
-  step 1.5 of next turn (NOT mid-task).
+- `effective_profile` is computed at per-turn protocol step 1.5 of the
+  next turn (NOT mid-task).
+- Mutating turns persist `state.md.loaded_profile` atomically with the
+  action's normal state write. Observational reads such as
+  `/dtd status --profile` display computed profile but do not write state.
 - `state.md.loaded_profile_set_at` timestamps each transition.
 - `state.md.loaded_profile_reason` records the trigger (e.g.
   `draft_or_approved`, `running_or_paused`, `active_blocker`,
   `pending_patch`).
-- `steering.md` gets one-line append per transition (per
-  `config.load-profile.profile_transition_logging: true`).
+- `steering.md` is not appended for profile transitions. If diagnostics are
+  enabled, entries go to `.dtd/log/profile-transitions.md`.
 - Doctor's `loaded_profile_drift` check passes (resolved profile
   matches state).
 
@@ -1315,13 +1323,14 @@ turn boundaries; logging is non-intrusive.
 **Expected**:
 - During `running` profile, controller does NOT process recovery-only
   sections (incident resolve commands, /dtd update flow, etc.).
-- Controller usage ledger shows fewer prompt tokens per turn vs a
-  hypothetical run with all sections always active.
-- Estimated savings: 30-50% per-turn cognitive load on minimal/planning
-  profile turns; smaller (but non-zero) savings during running.
+- Controller usage ledger may show unchanged prompt tokens on hosts that
+  still auto-load the full prompt. That is acceptable.
+- Estimated benefit is reduced controller cognitive scope. Actual prompt-token
+  savings are expected only when the host honors selective loading or
+  `aggressive_unload`.
 
-**Pass**: lazy-load profile reduces effective per-turn cognitive load
-without introducing correctness regressions.
+**Pass**: lazy-load profile reduces effective per-turn cognitive scope
+without claiming token savings unless measured by `/dtd perf`.
 
 ---
 
@@ -1624,7 +1633,7 @@ help output stays under 50 lines; user can drill via `/dtd help <other-topic>`.
 | 91 | v0.2.0d: /dtd help shows default 25-line overview |
 | 92 | v0.2.0d: /dtd help <topic> shows ≤50-line topic detail |
 | 93 | v0.2.0d: /dtd help <unknown> searches and shows top 3 matches |
-| 94 | v0.2.3: .dtd/reference/ scaffold has 13 stubs + budget OK |
+| 94 | v0.2.3: .dtd/reference/ scaffold has index + 13 topic stubs + budget OK |
 | 95 | v0.2.3: /dtd help <topic> --full drills into reference file (lazy-load) |
 | 96 | v0.2.3 lazy-load profile: resolves correctly across state transitions |
 | 97 | v0.2.3 lazy-load profile: reduces controller cognitive load (perf savings) |

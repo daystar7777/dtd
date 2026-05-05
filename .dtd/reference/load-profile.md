@@ -25,8 +25,12 @@ Per-turn protocol step 1.5 (after read state.md, before Intent Gate):
 
 1. Read state.md mode/plan_status/pending_patch/active_blocking_incident_id.
 2. Apply rules (see dtd.md §Lazy-Load Profile resolution).
-3. If profile changed: update state.md atomically; log to steering.md.
-4. Use resolved profile's section set as turn's active cognitive scope.
+3. Treat result as `effective_profile` for this turn.
+4. Observational reads do not persist profile changes.
+5. Mutating turns may update loaded_profile fields in the same atomic
+   state write as the action.
+6. Optional diagnostics go to `.dtd/log/profile-transitions.md`, never
+   `steering.md`.
 
 ## state.md fields
 
@@ -42,7 +46,8 @@ Per-turn protocol step 1.5 (after read state.md, before Intent Gate):
 - `profile_resolution_mode: state_driven | manual | auto_probe`
 - `default_profile: minimal`
 - `profile_sections: {minimal: [...], planning: [...], running: [...], recovery: [...]}`
-- `profile_transition_logging: true`
+- `profile_transition_logging: false`
+- `profile_transition_log_path: .dtd/log/profile-transitions.md`
 - `aggressive_unload: false`  (advanced; off by default)
 
 ## Aggressive unload (advanced)
@@ -57,6 +62,10 @@ don't support this.
 See `dtd.md` §`## Lazy-Load Profile (v0.2.3)` for full resolution rules,
 section coverage, profile boundaries, doctor checks, token economy
 impact, NL routing.
+
+Token caveat: lazy-load reduces controller cognitive scope by default.
+It reduces prompt tokens only when the host honors selective loading or
+aggressive unload.
 
 ## Related topics
 

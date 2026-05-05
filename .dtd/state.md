@@ -16,6 +16,9 @@
 # full instructions in context, but controller focuses on profile-matched
 # sections.
 #
+# Observational reads do not persist profile changes; mutating turns may
+# update these fields in the same atomic state write as the action.
+#
 # Profile is resolved at per-turn protocol step 1.5 (after reading state.md,
 # before intent gate). See dtd.md §Lazy-Load Profile.
 

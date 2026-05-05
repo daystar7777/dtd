@@ -59,17 +59,19 @@ through this in-context routing rule once DTD mode is on.
 On every user turn, before responding:
 
 1. **Read** `.dtd/state.md` → current mode, plan_status, pending_patch, current_task, pause_requested, awaiting_user_decision.
-1.5. **Resolve lazy-load profile** (v0.2.3): compute `loaded_profile` from
+1.5. **Resolve lazy-load profile** (v0.2.3): compute `effective_profile` from
      state per dtd.md §Lazy-Load Profile resolution rules:
      - `mode != dtd` OR `active_plan == null` → `minimal`
      - `active_blocking_incident_id != null` OR `pending_patch: true` → `recovery`
      - `plan_status in [RUNNING, PAUSED]` → `running`
      - `plan_status in [DRAFT, APPROVED]` → `planning`
      - else → `minimal`
-     If different from `state.md.loaded_profile`, update atomically with
-     `loaded_profile_set_at` and `loaded_profile_reason`. Use the
-     resolved profile's section set as the controller's active cognitive
-     scope for this turn (per `config.md` `load-profile.profile_sections`).
+     Use the resolved profile's section set as the controller's active
+     cognitive scope for this turn (per `config.md`
+     `load-profile.profile_sections`). Do not persist profile changes during
+     observational reads. If the turn performs a mutating action, include
+     `loaded_profile`, `loaded_profile_set_at`, and `loaded_profile_reason`
+     in that same atomic state write when they differ.
 2. **Read** `.dtd/steering.md` from `steering_cursor` to end → apply any new low-impact entries; flag medium/high if not yet patched.
 3. **Check** `pause_requested`: if true and `plan_status: RUNNING`, finish in-flight task only, then mark PAUSED.
 4. **Check** `awaiting_user_decision`: if true, do not auto-act. Show the choice menu, AND display `awaiting_user_reason` (e.g. `CONTEXT_EXHAUSTED`, `ESCALATION_TERMINAL`) so the user knows why.
@@ -544,6 +546,7 @@ For observational reads:
 - DO NOT append `attempts/run-NNN.md`
 - DO NOT append `AIMemory/work.log` (except rare protocol/debug NOTE that the controller itself initiates separately)
 - DO NOT update `state.md.last_update`
+- DO NOT persist `loaded_profile` changes or profile-transition diagnostics
 - DO NOT include the question/answer in future worker prompts
 - DO NOT affect grading, retry counters, steering counters, loop guard, or escalation
 - DO NOT append `.dtd/log/controller-usage-run-NNN.md`; perf accounting tracks
