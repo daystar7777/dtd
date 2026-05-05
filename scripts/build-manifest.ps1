@@ -79,7 +79,8 @@ $IncludedPaths = @(
     ".dtd/reference/help-system.md",
     ".dtd/reference/run-loop.md",
     ".dtd/reference/doctor-checks.md",
-    ".dtd/reference/roadmap.md"
+    ".dtd/reference/roadmap.md",
+    ".dtd/reference/load-profile.md"
 )
 
 $files = @()

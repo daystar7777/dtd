@@ -14,6 +14,60 @@
 - mode_set_by: install        # install | doctor | user
 - assisted_confirm_each_call: false
 
+## load-profile (v0.2.3)
+
+# Lazy-load profile mapping. Maps each profile to the set of
+# instructions.md / dtd.md / reference sections that are "active" for
+# turns in that profile. Controller uses these sets to focus cognitive
+# load. See dtd.md §Lazy-Load Profile.
+
+- profile_resolution_mode: state_driven   # state_driven | manual | auto_probe
+- default_profile: minimal                 # initial profile when state is fresh
+- profile_sections:
+    minimal:
+      - "instructions.md §TL;DR"
+      - "instructions.md §Slash command aliases"
+      - "instructions.md §Per-turn protocol"
+      - "instructions.md §Intent Gate"
+      - "instructions.md §Status / read-only call isolation"
+      - "dtd.md §Modes"
+      - "dtd.md §Canonical Actions (status / doctor / mode)"
+    planning:
+      - "<all minimal sections>"
+      - "instructions.md §NL → Canonical Action Mapping"
+      - "instructions.md §State-aware Disambiguation"
+      - "instructions.md §Naming Resolution Precedence"
+      - "instructions.md §Worker Permission Profiles"
+      - "dtd.md §/dtd plan"
+      - "dtd.md §/dtd plan worker"
+      - "dtd.md §/dtd approve"
+      - "dtd.md §Worker Registry & Routing"
+      - "dtd.md §Plan Schema (XML)"
+    running:
+      - "<all planning sections>"
+      - "instructions.md §Token Economy Rules"
+      - "instructions.md §Controller Work Self-Classification"
+      - "instructions.md §Context Control"
+      - "dtd.md §/dtd run"
+      - "dtd.md §finalize_run(terminal_status)"
+      - "dtd.md §Autonomy & Attention Modes"
+      - "dtd.md §Context Patterns"
+      - "dtd.md §Persona, Reasoning, and Tool-Use Patterns"
+      - "dtd.md §Worker Dispatch — HTTP Transport"
+      - "dtd.md §Tier Escalation"
+      - "dtd.md §Resource Locks"
+      - "dtd.md §Phase Iteration Control"
+      - "dtd.md §Per-Run Notepad"
+      - "dtd.md §Attempt Timeline"
+    recovery:
+      - "<all running sections>"
+      - "dtd.md §Incident Tracking (v0.2.0a)"
+      - "dtd.md §/dtd incident list/show/resolve"
+      - "dtd.md §Status Dashboard (v0.2.0a/v0.2.0f rendering)"
+      - "instructions.md §Don't Do These (full)"
+- profile_transition_logging: true        # log to steering.md when profile changes
+- aggressive_unload: false                # if true, hosts that support unload may evict non-profile sections (advanced)
+
 ## update (v0.2.0d)
 
 # Self-Update settings. See dtd.md §/dtd update.

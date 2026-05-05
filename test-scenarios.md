@@ -1,6 +1,6 @@
 # DTD v0.1 Test Scenarios
 
-> 77 acceptance scenarios (68 single-feature + 9 cross-sub-release integration) for v0.1 + v0.1.1 + v0.2.0a (TAGGED) + v0.2.0d (R0 implementation) + v0.2.0f/0e/0b/0c/0.2.1/0.2.2/0.2.3 (planned). Not auto-runnable — these are
+> 81 acceptance scenarios (72 single-feature + 9 cross-sub-release integration) for v0.1 + v0.1.1 + v0.2.0a (TAGGED) + v0.2.0d (R0 implementation) + v0.2.3 R0 scaffold + Lazy-Load Profile + v0.2.0f/0e/0b/0c/0.2.1/0.2.2 (planned). Not auto-runnable — these are
 > (a) QA checklist for releases, (b) Codex review criteria, (c) user
 > usage examples. Each scenario has Setup / Steps / Expected / Pass.
 
@@ -1236,6 +1236,95 @@ truly observational.
 
 ---
 
+## v0.2.3 — Spec modularization + Lazy-load profile
+
+### 94. .dtd/reference/ scaffold exists with 13 stubs
+
+**Setup**: post-v0.2.3 R0 install.
+
+**Steps**: inspect `.dtd/reference/` directory.
+
+**Expected**:
+- 13 markdown files exist: index, autonomy, incidents,
+  persona-reasoning-tools, perf, workers, plan-schema,
+  status-dashboard, self-update, help-system, run-loop,
+  doctor-checks, roadmap, load-profile.
+- Each is ≤ 8 KB.
+- Each has Summary + Anchor section pointing at dtd.md or
+  AIMemory archive.
+- index.md lists all 13 topics with one-line description.
+
+**Pass**: scaffold present; lazy-load architecture verified at file level.
+
+### 95. /dtd help <topic> --full drills into reference (when ready)
+
+**Setup**: post-v0.2.3 R1+ install where reference files have full
+content (not just stubs). For R0 scaffold, this is a contract test
+against the design.
+
+**Steps**:
+1. `/dtd help autonomy` — shows ≤ 50-line Summary + Quick examples
+   from `.dtd/help/autonomy.md` (or generated from index).
+2. `/dtd help autonomy --full` — drills into `.dtd/reference/autonomy.md`
+   for full spec extraction.
+
+**Expected**:
+- `/dtd help` (no flag) loads only `.dtd/help/<topic>.md` (≤ 2 KB).
+- `--full` flag loads `.dtd/reference/<topic>.md` (≤ 8 KB).
+- Neither loads `dtd.md` itself (lazy-load policy).
+- Output remains observational; no state.md mutation.
+
+**Pass**: drill-down respects lazy-load policy; only one reference
+file loaded per `/dtd help <topic> --full` invocation.
+
+### 96. Lazy-load profile resolves correctly across state transitions
+
+**Setup**: clean install with `mode: dtd`. Run sequence:
+1. No active plan: `loaded_profile: minimal` expected.
+2. `/dtd plan "x"` → `plan_status: DRAFT`: profile should transition to `planning`.
+3. `/dtd approve` + `/dtd run` → `plan_status: RUNNING`: profile transitions to `running`.
+4. Force a blocking incident → `active_blocking_incident_id` set: profile transitions to `recovery`.
+5. `/dtd incident resolve <id> retry` → blocker cleared: profile transitions back to `running`.
+
+**Steps**: walk through the sequence. After each transition, run
+`/dtd status --profile` to display current loaded_profile.
+
+**Expected**:
+- `state.md.loaded_profile` updates atomically at per-turn protocol
+  step 1.5 of next turn (NOT mid-task).
+- `state.md.loaded_profile_set_at` timestamps each transition.
+- `state.md.loaded_profile_reason` records the trigger (e.g.
+  `draft_or_approved`, `running_or_paused`, `active_blocker`,
+  `pending_patch`).
+- `steering.md` gets one-line append per transition (per
+  `config.load-profile.profile_transition_logging: true`).
+- Doctor's `loaded_profile_drift` check passes (resolved profile
+  matches state).
+
+**Pass**: profile resolution is deterministic; transitions happen at
+turn boundaries; logging is non-intrusive.
+
+### 97. Lazy-load profile reduces controller cognitive load
+
+**Setup**: silent run with `decision_mode: auto` (v0.2.0f). Active for
+8 hours with mostly safe ready-work and no blockers. Profile stays at
+`running` throughout.
+
+**Steps**: at end of run, inspect `/dtd perf` controller usage ledger.
+
+**Expected**:
+- During `running` profile, controller does NOT process recovery-only
+  sections (incident resolve commands, /dtd update flow, etc.).
+- Controller usage ledger shows fewer prompt tokens per turn vs a
+  hypothetical run with all sections always active.
+- Estimated savings: 30-50% per-turn cognitive load on minimal/planning
+  profile turns; smaller (but non-zero) savings during running.
+
+**Pass**: lazy-load profile reduces effective per-turn cognitive load
+without introducing correctness regressions.
+
+---
+
 ## Cross-sub-release integration scenarios (v0.2 line)
 
 These scenarios verify interactions between features that ship in DIFFERENT
@@ -1535,6 +1624,10 @@ help output stays under 50 lines; user can drill via `/dtd help <other-topic>`.
 | 91 | v0.2.0d: /dtd help shows default 25-line overview |
 | 92 | v0.2.0d: /dtd help <topic> shows ≤50-line topic detail |
 | 93 | v0.2.0d: /dtd help <unknown> searches and shows top 3 matches |
+| 94 | v0.2.3: .dtd/reference/ scaffold has 13 stubs + budget OK |
+| 95 | v0.2.3: /dtd help <topic> --full drills into reference file (lazy-load) |
+| 96 | v0.2.3 lazy-load profile: resolves correctly across state transitions |
+| 97 | v0.2.3 lazy-load profile: reduces controller cognitive load (perf savings) |
 | 100 | cross v0.2.0f+0b: silent + permission deny — auto-deny is final, never deferred |
 | 101 | cross v0.2.0f+0b: silent + ask permission defers; allow_always adds ledger rule |
 | 102 | cross v0.2.0c+0b: snapshot + revert + permission audit |

@@ -2828,6 +2828,120 @@ If past tasks have `output-paths` pointing at files that no longer exist (refact
 
 ---
 
+## Lazy-Load Profile (v0.2.3)
+
+DTD's full spec is large (`instructions.md` always-loaded + `dtd.md`
+slash-command source + `.dtd/reference/` lazy reference). When the
+controller is doing simple work (status check, planning), it doesn't
+need the full run-loop / dispatch / recovery surface in active focus.
+
+The lazy-load profile is a **controller-side cognitive scoping hint**.
+Host LLMs still receive the full auto-loaded text in their raw context
+(load/unload at the host layer is host-specific). What changes is which
+sections the controller logically treats as "active" for the current
+turn.
+
+### Profiles
+
+| Profile | When | Focus |
+|---|---|---|
+| `minimal` | `mode: off` OR no active plan | TL;DR + intent gate + status/doctor only |
+| `planning` | `plan_status: DRAFT \| APPROVED` | + NL routing + plan/approve commands + worker registry |
+| `running` | `plan_status: RUNNING \| PAUSED` | + run loop + dispatch + autonomy + context patterns |
+| `recovery` | `pending_patch: true` OR `active_blocking_incident_id` non-null | + incident commands + recovery surface |
+
+`recovery` is a **superset** of `running`. Higher profiles include all
+sections from lower profiles. The order is `minimal ⊂ planning ⊂ running
+⊂ recovery`.
+
+### Profile resolution
+
+Per-turn protocol step 1.5 (after reading `state.md`, before Intent Gate):
+
+```
+1. Read state.md fields: mode, plan_status, pending_patch,
+   active_blocking_incident_id.
+2. Apply resolution rules:
+   - If mode != dtd OR active_plan == null: minimal
+   - Elif active_blocking_incident_id != null OR pending_patch: recovery
+   - Elif plan_status in [RUNNING, PAUSED]: running
+   - Elif plan_status in [DRAFT, APPROVED]: planning
+   - Else: minimal
+3. Compare to state.md.loaded_profile. If different:
+   - Update state.md.loaded_profile, loaded_profile_set_at,
+     loaded_profile_reason atomically (next turn boundary).
+   - If config.load-profile.profile_transition_logging: true,
+     append a one-line steering.md entry: "loaded_profile: <old> → <new>
+     reason: <reason>".
+4. Use the new profile's section set (from config.load-profile.profile_sections)
+   as the controller's "active" cognitive scope for this turn.
+```
+
+### Section coverage
+
+Each profile maps to a set of `instructions.md` / `dtd.md` /
+`.dtd/reference/` sections per `config.md.load-profile.profile_sections`.
+See config.md for the canonical mapping.
+
+Sections NOT in the active set are still in raw context but treated as
+**inactive**: the controller doesn't apply their rules for this turn.
+Example: in `minimal` profile, the dispatch error matrix is inactive
+(no run is happening, no dispatches to handle).
+
+### Aggressive unload (advanced; off by default)
+
+If `config.load-profile.aggressive_unload: true` AND the host supports
+runtime context eviction (e.g., MCP-style dynamic tool registration),
+the controller may EVICT inactive sections from active context entirely.
+Default `false` because most hosts don't support this; enabling it
+without host support causes no harm but no benefit.
+
+### Profile boundaries
+
+Profile transitions happen at turn boundaries, never mid-task. If a
+worker dispatch is in flight when state changes (e.g., incident fires
+mid-task), the profile updates at the next turn's per-turn protocol
+step 1.5. Mid-task incident handling uses the current profile's
+section set.
+
+### Doctor checks
+
+Per `/dtd doctor`:
+
+- `state.md.loaded_profile` is one of `minimal|planning|running|recovery`;
+  ELSE ERROR `loaded_profile_invalid`.
+- `loaded_profile` matches resolution rules given current state.md
+  (computed by doctor from mode/plan_status/pending_patch/incident);
+  ELSE WARN `loaded_profile_drift` recommending `/dtd doctor --refresh-profile`.
+- `config.load-profile.profile_sections` has all 4 keys
+  (minimal/planning/running/recovery); ELSE ERROR
+  `profile_sections_incomplete`.
+- `aggressive_unload: true` when host doesn't support dynamic eviction
+  (heuristic: host_mode == plan-only); ELSE INFO
+  `aggressive_unload_unsupported`.
+
+### Token economy impact
+
+For long-running silent runs (v0.2.0f), the lazy-load profile reduces
+the controller's effective per-turn cognitive load by ~30-50% during
+`minimal`/`planning` turns, because the controller doesn't have to
+re-process recovery/dispatch logic that doesn't apply.
+
+This complements the `/dtd perf` controller-usage ledger (v0.2.0f
+follow-up) — perf measures actual token usage; lazy-load profile
+helps reduce it.
+
+### NL routing
+
+| Phrase | Canonical |
+|---|---|
+| `"프로파일 보여줘"` / `"profile"` | `/dtd status --profile` (observational; v0.2.3) |
+| `"프로파일 새로고침"` / `"refresh profile"` | `/dtd doctor --refresh-profile` (recompute from state) |
+
+(Localized phrases via locale packs per v0.2.0e.)
+
+---
+
 ## v0.1.1 / v0.2 Roadmap (declared, not implemented)
 
 These are designed-in but explicitly deferred. v0.1 has hooks in place; full

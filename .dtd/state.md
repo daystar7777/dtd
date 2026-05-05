@@ -9,6 +9,20 @@
 - mode: off                       # off | dtd
 - last_mode_change: 2026-05-04 23:00
 
+## Lazy-load profile (v0.2.3)
+
+# Controller-side hint for which instructions.md / dtd.md sections are
+# logically "active" this turn. Reduces cognitive load: host still has
+# full instructions in context, but controller focuses on profile-matched
+# sections.
+#
+# Profile is resolved at per-turn protocol step 1.5 (after reading state.md,
+# before intent gate). See dtd.md §Lazy-Load Profile.
+
+- loaded_profile: minimal          # minimal | planning | running | recovery
+- loaded_profile_set_at: null      # timestamp; debug aid for profile transitions
+- loaded_profile_reason: null      # null | mode_off | no_plan | draft_or_approved | running_or_paused | active_blocker | pending_patch
+
 ## Self-Update state (v0.2.0d)
 
 # /dtd update flow tracking. See dtd.md §/dtd update.
