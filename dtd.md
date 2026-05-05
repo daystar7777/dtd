@@ -1410,128 +1410,40 @@ Natural-language steering examples:
 
 ## Persona, Reasoning, and Tool-Use Patterns (v0.2.0f Codex R0 addendum)
 
-These controls sit beside `context-pattern`. They are selected by the
-controller during planning and resolved before each worker dispatch. They are
-short behavioral stances and execution utilities, not long role-play prompts.
+> **v0.2.3 R1 extraction**: full canonical spec for this section moved to
+> `.dtd/reference/persona-reasoning-tools.md`. Lazy-loaded via
+> `/dtd help persona-reasoning-tools --full`. The summary below documents
+> what the topic covers; see the reference file for the full pattern set,
+> resolution rules, prompt-injection contract, and tool-runtime contracts.
 
-Load policy:
+These controls sit beside `context-pattern`. Selected by the controller
+during planning and resolved before each worker dispatch. Short
+behavioral stances + execution utilities, not long role-play prompts.
 
-- Always-loaded `.dtd/instructions.md` keeps only the router, reset contract,
-  and safety rules for these controls.
-- This detailed catalog lives in `dtd.md` and is loaded only when planning,
-  changing, explaining, or doctor-checking persona/reasoning/tool behavior.
-- Worker prompts receive only the resolved compact capsule, not this catalog.
+Three pattern surfaces:
 
-Design constraints:
+- **Personas** (7): `operator`, `planner`, `researcher`, `implementer`,
+  `debugger`, `reviewer`, `release_guard`. Compact stance ≤120 words;
+  NEVER overrides security/permission/destructive rules.
+- **Reasoning utilities** (7): `direct`, `least_to_most`, `react`,
+  `tool_critic`, `self_refine`, `tree_search`, `reflexion`. Hidden CoT
+  allowed; persist ONLY decision/evidence_refs/risks/next_action +
+  ≤5 line summary.
+- **Tool runtime** (4 modes): `none`, `controller_relay` (default),
+  `worker_native`, `hybrid`. controller_relay: worker emits
+  `::tool_request::`, controller validates + runs + logs sanitized
+  output; mutating writes still go through `===FILE: <path>===`
+  pipeline. worker_native requires registry `tool_runtime: worker_native|
+  hybrid` + `native_tool_sandbox: true`.
 
-- Persona text is a compact stance line, not biography or decorative role-play.
-- Persona can NEVER override security, permission profiles, path policy,
-  destructive confirmation, secret redaction, or user decisions.
-- Do not request, reveal, or store raw chain-of-thought. Use private reasoning
-  internally and persist only concise rationale, decision, evidence, and
-  next-action summaries.
-- Tool use is explicit. Workers either use a trusted native tool runtime, or
-  ask the controller for a validated relay between dispatches.
+Plan XML optional attributes on `<phase>` / `<task>`: `persona`,
+`reasoning-utility`, `tool-runtime`. Resolution: task → phase →
+capability default → context-pattern default → global default.
 
-### Persona patterns
-
-Default pattern set:
-
-| id | Best phase/task | Controller stance | Worker stance |
-|---|---|---|---|
-| `operator` | run orchestration, silent mode | keep progress, surface blockers tersely | follow exact scope, report only deltas |
-| `planner` | phase 0, decomposition | make dependencies and decision points explicit | produce options and tradeoffs |
-| `researcher` | unknown codebase, external references | ask what evidence is missing | gather facts, cite refs, avoid edits |
-| `implementer` | code-write/refactor | minimize blast radius | patch the declared outputs cleanly |
-| `debugger` | failing task/retry/incident | isolate repro and smallest fix path | use evidence, logs, and hypotheses |
-| `reviewer` | review/verification | look for correctness and UX regressions | report findings, not broad rewrites |
-| `release_guard` | final phase/ship check | verify docs/tests/state consistency | check acceptance criteria and risks |
-
-Resolution order:
-
-1. Task `persona="<id>"`.
-2. Phase `persona="<id>"`.
-3. Capability default in `.dtd/config.md`.
-4. Context pattern default (e.g. `debug` -> `debugger`).
-5. Global default (`operator` for controller, `implementer` for workers).
-
-Plan XML attributes are optional and back-compatible:
-
-```xml
-<phase id="1" name="architecture" context-pattern="explore"
-       persona="planner" reasoning-utility="least_to_most">
-  <task id="1.1" persona="researcher" reasoning-utility="react"
-        tool-runtime="controller_relay">
-    ...
-  </task>
-</phase>
-```
-
-Prompt injection rule:
-
-- Add a compact `<persona>` capsule inside the task-specific section:
-  `controller=<id>; worker=<id>; stance="<one sentence>"`.
-- Keep it under 120 words total.
-- Do not add demographic, fictional, or irrelevant traits. If a requested
-  persona contains irrelevant traits, strip them and keep only domain stance.
-
-### Reasoning utilities
-
-Default utility set:
-
-| id | Best use | Behavior |
-|---|---|---|
-| `direct` | simple code-write, safe refactor | concise plan, execute, summarize |
-| `least_to_most` | complex phase planning | split into ordered subproblems first |
-| `react` | research/tool-heavy tasks | alternate plan/action/observation summaries |
-| `tool_critic` | verification, bug hunting | use external checks, then revise |
-| `self_refine` | writing/docs/UI polish | draft, critique, refine within budget |
-| `tree_search` | architecture/UX alternatives | sample small option set, choose with rubric |
-| `reflexion` | repeated failure | store one compact lesson for next retry |
-
-Reasoning output contract:
-
-- Hidden/private reasoning may be used by the model, but DTD persists only:
-  `decision`, `evidence_refs`, `risks`, `next_action`, and at most 5 lines of
-  rationale summary.
-- For `tree_search` and `self_consistency`-style sampling, store option ids and
-  final rubric scores, not raw candidate chains.
-- `reflexion` writes a compact lesson to notepad/attempt history only after a
-  concrete external signal (test failure, reviewer finding, incident, or user
-  correction). No free-floating self-talk.
-
-### Tool-use runtime policy
-
-Workers have four tool modes:
-
-| mode | Meaning | Default |
-|---|---|---|
-| `none` | worker cannot call tools | safe fallback |
-| `controller_relay` | worker emits a structured tool request; controller validates and runs it between dispatches | default |
-| `worker_native` | worker engine has its own sandboxed tools | opt-in only |
-| `hybrid` | worker-native for read-only tools, controller relay for writes | advanced |
-
-Controller relay contract:
-
-1. Worker returns `::tool_request::` as the terminal status instead of claiming
-   it ran the tool.
-2. Controller validates requested command/API against permission profile,
-   resource locks, path policy, network policy, and tool allowlist.
-3. Controller executes the tool outside the worker transcript, saves full
-   sanitized output to `.dtd/log/tool-<run>-task-<id>-<seq>.md`, and passes only
-   a compact result summary + log ref into the next fresh worker dispatch.
-4. Mutating file writes still go through `===FILE: <path>===` blocks and the
-   controller apply pipeline. Relay tools do not bypass validation/apply.
-
-Worker-native contract:
-
-- Allowed only when the engine exposes a trusted sandbox boundary and DTD can
-  record `tool_runtime: worker_native` in `state.md`.
-- Worker registry must explicitly set `tool_runtime: worker_native` (or
-  `hybrid`) and `native_tool_sandbox: true`; otherwise resolve back to
-  `controller_relay` or block with `PERMISSION_REQUIRED`.
-- Worker returns a compact tool transcript summary and durable log refs.
-- The controller still validates final output paths before apply.
+For full pattern tables (controller/worker stances, capability
+defaults, mode descriptions), prompt-injection rules, output
+contracts, and the controller-relay / worker-native contracts, see
+`.dtd/reference/persona-reasoning-tools.md`.
 
 ---
 
